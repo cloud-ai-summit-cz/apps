@@ -167,9 +167,9 @@ class ToyRepository:
                     item[key] = value
 
             # Update timestamp
-            from datetime import datetime
+            from datetime import datetime, UTC
 
-            item["updated_at"] = datetime.utcnow().isoformat() + "Z"
+            item["updated_at"] = datetime.now(UTC).isoformat()
 
             # Replace item
             updated_item = container.replace_item(item=item, body=item)

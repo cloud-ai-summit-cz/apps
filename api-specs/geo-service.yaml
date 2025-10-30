@@ -1,0 +1,140 @@
+openapi: 3.0.3
+info:
+  title: Geo Service API
+  version: 0.1.0
+  description: |
+    Geo Location & Live Stream service for accepting periodic location pings, 
+    managing public share flag, and streaming location via WebSocket.
+    
+    **Status:** Planned - Not yet implemented
+    
+    **Authentication:** All endpoints require Bearer JWT token from Entra ID.
+    
+    **Authorization:**
+    - Start/end tracking session: User must own toy
+    - Subscribe to location stream: Token validated at connect
+  contact:
+    name: API Support
+  license:
+    name: MIT
+
+servers:
+  - url: https://api.toytripplatform.com/v1
+    description: Production
+  - url: https://api-dev.toytripplatform.com/v1
+    description: Development
+  - url: http://localhost:8003
+    description: Local Development
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Geo
+    description: Live location tracking
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    GeoSession:
+      type: object
+      description: Geo tracking session (schema to be defined)
+      
+    GeoSessionStart:
+      type: object
+      description: Start tracking session request (schema to be defined)
+      
+    LocationUpdate:
+      type: object
+      description: Location update event (schema to be defined)
+
+paths:
+  /geo/session/start:
+    post:
+      tags:
+        - Geo
+      summary: Start live tracking session
+      description: |
+        Start a live location tracking session for a toy. User must own the toy.
+        
+        **Status:** Planned
+      operationId: startGeoSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GeoSessionStart'
+      responses:
+        '201':
+          description: Session started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeoSession'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+
+  /geo/session/end:
+    post:
+      tags:
+        - Geo
+      summary: End live tracking session
+      description: |
+        End a live location tracking session. User must own the toy.
+        
+        **Status:** Planned
+      operationId: endGeoSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                session_id:
+                  type: string
+                  format: uuid
+      responses:
+        '204':
+          description: Session ended
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not found
+
+  /geo/location/{trip_id}/stream:
+    get:
+      tags:
+        - Geo
+      summary: Live location stream (WebSocket)
+      description: |
+        WebSocket endpoint for streaming live location updates (1s intervals) 
+        and live image frames (30s intervals).
+        
+        **Status:** Planned
+        **Protocol:** WebSocket
+      operationId: streamLocation
+      parameters:
+        - name: trip_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '101':
+          description: Switching Protocols (WebSocket)
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found

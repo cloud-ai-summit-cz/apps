@@ -1,8 +1,8 @@
 """Data models for the toy service."""
-from datetime import datetime
+from datetime import datetime, UTC
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, field_serializer
 
 
 class ToyBase(BaseModel):
@@ -36,19 +36,22 @@ class ToyUpdate(BaseModel):
 class Toy(ToyBase):
     """Complete toy model with all fields."""
 
-    model_config = ConfigDict(
-        json_encoders={
-            UUID: str,
-            datetime: lambda v: v.isoformat() + "Z" if v else None,
-        }
-    )
-
     id: UUID = Field(default_factory=uuid4, description="Unique toy identifier")
     owner_oid: str = Field(..., description="Entra object ID of the owner")
     avatar_blob_name: str | None = Field(None, description="Internal blob storage reference")
     has_avatar: bool = Field(False, description="Indicates if toy has an avatar image")
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="Registration timestamp")
-    updated_at: datetime = Field(default_factory=datetime.utcnow, description="Last modification timestamp")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), description="Registration timestamp")
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC), description="Last modification timestamp")
+
+    @field_serializer('id')
+    def serialize_id(self, value: UUID) -> str:
+        """Serialize UUID to string."""
+        return str(value)
+
+    @field_serializer('created_at', 'updated_at')
+    def serialize_datetime(self, value: datetime) -> str:
+        """Serialize datetime to ISO format."""
+        return value.isoformat() if value else None
 
 
 class ToyDocument(Toy):
@@ -56,21 +59,47 @@ class ToyDocument(Toy):
 
     model_config = ConfigDict(
         populate_by_name=True,
-        json_encoders={
-            UUID: str,
-            datetime: lambda v: v.isoformat() + "Z" if v else None,
-        },
     )
 
     # Cosmos DB fields
     toy_id: str = Field(alias="id", description="Partition key (same as id)")
 
+    @field_serializer('toy_id')
+    def serialize_toy_id(self, value: UUID | str) -> str:
+        """Serialize toy_id field to string."""
+        return str(value)
+
+    @field_validator('created_at', 'updated_at', mode='before')
+    @classmethod
+    def parse_datetime(cls, value):
+        """Parse datetime strings from Cosmos DB, handling various formats."""
+        if isinstance(value, str):
+            # Handle strings with Z suffix and timezone offset (invalid format from old data)
+            if value.endswith('+00:00Z'):
+                value = value[:-1]  # Remove the 'Z' suffix, keep the timezone offset
+            elif value.endswith('Z'):
+                # Replace Z with +00:00 for proper timezone parsing
+                value = value[:-1] + '+00:00'
+            
+            # Parse the string back to datetime
+            return datetime.fromisoformat(value)
+        return value
+
     @classmethod
     def from_toy(cls, toy: Toy) -> "ToyDocument":
         """Create a Cosmos DB document from a Toy model."""
-        data = toy.model_dump()
-        data["id"] = str(toy.id)  # Convert UUID to string for Pydantic validation
-        data["toy_id"] = str(toy.id)
+        # Extract data without using model_dump to avoid serialization issues
+        data = {
+            "name": toy.name,
+            "description": toy.description,
+            "id": str(toy.id),  # Convert UUID to string
+            "toy_id": str(toy.id),
+            "owner_oid": toy.owner_oid,
+            "avatar_blob_name": toy.avatar_blob_name,
+            "has_avatar": toy.has_avatar,
+            "created_at": toy.created_at,  # Keep as datetime object
+            "updated_at": toy.updated_at,  # Keep as datetime object
+        }
         return cls(**data)
 
     def to_toy(self) -> Toy:

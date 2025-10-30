@@ -160,3 +160,117 @@ Missing `Microsoft.DocumentDB/databaseAccounts/sqlDatabases/*` required for data
 - Avatar upload → database → download → cleanup cycle fully functional
 
 **Design Principle:** Infrastructure provisioning (containers, databases) belongs in Bicep; application code should assume infrastructure exists. This follows separation of concerns and enables proper RBAC (data-plane only permissions for services).
+
+## 2025-10-30 - API Specs Reorganized per Microservice
+
+**Motivation:** Single monolithic `openapi.yaml` doesn't scale well for microservices architecture. Each service should have independent API specification for autonomous evolution.
+
+**Changes:**
+1. **Created service-specific specs:**
+   - `toy-service.yaml` - ✅ Complete implementation-verified spec for toy service
+   - `trip-service.yaml` - ⏳ Placeholder with planned endpoints
+   - `addon-service.yaml` - ⏳ Placeholder with planned endpoints
+   - `geo-service.yaml` - ⏳ Placeholder with planned endpoints (WebSocket noted)
+   - `story-service.yaml` - ⏳ Placeholder with planned endpoints
+   - `agent-service.yaml` - ⏳ Placeholder with planned endpoints
+
+2. **Created shared components:**
+   - `_shared.yaml` - Common schemas (ErrorResponse), security schemes (BearerAuth), parameters (CorrelationId, Limit, Offset), responses (401/403/404/422/409)
+
+3. **Validated toy-service.yaml against implementation:**
+   - Compared with `src/services/toy/routes/toy_routes.py` (all 8 endpoints match)
+   - Verified request/response schemas match `src/services/toy/models/toy.py`
+   - Documented actual behavior: owner_oid auto-set from token, streaming responses for images, Cache-Control headers, 5MB upload limit
+   - Added `owner_oid` query parameter for list endpoint (filter by owner)
+   - Included detailed examples for all operations
+
+4. **Updated README.md:**
+   - Documented new multi-file structure
+   - Added implementation status table with ports
+   - Expanded validation, code generation, testing sections
+   - Added maintenance guidelines: when to update specs, sync requirements, versioning rules
+   - Documented spec-first vs code-first workflows
+   - Noted legacy `openapi.yaml` as deprecated reference
+
+**Architecture Benefits:**
+- **Independent evolution:** Each microservice can version and evolve its API independently
+- **Clear ownership:** Service teams own their specs
+- **Reduced conflicts:** No merge conflicts on single monolithic spec file
+- **Better navigation:** Easy to find relevant endpoints per service
+- **Code generation:** Generate service-specific clients/stubs
+
+**Design Decision:** Used `_shared.yaml` prefix (underscore) to distinguish shared components from service specs. Services can reference shared components if needed (though currently self-contained for simplicity).
+
+**Next Steps:** As other services are implemented, complete their placeholder specs with full schemas, examples, and validation against actual code.
+
+## 2025-10-30 - Fixed Pydantic Deprecation Warnings
+
+**Problem:** Tests were showing multiple deprecation warnings from Pydantic v2.x:
+1. **`json_encoders` deprecation:** Warning that `json_encoders` config option is deprecated in favor of custom field serializers
+2. **`datetime.utcnow()` deprecation:** Python 3.12+ deprecated `datetime.utcnow()` in favor of `datetime.now(UTC)`
+
+**Root Cause Analysis:**
+- **json_encoders issue:** `models/toy.py` was using deprecated `ConfigDict(json_encoders={UUID: str, datetime: lambda v: v.isoformat() + "Z"})` syntax
+- **datetime.utcnow() issue:** Both `models/toy.py` default factories and `repositories/toy_repository.py` update logic were using deprecated `datetime.utcnow()`
+- **Datetime serialization conflict:** Field serializers were creating invalid ISO format strings like `"2025-10-30T13:57:53.397544+00:00Z"` (both timezone offset AND Z suffix)
+
+**Solution:**
+1. **Replaced json_encoders with field_serializer decorators:**
+   ```python
+   @field_serializer('id')
+   def serialize_id(self, value: UUID) -> str:
+       return str(value)
+   
+   @field_serializer('created_at', 'updated_at')
+   def serialize_datetime(self, value: datetime) -> str:
+       return value.isoformat() if value else None
+   ```
+
+2. **Updated datetime creation to use UTC:**
+   ```python
+   # In models: 
+   created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+   
+   # In repository:
+   item["updated_at"] = datetime.now(UTC).isoformat()
+   ```
+
+3. **Added field validator for backward compatibility:**
+   ```python
+   @field_validator('created_at', 'updated_at', mode='before')
+   @classmethod
+   def parse_datetime(cls, value):
+       """Handle various datetime formats from Cosmos DB including legacy Z-suffix formats."""
+       if isinstance(value, str):
+           if value.endswith('+00:00Z'):
+               value = value[:-1]  # Remove invalid Z suffix
+           elif value.endswith('Z'):
+               value = value[:-1] + '+00:00'
+           return datetime.fromisoformat(value)
+       return value
+   ```
+
+4. **Fixed ToyDocument serializer conflicts:**
+   - Removed duplicate serializers for inherited fields
+   - Only `toy_id` gets custom serialization in child class
+   - Parent datetime serializers handle `created_at`/`updated_at`
+
+5. **Updated ToyDocument.from_toy() method:**
+   - Avoid `model_dump()` which triggers serialization
+   - Extract fields directly to preserve datetime objects
+   - Prevents serialization → deserialization round-trip issues
+
+**Testing Results:**
+- ✅ All 7 integration tests pass
+- ✅ No deprecation warnings in test output
+- ✅ Datetime handling works correctly for create/read/update operations
+- ✅ Backward compatibility with existing data in Cosmos DB
+- ✅ Field serializers properly format output for JSON responses
+
+**Technical Details:**
+- **Before:** `datetime.utcnow()` → deprecated, `json_encoders` → deprecated
+- **After:** `datetime.now(UTC)` → modern Python 3.12+, `@field_serializer` → Pydantic v2 best practice
+- **Format change:** Removed invalid `+00:00Z` format, now uses standard `+00:00` timezone offset
+- **Compatibility:** Field validator handles legacy data with Z suffixes
+
+**Impact:** Eliminated all deprecation warnings while maintaining full functionality and backward compatibility. Code now follows modern Python and Pydantic best practices.

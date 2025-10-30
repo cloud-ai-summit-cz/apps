@@ -23,6 +23,7 @@ This directory contains all technical and project documentation following a spec
 - **[IMPLEMENTATION.md](IMPLEMENTATION.md)** - High-level implementation plan and detailed task checklist
 - **[IMPLEMENTATION_LOG.md](IMPLEMENTATION_LOG.md)** - Development journal with progress notes and decisions (maintained by agents)
 - **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common errors, issues faced, and solutions (updated after confirmation)
+- **[COMMON_ERRORS.md](COMMON_ERRORS.md)** - Quick reference for frequent development issues and fixes
 
 ## Document Usage Guidelines
 
@@ -30,8 +31,9 @@ This directory contains all technical and project documentation following a spec
 1. Start with **REQUIREMENTS.md** to understand what we're building
 2. Review **DESIGN.md** for architectural context
 3. Consult specific technical docs (DATA_MODELS, API_REFERENCE) as needed
-4. Check **TROUBLESHOOTING.md** when encountering issues
-5. Track progress in **IMPLEMENTATION.md** and log decisions in **IMPLEMENTATION_LOG.md**
+4. Check **COMMON_ERRORS.md** for quick solutions to frequent issues
+5. Consult **TROUBLESHOOTING.md** for more detailed problem resolution
+6. Track progress in **IMPLEMENTATION.md** and log decisions in **IMPLEMENTATION_LOG.md**
 
 ### For AI Agents
 See root-level `AGENTS.md` for detailed instructions on when and how to update each document.
@@ -39,7 +41,7 @@ See root-level `AGENTS.md` for detailed instructions on when and how to update e
 ## Document Maintenance
 
 - **User-controlled**: REQUIREMENTS, DESIGN, DATA_MODELS, API_REFERENCE, OBSERVABILITY, TESTING, DEPLOYMENT, IMPLEMENTATION
-- **Agent-maintained**: IMPLEMENTATION_LOG (freely updated with progress)
+- **Agent-maintained**: IMPLEMENTATION_LOG (freely updated with progress), COMMON_ERRORS (agents can update with confirmed patterns)
 - **Collaborative**: TROUBLESHOOTING (agents suggest, user confirms before adding)
 
 ## Navigation
