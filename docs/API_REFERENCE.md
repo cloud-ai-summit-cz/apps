@@ -9,6 +9,12 @@ Validation criteria:
 * Scope (`scp`) includes `App.Access` OR `roles` includes one of declared roles
 * Unexpired (`exp`) & not before (`nbf`) within skew window
 
+**Blob Storage Access:**
+* Private endpoints with Entra authentication enforced (enterprise policy)
+* No SAS tokens or public blob URLs
+* Services use managed identity for blob operations
+* Images served through service proxy endpoints with streaming responses
+
 Error Responses:
 * 401 Unauthorized – missing/invalid token
 * 403 Forbidden – token valid but insufficient permission (e.g., ordering for non-owned toy)
@@ -16,15 +22,21 @@ Error Responses:
 ## 2. Common Headers
 `Authorization: Bearer <token>` – required
 `X-Correlation-Id` – optional client-provided trace identifier (UUID)
+`Content-Type: multipart/form-data` – required for image upload endpoints
 
 ## 3. Endpoints (Skeleton)
 
 ### 3.1 Toy Service (`/toy`)
 | Method | Path | Description | Auth | Notes |
 |--------|------|-------------|------|-------|
-| POST | /toy | Register new toy | User | `owner_oid` taken from principal |
-| GET | /toy/{toy_id} | Get toy detail | User/System | Global read allowed |
-| GET | /toy | List all toys | User/System | Pagination required |
+| POST | /toy | Register new toy | User | `owner_oid` taken from principal; name required |
+| GET | /toy/{toy_id} | Get toy detail | User/System | Global read allowed; does not include avatar image data |
+| GET | /toy | List all toys | User/System | Pagination required; filterable by owner_oid |
+| PATCH | /toy/{toy_id} | Update toy | User | Owner only; partial update |
+| DELETE | /toy/{toy_id} | Delete toy | User | Owner only; may fail if dependencies exist |
+| POST | /toy/{toy_id}/avatar | Upload avatar image | User | Owner only; multipart/form-data; max 5MB |
+| GET | /toy/{toy_id}/avatar | Get avatar image | User/System | Global read; streams image from blob storage |
+| DELETE | /toy/{toy_id}/avatar | Delete avatar image | User | Owner only; removes blob reference |
 
 ### 3.2 Trip Service (`/trip`)
 | Method | Path | Description | Auth | Notes |

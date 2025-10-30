@@ -11,8 +11,9 @@ param publicNetworkAccess string = 'Enabled'
 // Consistency level hardcoded to Session (can be changed later if needed)
 
 var cosmosAccountName = 'cos${baseNameNoDash}'
-var cosmosDatabaseName = 'db${baseNameNoDash}'
-var cosmosContainerName = 'c${baseNameNoDash}'
+// Database and container names must match what application expects in .env
+var cosmosDatabaseName = 'toytripcompany'
+var cosmosContainerName = 'toys'
 
 resource account 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
   name: cosmosAccountName
@@ -38,6 +39,7 @@ resource account 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
   }
 }
 
+// Create database via control plane (SDK cannot create DB due to disableKeyBasedMetadataWriteAccess)
 resource db 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-11-15' = {
   parent: account
   name: cosmosDatabaseName
@@ -49,6 +51,7 @@ resource db 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-11-15' = {
   }
 }
 
+// Create container via control plane (SDK cannot create containers due to disableKeyBasedMetadataWriteAccess)
 resource container 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-11-15' = {
   parent: db
   name: cosmosContainerName
@@ -56,7 +59,7 @@ resource container 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/container
     resource: {
       id: cosmosContainerName
       partitionKey: {
-        paths: ['/pk']
+        paths: ['/toy_id']
         kind: 'Hash'
       }
     }
@@ -68,6 +71,8 @@ resource container 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/container
 output cosmosAccountId string = account.id
 @description('Cosmos SQL database resource ID.')
 output cosmosDatabaseId string = db.id
+@description('Cosmos container resource ID.')
+output cosmosContainerId string = container.id
 @description('Cosmos account name used.')
 output cosmosAccountName string = cosmosAccountName
 @description('Cosmos database name used.')

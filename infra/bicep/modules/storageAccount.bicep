@@ -32,6 +32,21 @@ resource sa 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   }
 }
 
+// Blob service (parent for containers)
+resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-01-01' = {
+  parent: sa
+  name: 'default'
+}
+
+// Container for toy avatars
+resource avatarsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-01-01' = {
+  parent: blobService
+  name: 'avatars'
+  properties: {
+    publicAccess: 'None'
+  }
+}
+
 @description('Blob service default child scope useful for data-plane role assignments.')
 output blobDataScope string = '${sa.id}/blobServices/default'
 @description('Full storage account resource ID.')

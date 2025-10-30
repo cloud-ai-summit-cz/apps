@@ -1,7 +1,7 @@
 @description('Name of the Cosmos DB account for which to assign roles.')
 param cosmosAccountName string
 
-@description('Array of Cosmos data-plane role assignment objects: { principalObjectId: string, roleDefinitionId?: string, scope?: string }')
+@description('Array of Cosmos data-plane role assignment objects: { principalObjectId: string, roleDefinitionId?: string, roleName?: string, scope?: string }')
 param assignments array
 
 @description('Built-in Cosmos DB data-plane role definition IDs.')

@@ -31,7 +31,36 @@ Represents an authenticated caller.
 ## 2. Domain Model Adjustments
 
 ### 2.1 Toy
-Add `owner_oid: string` (immutable except ownership transfer feature – future). Used to authorize create trip, order add-on, live geo actions.
+Represents a registered toy that can participate in trips.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| id | string (UUID) | Yes | Unique toy identifier (system-generated) |
+| owner_oid | string | Yes | Entra object ID of the owner (immutable except ownership transfer - future) |
+| name | string | Yes | Display name of the toy (max 100 chars) |
+| description | string | No | Toy description/backstory (max 500 chars) |
+| avatar_blob_name | string | No | Internal blob storage reference (e.g., "avatars/{uuid}.jpg"); not exposed directly to clients |
+| created_at | datetime | Yes | Registration timestamp |
+| updated_at | datetime | Yes | Last modification timestamp |
+
+**Validation Rules:**
+* `name`: Required, 1-100 characters, trimmed
+* `description`: Optional, max 500 characters
+* `avatar_blob_name`: Internal reference only; blob storage accessed via managed identity through proxy endpoints
+* `owner_oid`: Immutable after creation, used for authorization chain (trip creation, add-ons, geo sessions)
+
+**Image Handling:**
+* **Storage:** Avatar images stored in blob storage `avatars` container with private endpoint + Entra auth
+* **Access:** Clients retrieve images via `GET /toy/{id}/avatar` endpoint (not direct blob URLs)
+* **Upload:** Clients upload via `POST /toy/{id}/avatar` endpoint with multipart/form-data
+* **Security:** No SAS tokens or public blob access; service uses managed identity for blob operations
+
+**Authorization:**
+* Create: Any authenticated user (becomes owner)
+* Read: Global (any authenticated user/system)
+* Update/Delete: Owner only (validated via token oid == toy.owner_oid)
+* Avatar upload: Owner only
+* Avatar read: Global (any authenticated user/system)
 
 ### 2.2 Add-On Order
 Implicitly links to trip and toy; authorization uses trip → toy → owner_oid chain.

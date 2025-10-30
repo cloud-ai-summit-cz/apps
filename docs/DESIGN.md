@@ -32,13 +32,28 @@ Accessories: hat, outfit, souvenir prop. Experiences: dinner, beer at festival, 
 * Event usage currently abstracted; schema definitions pending.
 
 ## 5. Data Storage Strategy
-Cosmos DB logical containers (indicative):
+
+### 5.1 Cosmos DB
+Logical containers (indicative):
 * toys – partition by toy_id
 * trips – partition by trip_id (embed legs & gallery metadata)
 * addons – partition by addon_order_id
 * stories – partition by trip_id/date composite or trip_id
 * locations – partition by trip_id or date bucket (time-series)
 Partition Rationale: locality for trip operations; independent scaling for location ingestion; distinct containers for operational vs historical narrative.
+
+### 5.2 Blob Storage (Images)
+**Access Pattern:** Private endpoints with Entra authentication required (enterprise policy).
+* **Avatar images:** Stored in `avatars` container, accessed via toy service proxy using managed identity
+* **Gallery images:** Stored in `gallery` container, accessed via trip service proxy using managed identity
+* **Add-on fulfillment images:** Stored in `addons` container, accessed via addon service proxy using managed identity
+
+**No SAS tokens or public blob URLs permitted.** Services store internal blob references (container + blob name) in database fields and serve images through authenticated proxy endpoints. Frontend requests images from service endpoints (e.g., `GET /toy/{id}/avatar`), which stream content from blob storage using managed identity.
+
+**Performance considerations:**
+* Services implement streaming responses to avoid memory bloat
+* Cache-Control headers enable browser/CDN caching
+* Future: Azure CDN Premium with Private Link origin if needed
 
 ## 6. Observability & Telemetry
 Instrumentation:
@@ -56,8 +71,9 @@ Karpenter:
 * Node labels/taints isolate demo workloads from core services.
 
 ## 8. Security & Identity
-* Managed identity per service for Cosmos DB, Service Bus, Key Vault secret access.
-* APIM enforces rate limits (trip creation, addon order, chat tools).
+* Managed identity per service for Cosmos DB, Service Bus, Key Vault secret access, **and Blob Storage access**.
+* **Blob Storage:** Private endpoints with Entra authentication enforced; no SAS tokens or anonymous access permitted (enterprise policy).
+* APIM enforces rate limits (trip creation, addon order, chat tools, **image uploads**).
 * Public sharing disabled by default; explicit toggle sets location visibility scope.
 * Secrets: AI image generation credentials in Key Vault; environment references via managed identity.
 

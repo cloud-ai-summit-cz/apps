@@ -1,0 +1,652 @@
+openapi: 3.0.3
+info:
+  title: Toy Trip Platform API
+  version: 1.0.0
+  description: |
+    API for managing toys, trips, add-ons, geo-tracking, and story generation.
+    
+    **Authentication:** All endpoints require Bearer JWT token from Entra ID.
+    
+    **Authorization:**
+    - User tokens must include scope `App.Access` or appropriate role
+    - System tokens must include role `System.Service`
+  contact:
+    name: API Support
+  license:
+    name: MIT
+
+servers:
+  - url: https://api.toytripplatform.com/v1
+    description: Production
+  - url: https://api-dev.toytripplatform.com/v1
+    description: Development
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Toy
+    description: Toy registration and management
+  - name: Trip
+    description: Trip creation and tracking
+  - name: Add-On
+    description: Accessory and experience orders
+  - name: Geo
+    description: Live location tracking
+  - name: Story
+    description: AI-generated trip stories
+  - name: Agent
+    description: Chat orchestration
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Entra ID JWT token with:
+        - Issuer: `https://login.microsoftonline.com/{tenant_id}/v2.0`
+        - Audience: Application ID URI (e.g., `api://<app_id>`)
+        - Scope: `App.Access` or Role: `System.Service`
+
+  schemas:
+    Toy:
+      type: object
+      required:
+        - id
+        - owner_oid
+        - name
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique toy identifier (system-generated)
+          example: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        owner_oid:
+          type: string
+          description: Entra object ID of the owner (immutable)
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Display name of the toy
+          example: "Teddy"
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+          description: Toy description or backstory
+          example: "A well-traveled brown teddy bear"
+        has_avatar:
+          type: boolean
+          description: Indicates if toy has an avatar image (retrieve via GET /toy/{id}/avatar)
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          description: Registration timestamp
+          example: "2025-01-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Last modification timestamp
+          example: "2025-01-15T10:30:00Z"
+
+    ToyCreateRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Display name of the toy
+          example: "Teddy"
+        description:
+          type: string
+          maxLength: 500
+          description: Toy description or backstory
+          example: "A well-traveled brown teddy bear"
+
+    ToyUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Display name of the toy
+          example: "Teddy the Explorer"
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+          description: Toy description or backstory
+          example: "Updated backstory"
+
+    ToyListResponse:
+      type: object
+      required:
+        - items
+        - total
+        - limit
+        - offset
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Toy'
+        total:
+          type: integer
+          description: Total number of toys matching the filter
+          example: 42
+        limit:
+          type: integer
+          description: Number of items per page
+          example: 20
+        offset:
+          type: integer
+          description: Starting position in the result set
+          example: 0
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              enum:
+                - UNAUTHORIZED
+                - FORBIDDEN
+                - VALIDATION_ERROR
+                - NOT_FOUND
+                - CONFLICT
+                - INTERNAL_ERROR
+              description: Machine-readable error code
+              example: "FORBIDDEN"
+            message:
+              type: string
+              description: Human-readable error message
+              example: "You do not have permission to modify this toy"
+            correlation_id:
+              type: string
+              format: uuid
+              description: Trace identifier for debugging
+              example: "7b8c9d0e-1f2a-3b4c-5d6e-7f8a9b0c1d2e"
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                    example: "name"
+                  issue:
+                    type: string
+                    example: "Field is required"
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid authentication token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: "UNAUTHORIZED"
+              message: "Authentication token is missing or invalid"
+
+    Forbidden:
+      description: Authenticated but insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: "FORBIDDEN"
+              message: "You do not have permission to perform this action"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: "NOT_FOUND"
+              message: "Toy not found"
+
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: "VALIDATION_ERROR"
+              message: "Request validation failed"
+              details:
+                - field: "name"
+                  issue: "Field is required"
+
+    Conflict:
+      description: Operation conflicts with current resource state
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: "CONFLICT"
+              message: "Cannot delete toy with active trips"
+
+  parameters:
+    ToyIdPath:
+      name: toy_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Unique toy identifier
+      example: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+
+    CorrelationIdHeader:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      schema:
+        type: string
+        format: uuid
+      description: Optional client-provided trace identifier
+      example: "7b8c9d0e-1f2a-3b4c-5d6e-7f8a9b0c1d2e"
+
+    LimitQuery:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: Number of items per page
+      example: 20
+
+    OffsetQuery:
+      name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+      description: Starting position in the result set
+      example: 0
+
+paths:
+  /toy:
+    post:
+      tags:
+        - Toy
+      summary: Register new toy
+      description: |
+        Register a new toy. The `owner_oid` is automatically set from the authenticated user's token (`oid` claim).
+        
+        **Authorization:** Any authenticated user (becomes owner)
+      operationId: createToy
+      parameters:
+        - $ref: '#/components/parameters/CorrelationIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ToyCreateRequest'
+            examples:
+              basic:
+                summary: Basic toy registration
+                value:
+                  name: "Teddy"
+              complete:
+                summary: Complete toy with all fields
+                value:
+                  name: "Teddy"
+                  description: "A well-traveled brown teddy bear"
+                  avatar_url: "https://storage.blob.core.windows.net/avatars/teddy.jpg"
+      responses:
+        '201':
+          description: Toy successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Toy'
+              example:
+                id: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                owner_oid: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                name: "Teddy"
+                description: "A well-traveled brown teddy bear"
+                avatar_url: "https://storage.blob.core.windows.net/avatars/teddy.jpg"
+                created_at: "2025-01-15T10:30:00Z"
+                updated_at: "2025-01-15T10:30:00Z"
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    get:
+      tags:
+        - Toy
+      summary: List all toys
+      description: |
+        List all toys with pagination support. Globally readable by any authenticated user or system.
+        
+        **Authorization:** Any authenticated user/system
+      operationId: listToys
+      parameters:
+        - $ref: '#/components/parameters/CorrelationIdHeader'
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/OffsetQuery'
+        - name: owner_oid
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter toys by owner Entra object ID
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      responses:
+        '200':
+          description: List of toys
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToyListResponse'
+              example:
+                items:
+                  - id: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    owner_oid: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                    name: "Teddy"
+                    description: "A well-traveled brown teddy bear"
+                    avatar_url: "https://storage.blob.core.windows.net/avatars/teddy.jpg"
+                    created_at: "2025-01-15T10:30:00Z"
+                    updated_at: "2025-01-15T10:30:00Z"
+                total: 42
+                limit: 20
+                offset: 0
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /toy/{toy_id}:
+    get:
+      tags:
+        - Toy
+      summary: Get toy detail
+      description: |
+        Retrieve details of a specific toy. Globally readable by any authenticated user or system.
+        
+        **Authorization:** Any authenticated user/system
+      operationId: getToy
+      parameters:
+        - $ref: '#/components/parameters/ToyIdPath'
+        - $ref: '#/components/parameters/CorrelationIdHeader'
+      responses:
+        '200':
+          description: Toy details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Toy'
+              example:
+                id: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                owner_oid: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                name: "Teddy"
+                description: "A well-traveled brown teddy bear"
+                avatar_url: "https://storage.blob.core.windows.net/avatars/teddy.jpg"
+                created_at: "2025-01-15T10:30:00Z"
+                updated_at: "2025-01-15T10:30:00Z"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags:
+        - Toy
+      summary: Update toy
+      description: |
+        Update toy details. Only the owner can modify their toy. Partial update supported - only provided fields are updated.
+        
+        **Authorization:** Token `oid` must match `toy.owner_oid`
+      operationId: updateToy
+      parameters:
+        - $ref: '#/components/parameters/ToyIdPath'
+        - $ref: '#/components/parameters/CorrelationIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ToyUpdateRequest'
+            examples:
+              name_only:
+                summary: Update only the name
+                value:
+                  name: "Teddy the Explorer"
+              complete:
+                summary: Update all fields
+                value:
+                  name: "Teddy the Explorer"
+                  description: "Updated backstory from recent adventures"
+      responses:
+        '200':
+          description: Toy successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Toy'
+              example:
+                id: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                owner_oid: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                name: "Teddy the Explorer"
+                description: "Updated backstory from recent adventures"
+                has_avatar: true
+                created_at: "2025-01-15T10:30:00Z"
+                updated_at: "2025-01-20T14:22:00Z"
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Toy
+      summary: Delete toy
+      description: |
+        Permanently delete a toy. Only the owner can delete their toy.
+        
+        **Authorization:** Token `oid` must match `toy.owner_oid`
+        
+        **Note:** Deletion may fail if the toy has active trips or other dependencies. Consider implementing soft-delete if trip/order history preservation is required.
+      operationId: deleteToy
+      parameters:
+        - $ref: '#/components/parameters/ToyIdPath'
+        - $ref: '#/components/parameters/CorrelationIdHeader'
+      responses:
+        '204':
+          description: Toy successfully deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /toy/{toy_id}/avatar:
+    post:
+      tags:
+        - Toy
+      summary: Upload toy avatar image
+      description: |
+        Upload an avatar image for the toy. Only the owner can upload an avatar.
+        
+        **Authorization:** Token `oid` must match `toy.owner_oid`
+        
+        **Constraints:**
+        - Maximum file size: 5MB
+        - Supported formats: JPEG, PNG, WebP
+        - Image stored in private blob storage with Entra authentication
+      operationId: uploadToyAvatar
+      parameters:
+        - $ref: '#/components/parameters/ToyIdPath'
+        - $ref: '#/components/parameters/CorrelationIdHeader'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Avatar image file (JPEG, PNG, or WebP)
+      responses:
+        '200':
+          description: Avatar successfully uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Toy'
+              example:
+                id: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                owner_oid: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                name: "Teddy"
+                description: "A well-traveled brown teddy bear"
+                has_avatar: true
+                created_at: "2025-01-15T10:30:00Z"
+                updated_at: "2025-01-20T15:00:00Z"
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          description: File too large (max 5MB)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: "PAYLOAD_TOO_LARGE"
+                  message: "Avatar image exceeds maximum size of 5MB"
+
+    get:
+      tags:
+        - Toy
+      summary: Get toy avatar image
+      description: |
+        Retrieve the avatar image for a toy. Globally readable by any authenticated user or system.
+        
+        **Authorization:** Any authenticated user/system
+        
+        **Note:** Image is streamed from private blob storage using service managed identity. Response includes Cache-Control headers for efficient caching.
+      operationId: getToyAvatar
+      parameters:
+        - $ref: '#/components/parameters/ToyIdPath'
+        - $ref: '#/components/parameters/CorrelationIdHeader'
+      responses:
+        '200':
+          description: Avatar image
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: "public, max-age=3600"
+              description: Caching directive for the image
+            Content-Type:
+              schema:
+                type: string
+                example: "image/jpeg"
+              description: MIME type of the image
+            Content-Length:
+              schema:
+                type: integer
+                example: 245760
+              description: Size of the image in bytes
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Toy not found or has no avatar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: "NOT_FOUND"
+                  message: "Toy has no avatar image"
+
+    delete:
+      tags:
+        - Toy
+      summary: Delete toy avatar image
+      description: |
+        Delete the avatar image for a toy. Only the owner can delete their toy's avatar.
+        
+        **Authorization:** Token `oid` must match `toy.owner_oid`
+      operationId: deleteToyAvatar
+      parameters:
+        - $ref: '#/components/parameters/ToyIdPath'
+        - $ref: '#/components/parameters/CorrelationIdHeader'
+      responses:
+        '204':
+          description: Avatar successfully deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
