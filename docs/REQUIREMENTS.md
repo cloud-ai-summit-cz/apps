@@ -43,5 +43,24 @@ Single persona: Toy Owner (audience role). Demo simulators (location, media gene
 13. Start Live Session: Owner starts live tracking; WebSocket connection health confirmed.
 14. End Live Session: Owner ends live tracking; stream stops.
 
+15. Authenticate User: Owner must sign in (Entra ID) before accessing any toy/trip/story endpoints.
+16. Authorized Ordering: Owner can only order add-ons for toys they own.
+17. Authorized Live Tracking: Owner can only start/subscribe to live tracking for their own toys.
+
 ## 6. Non‑Functional Requirements
-TBD
+Security & Identity:
+* Token validation latency (cached JWKS) P95 < 5ms
+* Zero static secrets for Azure resource access (Managed Identity / DefaultAzureCredential only)
+* Explicit 401 vs 403 mapping (authentication vs authorization failure)
+* Global read access model (MVP) – revisit for privacy after initial demo
+* Clock skew tolerance ±2 minutes for token time claims
+* Metrics emitted: auth_failures_total, auth_token_validation_duration_ms
+* WebSocket auth refresh guidance (client reconnect before token expiry)
+
+Reliability (Auth Path):
+* JWKS cache resilient to transient fetch failure (fallback to previous keys until expiry)
+* Graceful degradation if role missing: deny action, log structured reason
+
+Compliance / Least Privilege:
+* SystemPrincipal limited to internal service operations & background workflows
+* UserPrincipal cannot invoke fulfillment or batch story compose endpoints

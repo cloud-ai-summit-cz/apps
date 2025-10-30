@@ -61,6 +61,54 @@ Karpenter:
 * Public sharing disabled by default; explicit toggle sets location visibility scope.
 * Secrets: AI image generation credentials in Key Vault; environment references via managed identity.
 
+### 8.1 Identity Sources
+| Principal Type | Origin | Token Characteristics | Typical Usage |
+|----------------|--------|-----------------------|---------------|
+| UserPrincipal | Entra ID interactive (MSAL PKCE) | JWT contains `oid`, `scp` or `roles`, audience = Application ID URI | All synchronous frontend → service REST calls |
+| SystemPrincipal | Workload/Managed Identity (AKS federated service account) | JWT contains `appid` / `azp` (no `oid`), `roles` includes `System.Service` | Background fulfillment, batch story composition, internal service → service calls |
+
+All principals share a common validation pipeline; difference is classification based on claim presence.
+
+### 8.2 Token Validation Flow
+1. Extract `Authorization: Bearer <token>` header.
+2. Decode header, select JWKS key by `kid` (cached; refresh on miss or daily).
+3. Validate signature, issuer (tenant v2 endpoint), audience (configured Application ID URI), time (`exp`, `nbf` with ±2m clock skew allowance).
+4. Extract scopes (`scp`) or roles (`roles`). Require either `App.Access` scope OR one of declared roles (`Toy.ReadWrite`, `System.Service`).
+5. Classify principal: presence of `oid` → UserPrincipal; else presence of `appid`/`azp` with `System.Service` role → SystemPrincipal.
+6. Attach principal + token metadata to request context for downstream permission checks & tracing.
+
+Failure mapping: missing/invalid token → 401; valid token but insufficient permission for the resource → 403.
+
+### 8.3 Permission Matrix (Summary)
+| Action | UserPrincipal | SystemPrincipal |
+|--------|---------------|----------------|
+| Read any toy/trip/gallery/story | Allowed | Allowed |
+| Create trip / order add-on | Allowed only if user owns toy | Allowed |
+| Live geo tracking (start/subscribe) | Only owner of toy | Allowed |
+| Story compose trigger | Not directly (future) | Allowed |
+| Fulfillment posting (media/add-on) | Not allowed | Allowed |
+
+Ownership check uses stored `owner_oid` on `toy` entity vs principal `oid`.
+
+### 8.4 Non-Functional Security Goals
+| Goal | Target |
+|------|--------|
+| Token validation latency (cached JWKS) | <5ms P95 |
+| JWKS cache refresh | 24h or key miss |
+| Zero secrets for Azure SDK access | Enforced (Managed Identity only) |
+| Auth failure metric surfacing | `auth_failures_total{reason}` |
+
+### 8.5 Observability Hooks (Auth)
+Add spans around token validation with attributes: `principal.type`, `principal.oid` (optional/anonymized). Metrics: `auth_token_validation_duration_ms` histogram.
+
+### 8.6 WebSocket Considerations
+Token validated at connection upgrade; session length must not exceed token expiry. Recommend client-side proactive refresh + reconnect when token <5m to expiry.
+
+### 8.7 Future Extensibility
+* Introduce granular roles (e.g., `Toy.ReadAll`, `Trip.WriteOwn`) if global read model changes.
+* On-Behalf-Of flow for background service acting under user context (not required MVP).
+* Potential privacy enhancement: restrict read-all; add access lists per toy.
+
 ## 9. MCP Agent Integration
 The agent service acts as a chat backend that consumes MCP tools exposed by other domain services (or an MCP adapter/gateway). Tools conceptually available to the agent (implemented by respective services or adapters):
 * get_trip_status(trip_id)

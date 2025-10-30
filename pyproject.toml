@@ -1,0 +1,26 @@
+[project]
+name = "stuffed-toy-world-tour"
+version = "0.1.0"
+description = "Stuffed Toy World Tour services and shared libraries"
+authors = ["Team"]
+requires-python = ">=3.11"
+readme = "README.md"
+license = {file = "LICENSE"}
+dependencies = [
+  "fastapi>=0.110.0",
+  "pydantic>=2.4.0",
+  "httpx>=0.25.0",
+  "python-jose[cryptography]>=3.3.0",
+  "cachetools>=5.3.0",
+  "azure-identity>=1.17.0",
+  "azure-core>=1.29.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4.0"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[tool.uv]
+# Placeholder for uv specific settings if needed
