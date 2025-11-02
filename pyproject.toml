@@ -25,5 +25,5 @@ pythonpath = ["src"]
 [tool.uv]
 
 [tool.uv.workspace]
-members = ["tools/identity"]
+members = ["tools/identity", "tools/data/toy-profile-generator"]
 # Placeholder for uv specific settings if needed
