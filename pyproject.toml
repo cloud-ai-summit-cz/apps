@@ -23,4 +23,7 @@ dev = ["pytest>=7.4.0"]
 pythonpath = ["src"]
 
 [tool.uv]
+
+[tool.uv.workspace]
+members = ["tools/identity"]
 # Placeholder for uv specific settings if needed

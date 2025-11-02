@@ -1,10 +1,16 @@
-"""Repository for toy data access in Cosmos DB."""
+"""Repository for toy data access in Cosmos DB.
+
+This module uses the async Azure Cosmos SDK (azure.cosmos.aio) which is designed
+for use with async frameworks like FastAPI. The async SDK provides native async/await
+support without blocking the event loop.
+"""
 import logging
 from typing import Any
 from uuid import UUID
 
-from azure.cosmos import ContainerProxy, CosmosClient, DatabaseProxy, PartitionKey, exceptions
-from azure.identity import DefaultAzureCredential
+from azure.cosmos.aio import ContainerProxy, CosmosClient, DatabaseProxy
+from azure.cosmos import PartitionKey, exceptions
+from azure.identity.aio import DefaultAzureCredential
 
 from models import Toy, ToyDocument
 
@@ -30,7 +36,7 @@ class ToyRepository:
         self._database: DatabaseProxy | None = None
         self._container: ContainerProxy | None = None
 
-    def _ensure_initialized(self) -> ContainerProxy:
+    async def _ensure_initialized(self) -> ContainerProxy:
         """
         Ensure Cosmos client, database, and container are initialized.
 
@@ -40,8 +46,11 @@ class ToyRepository:
         if self._container is not None:
             return self._container
 
-        # Initialize client with managed identity
-        credential = DefaultAzureCredential()
+        # Initialize async client with managed identity
+        # Exclude shared token cache to prevent home tenant confusion in multi-tenant scenarios
+        # Local: Uses Azure CLI (logged in with correct tenant)
+        # AKS: Uses Workload Identity / Managed Identity (federated identity)
+        credential = DefaultAzureCredential(exclude_shared_token_cache_credential=True)
         self._client = CosmosClient(self.cosmos_endpoint, credential=credential)
 
         # Get existing database (created via Bicep)
@@ -67,7 +76,7 @@ class ToyRepository:
         Raises:
             exceptions.CosmosResourceExistsError: If toy with same ID already exists
         """
-        container = self._ensure_initialized()
+        container = await self._ensure_initialized()
         doc = ToyDocument.from_toy(toy)
         item = doc.model_dump(by_alias=False, mode="json")
 
@@ -76,7 +85,7 @@ class ToyRepository:
         item["id"] = str(toy.id)
         item["toy_id"] = str(toy.id)
 
-        created_item = container.create_item(body=item)
+        created_item = await container.create_item(body=item)
         logger.info(f"Created toy: {created_item['id']}")
 
         return ToyDocument(**created_item).to_toy()
@@ -91,11 +100,11 @@ class ToyRepository:
         Returns:
             Toy if found, None otherwise
         """
-        container = self._ensure_initialized()
+        container = await self._ensure_initialized()
         toy_id_str = str(toy_id)
 
         try:
-            item = container.read_item(item=toy_id_str, partition_key=toy_id_str)
+            item = await container.read_item(item=toy_id_str, partition_key=toy_id_str)
             return ToyDocument(**item).to_toy()
         except exceptions.CosmosResourceNotFoundError:
             logger.debug(f"Toy not found: {toy_id_str}")
@@ -113,28 +122,23 @@ class ToyRepository:
         Returns:
             Tuple of (list of toys, total count)
         """
-        container = self._ensure_initialized()
+        container = await self._ensure_initialized()
 
         # Build query
+        # Note: Async client automatically handles cross-partition queries - no enable_cross_partition_query flag needed
         if owner_oid:
             query = "SELECT * FROM c WHERE c.owner_oid = @owner_oid ORDER BY c.created_at DESC"
             parameters = [{"name": "@owner_oid", "value": owner_oid}]
-            items = list(
-                container.query_items(
-                    query=query,
-                    parameters=parameters,
-                    enable_cross_partition_query=True,
-                )
-            )
+            items = [item async for item in container.query_items(
+                query=query,
+                parameters=parameters,
+            )]
         else:
             query = "SELECT * FROM c ORDER BY c.created_at DESC"
-            items = list(
-                container.query_items(
-                    query=query,
-                    enable_cross_partition_query=True,
-                )
-            )
-
+            items = [item async for item in container.query_items(
+                query=query,
+            )]
+        
         total = len(items)
         paginated_items = items[offset : offset + limit]
 
@@ -154,12 +158,12 @@ class ToyRepository:
         Returns:
             Updated Toy if found, None otherwise
         """
-        container = self._ensure_initialized()
+        container = await self._ensure_initialized()
         toy_id_str = str(toy_id)
 
         try:
             # Read current item
-            item = container.read_item(item=toy_id_str, partition_key=toy_id_str)
+            item = await container.read_item(item=toy_id_str, partition_key=toy_id_str)
 
             # Apply updates
             for key, value in updates.items():
@@ -172,9 +176,8 @@ class ToyRepository:
             item["updated_at"] = datetime.now(UTC).isoformat()
 
             # Replace item
-            updated_item = container.replace_item(item=item, body=item)
+            updated_item = await container.replace_item(item=item, body=item)
             logger.info(f"Updated toy: {toy_id_str}")
-
             return ToyDocument(**updated_item).to_toy()
 
         except exceptions.CosmosResourceNotFoundError:
@@ -191,13 +194,26 @@ class ToyRepository:
         Returns:
             True if deleted, False if not found
         """
-        container = self._ensure_initialized()
+        container = await self._ensure_initialized()
         toy_id_str = str(toy_id)
 
         try:
-            container.delete_item(item=toy_id_str, partition_key=toy_id_str)
+            await container.delete_item(item=toy_id_str, partition_key=toy_id_str)
             logger.info(f"Deleted toy: {toy_id_str}")
             return True
         except exceptions.CosmosResourceNotFoundError:
             logger.debug(f"Toy not found for deletion: {toy_id_str}")
             return False
+
+    async def close(self):
+        """Close underlying Cosmos DB client if initialized.
+
+        Safe to call multiple times; logs and suppresses any close errors.
+        """
+        if self._client:
+            try:
+                # Async CosmosClient implements close() to release network resources
+                await self._client.close()
+                logger.info("Cosmos client closed")
+            except Exception as e:
+                logger.warning(f"Failed to close Cosmos client: {e}")

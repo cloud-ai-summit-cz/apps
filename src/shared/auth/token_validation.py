@@ -54,14 +54,24 @@ def validate_token(token: str, tenant_id: str, audience: str) -> AuthContext:
         raise ValueError("JWKS key not found")
 
     # Validate signature & basic claims
+    # Accept both v1 and v2 token issuers
+    valid_issuers = [
+        f"https://login.microsoftonline.com/{tenant_id}/v2.0",  # v2 tokens
+        f"https://sts.windows.net/{tenant_id}/",  # v1 tokens
+    ]
+    
     claims = jwt.decode(
         token,
         key,
         algorithms=[header.get("alg", "RS256")],
         audience=audience,
-        issuer=f"https://login.microsoftonline.com/{tenant_id}/v2.0",
-        options={"verify_aud": True, "verify_iss": True},
+        options={"verify_aud": True, "verify_iss": False},  # We'll verify issuer manually
     )
+    
+    # Manually verify issuer against both v1 and v2 formats
+    token_issuer = claims.get("iss")
+    if token_issuer not in valid_issuers:
+        raise ValueError(f"Invalid issuer: {token_issuer}")
 
     now = datetime.now(timezone.utc)
     exp = datetime.fromtimestamp(claims.get("exp", 0), tz=timezone.utc)

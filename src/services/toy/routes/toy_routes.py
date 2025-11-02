@@ -1,9 +1,9 @@
 """Toy API routes."""
 import logging
-from typing import Annotated
+from typing import Annotated, Callable
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 # Import shared auth module (assuming it's available in Python path)
@@ -13,7 +13,7 @@ from pathlib import Path
 # Add shared module to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "shared"))
 
-from auth.dependencies import get_auth_context, require_owner
+from auth.dependencies import create_auth_dependency, require_owner
 from auth.models import AuthContext
 
 from models import Toy, ToyCreate, ToyUpdate
@@ -27,6 +27,18 @@ router = APIRouter(prefix="/toy", tags=["Toy"])
 # Dependency injection placeholders (will be set in main.py)
 toy_repository: ToyRepository | None = None
 blob_service: BlobService | None = None
+get_auth_context: Callable | None = None
+
+
+def initialize_auth(tenant_id: str, app_id_uri: str):
+    """
+    Initialize auth dependency with service settings.
+    
+    Called from main.py during startup.
+    """
+    global get_auth_context
+    get_auth_context = create_auth_dependency(tenant_id, app_id_uri)
+    logger.info(f"Auth initialized with tenant_id={tenant_id}, audience={app_id_uri}")
 
 
 def get_toy_repo() -> ToyRepository:
@@ -43,11 +55,20 @@ def get_blob_svc() -> BlobService:
     return blob_service
 
 
+# Auth dependency wrapper that uses the initialized function
+def auth_dependency(authorization: str = Header(None)) -> AuthContext:
+    """FastAPI dependency wrapper for auth context."""
+    if get_auth_context is None:
+        raise RuntimeError("Auth not initialized")
+    # Call the initialized auth function
+    return get_auth_context(authorization=authorization)
+
+
 @router.post("", response_model=Toy, status_code=201)
 async def create_toy(
     toy_data: ToyCreate,
-    auth_ctx: Annotated[AuthContext, Depends(get_auth_context)],
-    repo: Annotated[ToyRepository, Depends(get_toy_repo)],
+    auth_ctx: AuthContext = Depends(auth_dependency),
+    repo: ToyRepository = Depends(get_toy_repo),
 ) -> Toy:
     """
     Register a new toy.
@@ -81,7 +102,7 @@ async def list_toys(
     owner_oid: str | None = None,
     limit: int = 20,
     offset: int = 0,
-    auth_ctx: Annotated[AuthContext, Depends(get_auth_context)] = None,
+    auth_ctx: Annotated[AuthContext, Depends(auth_dependency)] = None,
     repo: Annotated[ToyRepository, Depends(get_toy_repo)] = None,
 ) -> dict:
     """
@@ -98,7 +119,7 @@ async def list_toys(
 @router.get("/{toy_id}", response_model=Toy)
 async def get_toy(
     toy_id: UUID,
-    auth_ctx: Annotated[AuthContext, Depends(get_auth_context)],
+    auth_ctx: Annotated[AuthContext, Depends(auth_dependency)],
     repo: Annotated[ToyRepository, Depends(get_toy_repo)],
 ) -> Toy:
     """Get toy details by ID."""
@@ -113,7 +134,7 @@ async def get_toy(
 async def update_toy(
     toy_id: UUID,
     toy_update: ToyUpdate,
-    auth_ctx: Annotated[AuthContext, Depends(get_auth_context)],
+    auth_ctx: Annotated[AuthContext, Depends(auth_dependency)],
     repo: Annotated[ToyRepository, Depends(get_toy_repo)],
 ) -> Toy:
     """
@@ -145,7 +166,7 @@ async def update_toy(
 @router.delete("/{toy_id}", status_code=204)
 async def delete_toy(
     toy_id: UUID,
-    auth_ctx: Annotated[AuthContext, Depends(get_auth_context)],
+    auth_ctx: Annotated[AuthContext, Depends(auth_dependency)],
     repo: Annotated[ToyRepository, Depends(get_toy_repo)],
     blob_svc: Annotated[BlobService, Depends(get_blob_svc)],
 ):
@@ -181,7 +202,7 @@ async def delete_toy(
 async def upload_avatar(
     toy_id: UUID,
     file: Annotated[UploadFile, File(description="Avatar image (JPEG, PNG, or WebP)")],
-    auth_ctx: Annotated[AuthContext, Depends(get_auth_context)],
+    auth_ctx: Annotated[AuthContext, Depends(auth_dependency)],
     repo: Annotated[ToyRepository, Depends(get_toy_repo)],
     blob_svc: Annotated[BlobService, Depends(get_blob_svc)],
 ) -> Toy:
@@ -225,7 +246,7 @@ async def upload_avatar(
 @router.get("/{toy_id}/avatar")
 async def get_avatar(
     toy_id: UUID,
-    auth_ctx: Annotated[AuthContext, Depends(get_auth_context)],
+    auth_ctx: Annotated[AuthContext, Depends(auth_dependency)],
     repo: Annotated[ToyRepository, Depends(get_toy_repo)],
     blob_svc: Annotated[BlobService, Depends(get_blob_svc)],
 ) -> StreamingResponse:
@@ -261,7 +282,7 @@ async def get_avatar(
 @router.delete("/{toy_id}/avatar", status_code=204)
 async def delete_avatar(
     toy_id: UUID,
-    auth_ctx: Annotated[AuthContext, Depends(get_auth_context)],
+    auth_ctx: Annotated[AuthContext, Depends(auth_dependency)],
     repo: Annotated[ToyRepository, Depends(get_toy_repo)],
     blob_svc: Annotated[BlobService, Depends(get_blob_svc)],
 ):

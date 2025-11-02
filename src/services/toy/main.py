@@ -15,6 +15,13 @@ logging.basicConfig(
     level=settings.log_level,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
+
+# Suppress verbose Azure SDK logging (cosmos, storage, core.pipeline)
+logging.getLogger("azure.cosmos").setLevel(logging.WARNING)
+logging.getLogger("azure.core.pipeline").setLevel(logging.WARNING)
+logging.getLogger("azure.storage").setLevel(logging.WARNING)
+logging.getLogger("azure.identity").setLevel(logging.WARNING)
+
 logger = logging.getLogger(__name__)
 
 # Global instances
@@ -48,6 +55,7 @@ async def lifespan(app: FastAPI):
     # Inject into routes module
     toy_routes.toy_repository = toy_repo
     toy_routes.blob_service = blob_svc
+    toy_routes.initialize_auth(settings.azure_tenant_id, settings.app_id_uri)
 
     logger.info("Toy Service initialized successfully")
 
@@ -56,9 +64,9 @@ async def lifespan(app: FastAPI):
     # Cleanup
     logger.info("Shutting down Toy Service...")
     if toy_repo:
-        toy_repo.close()
+        await toy_repo.close()
     if blob_svc:
-        blob_svc.close()
+        await blob_svc.close()
     logger.info("Toy Service shut down complete")
 
 

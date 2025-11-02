@@ -1,0 +1,12 @@
+# Exclude sensitive files
+app_registration.json
+auth_token.json
+*.token
+*.secret
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python

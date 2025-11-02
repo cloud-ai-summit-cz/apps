@@ -14,8 +14,9 @@ class Settings(BaseSettings):
 
     # Azure Authentication
     azure_tenant_id: str
-    azure_client_id: str
     app_id_uri: str
+    # Managed Identity Client ID (optional - for explicit identity selection)
+    azure_client_id: str | None = None
 
     # Cosmos DB
     cosmos_endpoint: str

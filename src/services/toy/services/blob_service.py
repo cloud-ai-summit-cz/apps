@@ -1,11 +1,18 @@
-"""Blob storage service for avatar images."""
+"""Blob storage service for avatar images.
+
+This module uses the async Azure Blob Storage SDK (azure.storage.blob.aio) which
+is designed for use with async frameworks like FastAPI. The async SDK provides
+native async/await support without blocking the event loop.
+"""
 import logging
 import mimetypes
 from io import BytesIO
 from uuid import uuid4
 
-from azure.identity import DefaultAzureCredential
-from azure.storage.blob import BlobServiceClient, ContentSettings
+from azure.identity.aio import DefaultAzureCredential
+from azure.storage.blob.aio import BlobServiceClient
+from azure.storage.blob import ContentSettings
+from azure.core.exceptions import ServiceRequestError, ClientAuthenticationError  # type: ignore
 from fastapi import UploadFile
 
 logger = logging.getLogger(__name__)
@@ -31,13 +38,16 @@ class BlobService:
         self._client: BlobServiceClient | None = None
         self._container_client = None
 
-    def _ensure_initialized(self):
+    async def _ensure_initialized(self):
         """Ensure blob service client and container are initialized."""
         if self._container_client is not None:
             return
 
-        # Initialize client with managed identity
-        credential = DefaultAzureCredential()
+        # Initialize async client with managed identity
+        # Exclude shared token cache to prevent home tenant confusion in multi-tenant scenarios
+        # Local: Uses Azure CLI (logged in with correct tenant)
+        # AKS: Uses Workload Identity / Managed Identity (federated identity)
+        credential = DefaultAzureCredential(exclude_shared_token_cache_credential=True)
         self._client = BlobServiceClient(account_url=self.storage_account_url, credential=credential)
 
         # Get container (must be pre-created via infrastructure)
@@ -58,7 +68,7 @@ class BlobService:
         Raises:
             ValueError: If file type or size is invalid
         """
-        self._ensure_initialized()
+        await self._ensure_initialized()
 
         # Validate content type
         content_type = file.content_type
@@ -80,11 +90,18 @@ class BlobService:
         blob_client = self._container_client.get_blob_client(blob_name)
         content_settings = ContentSettings(content_type=content_type)
 
-        blob_client.upload_blob(
-            data=content,
-            content_settings=content_settings,
-            overwrite=True,
-        )
+        try:
+            await blob_client.upload_blob(
+                data=content,
+                content_settings=content_settings,
+                overwrite=True,
+            )
+        except (ServiceRequestError, ClientAuthenticationError, TimeoutError) as e:  # network / auth layer
+            logger.error(f"Failed to upload avatar (network/auth): {e}")
+            raise ValueError("Avatar upload failed due to storage connectivity or authentication issue") from e
+        except Exception as e:  # pragma: no cover - unexpected
+            logger.error(f"Unexpected failure uploading avatar: {e}")
+            raise ValueError("Unexpected error uploading avatar") from e
 
         logger.info(f"Uploaded avatar: {blob_name} ({len(content)} bytes)")
         return blob_name
@@ -102,21 +119,19 @@ class BlobService:
         Raises:
             FileNotFoundError: If blob doesn't exist
         """
-        self._ensure_initialized()
+        await self._ensure_initialized()
 
         blob_client = self._container_client.get_blob_client(blob_name)
 
         try:
-            # Download blob
-            download_stream = blob_client.download_blob()
-            content = download_stream.readall()
-            properties = blob_client.get_blob_properties()
+            download_stream = await blob_client.download_blob()
+            content = await download_stream.readall()
+            properties = await blob_client.get_blob_properties()
             content_type = properties.content_settings.content_type or "application/octet-stream"
-
+            
             logger.debug(f"Downloaded avatar: {blob_name} ({len(content)} bytes)")
             return content, content_type
-
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to download blob {blob_name}: {e}")
             raise FileNotFoundError(f"Avatar not found: {blob_name}") from e
 
@@ -130,15 +145,15 @@ class BlobService:
         Returns:
             True if deleted, False if not found
         """
-        self._ensure_initialized()
+        await self._ensure_initialized()
 
         blob_client = self._container_client.get_blob_client(blob_name)
 
         try:
-            blob_client.delete_blob()
+            await blob_client.delete_blob()
             logger.info(f"Deleted avatar: {blob_name}")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Failed to delete blob {blob_name}: {e}")
             return False
 
@@ -158,8 +173,8 @@ class BlobService:
         content, content_type = await self.download_avatar(blob_name)
         return BytesIO(content), content_type
 
-    def close(self):
+    async def close(self):
         """Close blob service client connection."""
         if self._client:
-            self._client.close()
+            await self._client.close()
             logger.info("Blob service client closed")

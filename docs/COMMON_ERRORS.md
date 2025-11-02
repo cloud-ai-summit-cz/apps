@@ -2,6 +2,98 @@
 
 Quick reference for frequent issues encountered during development.
 
+## Azure SDK - Sync vs Async
+
+### Using synchronous Azure SDKs in async frameworks (FastAPI)
+```
+ReadTimeout: Request timeout after 10 seconds
+Event loop blocking / unresponsive application
+```
+
+**Problem:** Using synchronous Azure SDKs (`azure.cosmos`, `azure.storage.blob`, `azure.identity`) in async frameworks like FastAPI blocks the event loop, causing timeouts and poor performance.
+
+**Wrong Approach (Don't do this):**
+```python
+# ❌ BAD: Synchronous SDK + asyncio.to_thread workaround
+from azure.cosmos import CosmosClient
+from azure.identity import DefaultAzureCredential
+import asyncio
+
+async def create_item(item):
+    container = get_container()  # sync client
+    
+    def _create():
+        return container.create_item(body=item)
+    
+    # Thread pool workaround - not recommended
+    result = await asyncio.to_thread(_create)
+    return result
+```
+
+**Correct Approach (Use this):**
+```python
+# ✅ GOOD: Async SDK with native async/await
+from azure.cosmos.aio import CosmosClient
+from azure.identity.aio import DefaultAzureCredential
+
+async def create_item(item):
+    async with CosmosClient(endpoint, credential=DefaultAzureCredential()) as client:
+        database = client.get_database_client(database_name)
+        container = database.get_container_client(container_name)
+        result = await container.create_item(body=item)
+        return result
+```
+
+**Key Differences:**
+- Async SDKs: `azure.cosmos.aio`, `azure.storage.blob.aio`, `azure.identity.aio`
+- Use `async with` for context management
+- All operations are `await`able
+- No need for `asyncio.to_thread` or thread pool executors
+- Better performance and resource utilization
+
+**For Blob Storage:**
+```python
+# ✅ GOOD: Async Blob Storage
+from azure.storage.blob.aio import BlobServiceClient
+from azure.identity.aio import DefaultAzureCredential
+
+async with BlobServiceClient(account_url, credential=DefaultAzureCredential()) as client:
+    container = client.get_container_client("mycontainer")
+    blob_client = container.get_blob_client("myblob")
+    await blob_client.upload_blob(data)
+```
+
+**Benefits of Async SDKs:**
+1. Native async/await support - no event loop blocking
+2. Better connection pooling and resource management
+3. Lower overhead (no thread context switching)
+4. Official Microsoft-recommended pattern for async frameworks
+5. Proper async exception handling
+
+**Important: Async Query Differences**
+```python
+# ❌ BAD: Using sync-only parameters with async client
+items = [item async for item in container.query_items(
+    query="SELECT * FROM c",
+    enable_cross_partition_query=True  # ← NOT supported in async client!
+)]
+# Error: TypeError: ClientSession._request() got an unexpected keyword argument 'enable_cross_partition_query'
+
+# ✅ GOOD: Async client handles cross-partition queries automatically
+items = [item async for item in container.query_items(
+    query="SELECT * FROM c"
+    # Cross-partition is automatic - no flag needed!
+)]
+```
+
+**Key Difference:** Per Microsoft docs: "Unlike the synchronous client, the async client does not have an `enable_cross_partition` flag in the request. Queries without a specified partition key value will attempt to do a cross partition query by default."
+
+**References:**
+- [Azure Cosmos DB async examples](https://learn.microsoft.com/en-us/python/api/overview/azure/cosmos-readme?view=azure-python#examples)
+- [Azure Cosmos DB async queries](https://learn.microsoft.com/en-us/python/api/overview/azure/cosmos-readme?view=azure-python#queries-with-the-asynchronous-client)
+- [Azure Blob Storage async examples](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blob-upload-python#upload-blobs-asynchronously)
+- [Azure Functions async performance](https://learn.microsoft.com/en-us/azure/azure-functions/python-scale-performance-reference#improving-throughput-performance)
+
 ## Pydantic Deprecation Warnings
 
 ### `json_encoders` is deprecated

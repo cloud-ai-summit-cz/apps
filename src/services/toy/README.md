@@ -10,7 +10,13 @@ uv sync
 
 # Configure environment
 cp .env.example .env
-# Edit .env with your Azure resource endpoints (see comments in file)
+# Edit .env with:
+# - AZURE_TENANT_ID: Your Entra ID tenant (from app registration)
+# - APP_ID_URI: api://<app-registration-id> (for JWT validation)
+# - COSMOS_ENDPOINT, COSMOS_DATABASE_NAME, COSMOS_CONTAINER_NAME
+# - STORAGE_ACCOUNT_URL, BLOB_CONTAINER_AVATARS
+# - AZURE_CLIENT_ID: Leave empty for local dev (uses az CLI)
+#                    In AKS: set to managed identity client ID
 
 # Authenticate (for local development)
 az login

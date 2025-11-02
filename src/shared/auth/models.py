@@ -6,7 +6,7 @@ authentication context.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from pydantic import BaseModel
 
 
@@ -49,7 +49,7 @@ class SystemPrincipal(Principal):
 class AuthContext(BaseModel):
     """Per-request resolved authentication context."""
     principal: Principal
-    raw_claims: Dict[str, str] = {}
+    raw_claims: Dict[str, Any] = {}  # JWT claims can be str, int, list, etc.
     token_id: Optional[str] = None
 
     @property
