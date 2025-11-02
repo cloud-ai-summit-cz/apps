@@ -160,6 +160,61 @@ def generate_and_process_image(
     resized.save(output_path, "JPEG", quality=85, optimize=True)
 
 
+def load_existing_data(output_file: Path, images_dir: Path) -> list[dict[str, Any]]:
+    """
+    Load existing toy profiles and validate images.
+
+    Args:
+        output_file: Path to JSON output file.
+        images_dir: Directory containing avatar images.
+
+    Returns:
+        List of validated toy profile dictionaries.
+    """
+    if not output_file.exists():
+        return []
+
+    try:
+        with open(output_file, "r", encoding="utf-8") as f:
+            toy_profiles = json.load(f)
+
+        # Validate that referenced images exist
+        validated_profiles = []
+        for toy in toy_profiles:
+            image_path = images_dir / toy["avatar_blob_name"]
+            if image_path.exists():
+                validated_profiles.append(toy)
+            else:
+                print(f"   ⚠️  Missing image for {toy['name']}, skipping...")
+
+        # Clean up orphaned images (images not in JSON)
+        if validated_profiles:
+            valid_filenames = {toy["avatar_blob_name"] for toy in validated_profiles}
+            if images_dir.exists():
+                for image_file in images_dir.glob("*.jpg"):
+                    if image_file.name not in valid_filenames:
+                        print(f"   🗑️  Removing orphaned image: {image_file.name}")
+                        image_file.unlink()
+
+        return validated_profiles
+
+    except (json.JSONDecodeError, KeyError) as e:
+        print(f"   ⚠️  Error loading existing data: {e}")
+        return []
+
+
+def save_profiles(output_file: Path, toy_profiles: list[dict[str, Any]]) -> None:
+    """
+    Save toy profiles to JSON file.
+
+    Args:
+        output_file: Path to JSON output file.
+        toy_profiles: List of toy profile dictionaries to save.
+    """
+    with open(output_file, "w", encoding="utf-8") as f:
+        json.dump(toy_profiles, f, indent=2, ensure_ascii=False)
+
+
 def main():
     """Generate toy profiles with AI-generated avatars."""
     print("🎲 Toy Profile Generator")
@@ -181,14 +236,38 @@ def main():
         images_dir.mkdir(parents=True, exist_ok=True)
 
         output_file = Path(__file__).parent.parent / "toy_profiles.json"
-        toy_profiles = []
-        previous_toys = []
 
-        print(f"\n🎨 Generating {config['num_toys']} toy profiles...")
+        # Load existing data and validate
+        print(f"\n📂 Checking for existing data...")
+        toy_profiles = load_existing_data(output_file, images_dir)
+        existing_count = len(toy_profiles)
+
+        if existing_count > 0:
+            print(f"   ✅ Found {existing_count} existing toy profiles")
+        else:
+            print(f"   📝 No existing data, starting fresh")
+
+        # Calculate how many more to generate
+        toys_needed = config["num_toys"] - existing_count
+
+        if toys_needed <= 0:
+            print(f"\n✅ Already have {existing_count} toys (target: {config['num_toys']})")
+            print("   No additional toys needed!")
+            return 0
+
+        # Build history from existing toys for prompt context
+        previous_toys = [
+            {"name": toy["name"], "description": toy["description"]}
+            for toy in toy_profiles
+        ]
+
+        print(f"\n🎨 Generating {toys_needed} more toy profiles...")
+        print(f"   (Currently: {existing_count}/{config['num_toys']})")
         print("-" * 50)
 
-        for i in range(config["num_toys"]):
-            print(f"\n[{i+1}/{config['num_toys']}] Generating toy profile...")
+        for i in range(toys_needed):
+            current_total = existing_count + i + 1
+            print(f"\n[{current_total}/{config['num_toys']}] Generating toy profile...")
 
             profile = generate_toy_profile(
                 client, config["gpt_model"], previous_toys
@@ -218,8 +297,9 @@ def main():
                 {"name": profile.name, "description": profile.description}
             )
 
-        with open(output_file, "w", encoding="utf-8") as f:
-            json.dump(toy_profiles, f, indent=2, ensure_ascii=False)
+            # Save after each iteration
+            save_profiles(output_file, toy_profiles)
+            print(f"   💾 Progress saved ({current_total}/{config['num_toys']})")
 
         print("\n" + "=" * 50)
         print(f"✅ Successfully generated {len(toy_profiles)} toy profiles!")
