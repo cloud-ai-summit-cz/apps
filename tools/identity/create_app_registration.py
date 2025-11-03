@@ -72,6 +72,14 @@ def create_app_registration(display_name: str) -> dict[str, Any]:
             "value": "Toy.ReadWrite"
         },
         {
+            "allowedMemberTypes": ["User"],
+            "description": "Full administrative access to all toys regardless of ownership",
+            "displayName": "Admin - Full Access",
+            "id": str(uuid.uuid4()),
+            "isEnabled": True,
+            "value": "Admin.FullAccess"
+        },
+        {
             "allowedMemberTypes": ["Application"],
             "description": "System service access for background operations",
             "displayName": "System Service",
@@ -134,7 +142,7 @@ def create_app_registration(display_name: str) -> dict[str, Any]:
         "--id", app_id,
         "--app-roles", json.dumps(app_roles)
     ])
-    print(f"✓ Added app roles: Toy.ReadWrite, System.Service")
+    print(f"✓ Added app roles: Toy.ReadWrite, Admin.FullAccess, System.Service")
     
     # Update OAuth2 permissions (exposed API)
     run_az_command([
@@ -184,7 +192,7 @@ def print_summary(details: dict[str, Any]):
     print(f"Tenant ID:       {details['tenantId']}")
     print(f"Identifier URI:  {details['identifierUri']}")
     print(f"\nScope:           App.Access")
-    print(f"App Roles:       Toy.ReadWrite, System.Service")
+    print(f"App Roles:       Toy.ReadWrite, Admin.FullAccess, System.Service")
     print(f"\nRedirect URIs:")
     for uri in details['redirectUris']:
         print(f"  - {uri}")

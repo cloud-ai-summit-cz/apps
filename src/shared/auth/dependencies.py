@@ -39,10 +39,24 @@ def create_auth_dependency(tenant_id: str, audience: str) -> Callable:
 
 
 def require_owner(auth_ctx: AuthContext, toy_owner_oid: str | None) -> None:
+    """
+    Verify caller can perform owner-only action on the resource.
+    
+    Allowed if:
+    - System principal (has System.Service role)
+    - User principal with Admin.FullAccess role
+    - User principal that owns the resource (oid matches owner_oid)
+    
+    Raises:
+        HTTPException: 403 if authorization fails
+    """
     principal = auth_ctx.principal
     from .token_validation import classify_authorization  # local import to avoid cycle
     if not classify_authorization(principal, toy_owner_oid):
-        raise HTTPException(status_code=403, detail="Forbidden: not owner")
+        raise HTTPException(
+            status_code=403, 
+            detail="Forbidden: You can only modify your own resources. Admins need the Admin.FullAccess role."
+        )
 
 
 # Example usage in router:

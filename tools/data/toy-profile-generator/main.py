@@ -74,7 +74,7 @@ def create_openai_client(endpoint: str) -> AzureOpenAI:
         Configured AzureOpenAI client instance.
     """
     token_provider = get_bearer_token_provider(
-        DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+        DefaultAzureCredential(exclude_shared_token_cache_credential=True), "https://cognitiveservices.azure.com/.default"
     )
 
     return AzureOpenAI(

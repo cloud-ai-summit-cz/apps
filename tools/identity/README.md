@@ -15,7 +15,7 @@ Scripts for managing Entra ID app registrations and authentication tokens for To
 Creates an Entra ID app registration with proper configuration for ToyTrips:
 
 - OAuth2 permission scope: `App.Access`
-- App roles: `Toy.ReadWrite`, `System.Service`
+- App roles: `Toy.ReadWrite`, `Admin.FullAccess`, `System.Service`
 - Redirect URIs for local development
 - Service principal
 
@@ -26,6 +26,8 @@ python create_app_registration.py --name "ToyTrips-Dev"
 ```
 
 **Output:** `app_registration.json` with app details
+
+**See also:** [ADMIN_ROLE_SETUP.md](ADMIN_ROLE_SETUP.md) for details on configuring and assigning the Admin.FullAccess role
 
 ### 2. get_auth_token.py
 

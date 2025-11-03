@@ -280,6 +280,41 @@ az login
 az account show  # Verify correct subscription
 ```
 
+### Shared token cache credential errors
+```
+CredentialUnavailableError: SharedTokenCacheCredential authentication unavailable
+ValueError: Authority validation failed
+```
+**Problem:** `SharedTokenCacheCredential` can fail on some systems or cause authority validation issues, especially in development environments.
+
+**Fix:** Exclude shared token cache credential when creating `DefaultAzureCredential`:
+```python
+from azure.identity import DefaultAzureCredential
+
+# ✅ GOOD: Exclude problematic shared token cache
+credential = DefaultAzureCredential(
+    exclude_shared_token_cache_credential=True
+)
+
+# For bearer token providers (Azure OpenAI):
+from azure.identity import get_bearer_token_provider
+token_provider = get_bearer_token_provider(
+    DefaultAzureCredential(exclude_shared_token_cache_credential=True),
+    "https://cognitiveservices.azure.com/.default"
+)
+```
+
+**Why this works:**
+- `SharedTokenCacheCredential` attempts to use cached tokens from MSAL, which may not be available or may have authority validation issues
+- Excluding it forces fallback to other reliable methods like `AzureCliCredential` or `ManagedIdentityCredential`
+- Production environments (managed identity) are unaffected
+- Development environments work reliably with `az login` credentials
+
+**When to use:**
+- Always in development scripts that use `DefaultAzureCredential`
+- Any script that interacts with Azure OpenAI, Storage, Cosmos DB, etc.
+- When encountering intermittent authentication errors locally
+
 ## Performance Issues
 
 ### Memory usage grows during image operations

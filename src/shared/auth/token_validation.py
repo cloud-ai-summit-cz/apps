@@ -124,10 +124,21 @@ def validate_token(token: str, tenant_id: str, audience: str) -> AuthContext:
 def classify_authorization(principal: Principal, toy_owner_oid: Optional[str]) -> bool:
     """Return True if principal can perform owner-only action on provided toy.
 
-    System principal always allowed. User principal must match owner oid.
+    Allowed if:
+    - System principal (System.Service role)
+    - User principal with Admin.FullAccess role
+    - User principal that owns the toy
     """
+    # System principals always allowed
     if principal.is_system or isinstance(principal, SystemPrincipal):
         return True
+    
+    # Admin role bypasses ownership check
+    if "Admin.FullAccess" in principal.roles:
+        return True
+    
+    # Regular users must own the resource
     if isinstance(principal, UserPrincipal) and toy_owner_oid:
         return principal.oid == toy_owner_oid
+    
     return False

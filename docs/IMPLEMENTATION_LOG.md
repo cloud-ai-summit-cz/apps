@@ -1,5 +1,245 @@
 # Implementation Log
 
+## 2025-11-02 - Admin Role Implementation
+
+**Implemented `Admin.FullAccess` role** for administrative access to all resources regardless of ownership.
+
+**Changes:**
+
+1. **App Registration Script:**
+   - Added `Admin.FullAccess` role to `create_app_registration.py`
+   - Automatically created when setting up new app registrations
+   - Assigned to Users/Groups (not Applications)
+
+2. **Authorization Logic:**
+   - Updated `classify_authorization()` in `src/shared/auth/token_validation.py`
+   - Checks for `Admin.FullAccess` in principal roles before ownership check
+   - Order: System principal → Admin role → Owner check
+   - Updated `require_owner()` with better error messages
+
+3. **Documentation:**
+   - Created `tools/identity/ADMIN_ROLE_SETUP.md` - comprehensive setup guide
+   - Updated `tools/identity/README.md` to reference admin role
+   - Updated `src/shared/auth/README.md` with authorization model documentation
+   - Includes Portal instructions, CLI commands, troubleshooting, best practices
+
+**Authorization Model:**
+
+Access granted if (in order):
+1. **System principal** - has `System.Service` role
+2. **Admin principal** - has `Admin.FullAccess` role (NEW)
+3. **Owner principal** - user `oid` matches `owner_oid`
+
+**Why App Roles > Security Groups:**
+- Roles appear in token automatically (no Graph API calls)
+- Designed for application-level permissions
+- Better performance and easier management
+- Consistent with existing `System.Service` pattern
+
+**Use Cases:**
+- Admin users managing the system
+- Support team troubleshooting
+- Cleanup/maintenance scripts
+- Testing with multiple user scenarios
+
+**Security:**
+- Role assigned via Entra ID (Portal or CLI)
+- No environment configuration needed (role in token claims)
+- Audit trail in Entra ID
+- Easy to grant/revoke without code changes
+
+**Location:**
+- `tools/identity/create_app_registration.py` - Role definition
+- `tools/identity/ADMIN_ROLE_SETUP.md` - Setup guide
+- `src/shared/auth/token_validation.py` - Authorization logic
+- `src/shared/auth/dependencies.py` - require_owner() function
+
+## 2025-11-02 - Toy Profile Data Management Scripts
+
+**Created three data management scripts** for importing, checking, and cleaning toy profiles via toy service API.
+
+**Scripts:**
+
+1. **import-toy-profiles.py** - Import toy profiles from JSON with avatar upload
+   - Reads toy profiles from `toy_profiles.json` (configurable via `TOY_PROFILES_JSON`)
+   - Creates toys via `POST /toy` endpoint
+   - Uploads avatars via `POST /toy/{id}/avatar` with multipart/form-data
+   - Loads avatar images from `toy-images/` folder (configurable via `TOY_IMAGES_FOLDER`)
+   - Progress display: Shows `[n/total]` for each toy with creation and upload status
+   - Summary statistics: Toys created/failed, avatars uploaded/failed
+   - Proper error handling with detailed HTTP response logging
+
+2. **check-toy-profiles.py** - Verify toy profiles and avatar accessibility
+   - Lists all toys via `GET /toy` endpoint
+   - Downloads each avatar via `GET /toy/{id}/avatar` (in-memory, not saved)
+   - Displays toy details: ID, owner (truncated), description (truncated)
+   - Shows avatar status: content-type, file size (formatted as KB/MB)
+   - Summary statistics: Total toys, avatars OK/missing/failed
+   - Useful for verifying import success and avatar accessibility
+
+3. **clean-toy-profiles.py** - Remove all toys and avatars
+   - Lists all toys via `GET /toy` endpoint
+   - Deletes avatars via `DELETE /toy/{id}/avatar` (skips if no avatar)
+   - Deletes toys via `DELETE /toy/{id}`
+   - Progress display: Shows emoji status (✅/⏭️/❌) for each operation
+   - Summary statistics: Avatars deleted/skipped/failed, toys deleted/failed
+   - ⚠️ Destructive operation - use with caution
+
+**Shared Infrastructure:**
+
+**Configuration:**
+- `.env` and `.env.example` created with required variables:
+  - `TOY_SERVICE_URL` - Service endpoint (default: `http://localhost:8001`)
+  - `AUTH_TOKEN_PATH` - Path to auth token JSON (default: `../identity/auth_token.json`)
+  - `TOY_PROFILES_JSON` - Profiles file path (default: `toy_profiles.json`)
+  - `TOY_IMAGES_FOLDER` - Images folder path (default: `toy-images`)
+- Uses `python-dotenv` for environment variable loading
+
+**Authentication:**
+- `load_auth_token()` - Loads token from configured path with expiry validation
+- `get_auth_headers()` - Generates proper Authorization headers
+- Reuses authentication pattern from integration tests (`src/integration-tests/conftest.py`)
+- Clear error messages directing user to run `get_auth_token.py` if token missing/expired
+
+**Dependencies:**
+- Updated `pyproject.toml` with `httpx>=0.27.0` and `python-dotenv>=1.0.0`
+- Minimal dependencies - no heavy frameworks
+
+**User Experience:**
+- Emoji-based progress indicators (🧹🧸📦🔍✅❌⏭️)
+- Formatted output with separators and sections
+- Human-readable byte sizes (KB/MB formatting)
+- Detailed error context (HTTP status codes, response text when available)
+- Clear prerequisite instructions in error messages
+
+**Documentation:**
+- Updated `tools/data/README.md` with streamlined guide:
+  - Quick Start section with step-by-step workflow
+  - Individual script documentation
+  - Configuration section
+
+**Bug Fix:**
+- Fixed handling of paginated API response from `GET /toy` endpoint
+- Endpoint returns `{"items": [...], "total": ..., "limit": ..., "offset": ...}`
+- Scripts now correctly extract `items` array from response
+- **Fixed ownership filtering in cleanup script** - script now only deletes toys owned by current user
+- Added user OID display in all scripts for transparency
+- Check script shows ownership indicator (`👤 (you)`) for owned toys
+- Prevents 403 Forbidden errors when trying to delete other users' toys
+
+**Design Decisions:**
+- Scripts follow integration test patterns for consistency
+- Token expiry check prevents cryptic API errors
+- Progress printed to stdout for real-time feedback (not just final summary)
+- Avatars checked in-memory (no disk writes in check script)
+- Error handling distinguishes HTTP errors from unexpected exceptions
+- Path resolution relative to script location (works from any working directory)
+
+**Location:** `tools/data/`
+
+**Files Created/Modified:**
+- `clean-toy-profiles.py` - Cleanup script (203 lines)
+- `import-toy-profiles.py` - Import script (231 lines)
+- `check-toy-profiles.py` - Verification script (157 lines)
+- `.env` - Local environment configuration
+- `.env.example` - Template for environment configuration
+- `pyproject.toml` - Added httpx and python-dotenv dependencies
+- `README.md` - Streamlined documentation with Quick Start
+
+## 2025-11-02 - Toy Profile Generator with AI-Generated Avatars
+
+**Created comprehensive data generator** for toy profiles using Azure OpenAI GPT-5 and gpt-image-1 models with resumable/incremental generation.
+
+**Features:**
+
+1. **AI-Powered Generation:**
+   - Uses GPT-5 with structured outputs (Pydantic models) for toy name, description, and image generation prompts
+   - Short, catchy names (1-3 words) and funny, cute descriptions (2-3 sentences)
+   - Generates dramatic, interesting image prompts for gpt-image-1
+   - Prevents duplicates by feeding previous toys into prompt context (last 5 shown)
+
+2. **Image Generation & Processing:**
+   - Uses gpt-image-1 model (always returns base64-encoded images)
+   - Generates 1024x1024 images, resizes to 256x256 JPEG
+   - Quality 85 with optimization for reasonable file sizes
+   - UUID-based filenames for uniqueness
+
+3. **Resumable/Incremental Generation:**
+   - Loads existing `toy_profiles.json` on startup
+   - Validates all referenced images exist (skips toys with missing images)
+   - Cleans up orphaned images (images not in JSON)
+   - Calculates how many more toys needed to reach target
+   - Includes existing toys in prompt history to maintain variety
+   - Saves JSON after each toy generation (no data loss on errors)
+   - Shows progress: "Currently: 5/10" style counters
+
+4. **Configuration:**
+   - `.env` file: Azure OpenAI endpoint, model deployment names (GPT-5, gpt-image-1)
+   - Configurable toy count and comma-separated owner OIDs
+   - Uses `DefaultAzureCredential` for authentication (no API keys)
+
+5. **Output Structure:**
+   - `tools/data/toy_profiles.json` - Array of toy objects with owner_oid, name, description, avatar_blob_name
+   - `tools/data/toy-images/` - UUID.jpg files (256x256 JPEG, optimized)
+
+**Implementation Details:**
+
+**Location:** `tools/data/toy-profile-generator/`
+
+**Files Created:**
+- `main.py` - Core generator logic with load/save/validate functions
+- `pyproject.toml` - Dependencies: openai>=2.0.0, azure-identity, pillow, python-dotenv
+- `.env` / `.env.example` - Configuration templates
+- `README.md` - Setup and usage documentation
+
+**Key Functions:**
+- `load_existing_data()` - Loads JSON, validates images, cleans up orphans
+- `save_profiles()` - Saves JSON after each generation
+- `generate_toy_profile()` - GPT-5 structured output with history context
+- `generate_and_process_image()` - gpt-image-1 generation + resize + save
+- `main()` - Orchestrates resumable generation flow
+
+**Azure OpenAI Integration:**
+- Uses `AzureOpenAI` client (not `OpenAI`) for Cognitive Services endpoints
+- API version: `2025-01-01-preview`
+- Structured outputs via `client.beta.chat.completions.parse()` with Pydantic `ToyProfile` model
+- Image generation returns base64 (gpt-image-1 has no URL option)
+
+**Technical Decisions:**
+1. **Structured outputs:** Ensures parsable, reliable data from GPT-5
+2. **Base64 handling:** gpt-image-1 doesn't support `response_format` parameter (always base64)
+3. **Incremental saves:** Prevents data loss if generation fails mid-run
+4. **Image validation:** Ensures JSON and filesystem stay in sync
+5. **History context:** Last 5 toys shown to model to encourage variety
+6. **UUID filenames:** Prevents naming conflicts, enables safe parallel generation
+
+**Usage Example:**
+```powershell
+# Configure .env with your Azure AI Foundry values
+cd tools/data/toy-profile-generator
+uv sync
+uv run main.py
+
+# Run again to add more toys (incremental)
+# Or if it failed partway through (resume)
+```
+
+**Output Example:**
+```json
+[
+  {
+    "owner_oid": "tokubica@microsoft.com",
+    "name": "Jet Puffin",
+    "description": "Jet Puffin is a pocket-sized plush adventurer...",
+    "avatar_blob_name": "17a6a184-41e1-4bbd-bc64-f42737a9299d.jpg"
+  }
+]
+```
+
+**Next Steps:** Create upload script to bulk-import generated data into Cosmos DB and Blob Storage for testing/demo purposes.
+
+---
+
 ## 2025-11-02 - Fixed Async Query API Incompatibility
 
 **Fixed critical error with async Cosmos DB queries** by removing `enable_cross_partition_query` parameter that doesn't exist in async client.
