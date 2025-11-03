@@ -12,12 +12,15 @@ Scripts for managing Entra ID app registrations and authentication tokens for To
 
 ### 1. create_app_registration.py
 
-Creates an Entra ID app registration with proper configuration for ToyTrips:
+Creates an Entra ID app registration with proper **SPA (Single-Page Application)** configuration for ToyTrips:
 
+- **Platform:** SPA (required for MSAL.js frontend applications)
 - OAuth2 permission scope: `App.Access`
 - App roles: `Toy.ReadWrite`, `Admin.FullAccess`, `System.Service`
-- Redirect URIs for local development
+- Redirect URIs for local development: `http://localhost:3000`, `http://localhost:3000/auth/callback`
 - Service principal
+
+**Important:** This script creates app registrations with the **SPA platform**, not the Web platform. This is required for frontend applications using MSAL.js libraries due to CORS token redemption restrictions. Web platform will cause `AADSTS9002326` errors.
 
 **Usage:**
 ```bash

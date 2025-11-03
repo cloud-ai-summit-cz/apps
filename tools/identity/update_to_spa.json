@@ -1,0 +1,15 @@
+{
+  "spa": {
+    "redirectUris": [
+      "http://localhost:3000",
+      "http://localhost:3000/auth/callback"
+    ]
+  },
+  "web": {
+    "redirectUris": [],
+    "implicitGrantSettings": {
+      "enableIdTokenIssuance": false,
+      "enableAccessTokenIssuance": false
+    }
+  }
+}

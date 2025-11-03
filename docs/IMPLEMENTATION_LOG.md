@@ -1,5 +1,233 @@
 # Implementation Log
 
+## 2025-11-03 - React Frontend Application with MSAL Authentication
+
+**Created modern React frontend** with TypeScript, Vite, TailwindCSS, and MSAL authentication for toy catalog and management.
+
+**Key Features:**
+
+1. **Technology Stack:**
+   - **Build Tool:** Vite 6.0.3 (fast dev server, HMR)
+   - **Framework:** React 18.3.1 with TypeScript
+   - **Styling:** TailwindCSS 3.4.17 (utility-first CSS)
+   - **Authentication:** @azure/msal-react 2.1.3 + @azure/msal-browser 3.28.0
+   - **HTTP Client:** Axios 1.7.9 with interceptors
+   - **Routing:** React Router DOM 7.1.1
+
+2. **Authentication Implementation:**
+   - Full MSAL integration with Entra ID (Microsoft identity platform)
+   - Public client configuration (SPA - Single Page Application)
+   - Automatic token acquisition for API calls via axios interceptors
+   - Protected routes pattern (redirect to login if unauthenticated)
+   - App registration configured with SPA redirect URIs (not web platform)
+
+3. **User Interface:**
+   - **Catalog Page:** Responsive grid layout (1/2/3/4 columns based on screen size)
+   - Square toy cards with 256x256 avatars, name, truncated description
+   - "My Toy" badge overlay for toys owned by current user
+   - Owner's toys sorted first in listing
+   - Clean modern design inspired by ChatGPT aesthetic
+   - Smooth hover transitions and subtle shadows
+
+4. **Toy Detail Page:**
+   - Full description display (no truncation)
+   - Owner-only edit controls:
+     - Name and description inline editing
+     - Avatar upload with drag-and-drop + file picker
+     - Delete avatar button
+     - Delete toy button with confirmation
+   - Edit controls completely hidden for non-owners
+   - Back to catalog navigation
+
+5. **Configuration:**
+   - Environment variables via `.env` file
+   - Configurable toy service API URL (default: `http://localhost:8001`)
+   - MSAL config: tenant ID, client ID, scopes (`api://{clientId}/App.Access`)
+   - Vite configured for port 3000 (matches app registration redirect URIs)
+
+**Architecture:**
+
+**Directory Structure:**
+```
+src/web/
+  src/
+    api/
+      toyService.ts         # API client with axios + auth interceptors
+      types.ts              # TypeScript interfaces (Toy, CreateToy, etc.)
+    components/
+      ProtectedRoute.tsx    # Auth guard wrapper
+    config/
+      authConfig.ts         # MSAL configuration
+    pages/
+      ToyCatalog.tsx        # Grid view of all toys
+      ToyDetail.tsx         # Single toy view + edit
+    routes/
+      AppRoutes.tsx         # React Router setup
+    App.tsx                 # MSAL provider + router
+    main.tsx                # Entry point
+    index.css               # Tailwind imports + global styles
+```
+
+**Key Implementation Details:**
+
+1. **MSAL Configuration (authConfig.ts):**
+   - Public client application with auth code flow + PKCE
+   - Redirect URI: `http://localhost:3000`
+   - Scopes: `api://{clientId}/App.Access` (matches backend validation)
+   - Cache location: sessionStorage (secure for SPAs)
+
+2. **API Client (toyService.ts):**
+   - Axios instance with base URL from environment
+   - Request interceptor: Automatically acquires and attaches bearer tokens
+   - Silent token acquisition with fallback to interactive login
+   - Response error handling (401 → redirect to login)
+   - Full CRUD methods: list, get, create, update, delete toys + avatar operations
+
+3. **Protected Routes (ProtectedRoute.tsx):**
+   - Uses MSAL `useMsal()` and `useIsAuthenticated()` hooks
+   - Shows loading spinner during MSAL initialization
+   - Redirects to login if not authenticated
+   - Wraps app routes to enforce authentication
+
+4. **Toy Catalog (ToyCatalog.tsx):**
+   - Fetches all toys on mount and displays immediately (progressive rendering)
+   - Extracts current user OID from MSAL account claims
+   - Sorts toys: owner's toys first, then others
+   - **Lazy Loading Optimization:** Uses Intersection Observer API for on-demand avatar loading
+   - Only loads avatars for toys in viewport (+ 50px margin for prefetch)
+   - Avatars load in parallel as they enter viewport (not sequential)
+   - Shows placeholder/loading state while avatar fetches
+   - Responsive grid with Tailwind breakpoints (grid-cols-1/2/3/4)
+   - "My Toy" badge positioned on avatar corner
+   - Truncates descriptions to 80 chars with ellipsis
+   - Click handler navigates to detail page
+   - Cleans up blob URLs on unmount
+
+5. **Toy Detail (ToyDetail.tsx):**
+   - Dynamic route with toy ID parameter
+   - Fetches single toy data
+   - Determines ownership (user OID === toy.owner_oid)
+   - Conditional rendering of edit UI (owner only)
+   - Avatar upload: multipart/form-data with drag-and-drop UX
+   - Inline editing for name/description with save button
+   - Delete operations with browser confirm dialogs
+   - Navigation back to catalog
+
+**Fixed Issues:**
+
+1. **AADSTS9002326 Error:** App registration was configured as "Web" platform instead of "SPA"
+   - **Problem:** Cross-origin token redemption requires SPA client type
+   - **Solution:** Updated app registration using Microsoft Graph API to move redirect URIs from `web.redirectUris` to `spa.redirectUris`
+   - **Verification:** `az ad app show` confirmed SPA platform configuration
+   - **Script Fix:** Updated `create_app_registration.py` to use SPA platform for future registrations
+
+2. **PostCSS Configuration:** Initial CommonJS syntax caused build errors with ES modules
+   - **Problem:** `postcss.config.js` used `module.exports` but package.json had `"type": "module"`
+   - **Solution:** Converted to ES module syntax with `export default`
+
+**User Experience:**
+
+- Clean, minimalist design with subtle shadows and rounded corners
+- Responsive layout adapts to mobile/tablet/desktop screens
+- Smooth transitions on hover interactions
+- Clear visual distinction for owned toys (badge)
+- Intuitive editing controls (only for owners)
+- Avatar preview with drag-and-drop upload feedback
+- Loading states during API operations
+- Error handling with user-friendly messages
+
+**Security:**
+
+- MSAL handles all authentication flows (no manual token management)
+- Tokens stored in sessionStorage (cleared on tab close)
+- Automatic token refresh (silent acquisition)
+- API calls require valid bearer token (attached by interceptor)
+- Owner-only operations enforced both frontend (UI) and backend (API)
+- No credentials or secrets in code (configured via environment)
+
+**Configuration Files:**
+
+- `.env`: Local environment variables (TOY_SERVICE_URL, VITE_TENANT_ID, VITE_CLIENT_ID)
+- `.env.example`: Template with all required variables
+- `vite.config.ts`: Dev server on port 3000, proxy config placeholder
+- `tailwind.config.js`: Default theme with content paths
+- `postcss.config.js`: TailwindCSS + autoprefixer
+- `tsconfig.json`: Strict TypeScript with React JSX
+
+**Documentation:**
+
+- `src/web/README.md`: Complete setup guide, prerequisites, configuration, running dev server, building, project structure, available scripts
+- Environment variable documentation with examples
+- App registration redirect URI requirements
+
+**Next Steps:**
+
+- Add trip management UI (create trips, view legs, gallery)
+- Add add-on ordering interface
+- Add real-time geo tracking map view (WebSocket integration)
+- Add story viewing and refresh controls
+- Add chat interface for agent service
+- Add user profile/settings page
+- Implement pagination for toy catalog (currently loads all)
+- Add search/filter controls for catalog
+- Add responsive mobile menu/navigation
+- Add toast notifications for success/error messages
+- Add loading skeletons for better perceived performance
+
+**Testing Recommendations:**
+
+- Use Playwright for E2E tests (auth flows, CRUD operations, navigation)
+- Add React Testing Library unit tests for components
+- Test responsive breakpoints on various screen sizes
+- Test avatar upload with different file types/sizes
+- Test ownership controls with multiple user accounts
+- Test MSAL token refresh and expiry scenarios
+
+**Deployment Considerations:**
+
+- Vite build output: `dist/` folder (static files)
+- Deploy to Azure Static Web Apps, Azure Storage + CDN, or Azure App Service
+- Configure production redirect URIs in app registration (https://)
+- Set production environment variables in deployment platform
+- Enable CORS on toy service for frontend domain
+- Configure CSP headers for security
+- Add Application Insights for monitoring
+
+**Performance Optimizations:**
+
+1. **Progressive Rendering:**
+   - Toy metadata loads and displays immediately (no wait for avatars)
+   - Users see toy cards with names/descriptions while images load
+   - Improves perceived performance significantly
+
+2. **Lazy Loading with Intersection Observer:**
+   - Avatars only load when toy card enters viewport (+ 50px prefetch margin)
+   - Reduces initial page load time and bandwidth
+   - Browser API (no external dependencies)
+   - Automatic cleanup of observers when cards load
+
+3. **Parallel Image Loading:**
+   - Multiple avatars fetch concurrently (browser handles parallelization)
+   - No sequential blocking - images appear as they complete
+   - Better utilization of network bandwidth
+
+4. **Memory Management:**
+   - Blob URLs properly revoked on component unmount
+   - Prevents memory leaks from accumulated object URLs
+   - Loading state tracked to prevent duplicate fetches
+
+5. **Secure Image Delivery:**
+   - All avatar requests go through `/toy/{id}/avatar` API endpoint with Authorization header
+   - Backend service proxies to blob storage using managed identity
+   - No direct blob storage access from frontend (respects private endpoint architecture)
+   - Blob response converted to object URL for img tag rendering
+
+**Why Not Virtual Scroll/Infinite Scroll:**
+- Current catalog size (~10-50 toys) doesn't warrant virtual scrolling complexity
+- Intersection Observer provides 90% of the benefit with 10% of the complexity
+- Can easily upgrade to virtual scroll library if catalog grows to 100s+ items
+- Current approach balances simplicity, performance, and maintainability
+
 ## 2025-11-02 - Admin Role Implementation
 
 **Implemented `Admin.FullAccess` role** for administrative access to all resources regardless of ownership.

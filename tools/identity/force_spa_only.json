@@ -1,0 +1,10 @@
+{
+  "spa": {
+    "redirectUris": [
+      "http://localhost:3000",
+      "http://localhost:3000/auth/callback"
+    ]
+  },
+  "web": null,
+  "publicClient": null
+}

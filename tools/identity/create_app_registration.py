@@ -105,20 +105,17 @@ def create_app_registration(display_name: str) -> dict[str, Any]:
         ]
     }
     
-    # Redirect URIs for local development
+    # Redirect URIs for local development (SPA)
     redirect_uris = [
         "http://localhost:3000",
         "http://localhost:3000/auth/callback"
     ]
     
-    # Create the app registration
+    # Create the app registration (initial creation without platform-specific redirect URIs)
     create_cmd = [
         "az", "ad", "app", "create",
         "--display-name", display_name,
-        "--sign-in-audience", "AzureADMyOrg",
-        "--enable-id-token-issuance", "true",
-        "--enable-access-token-issuance", "true",
-        "--web-redirect-uris", *redirect_uris
+        "--sign-in-audience", "AzureADMyOrg"
     ]
     
     app = run_az_command(create_cmd)
@@ -126,6 +123,33 @@ def create_app_registration(display_name: str) -> dict[str, Any]:
     object_id = app["id"]
     
     print(f"✓ Created app registration (App ID: {app_id})")
+    
+    # Configure SPA platform with redirect URIs using Graph API
+    # Azure CLI doesn't support --spa-redirect-uris, so we use Graph API directly
+    print("Configuring SPA platform...")
+    spa_config = {
+        "spa": {
+            "redirectUris": redirect_uris
+        }
+    }
+    
+    # Write temp file for Graph API request
+    import tempfile
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        json.dump(spa_config, f)
+        temp_file = f.name
+    
+    try:
+        run_az_command([
+            "az", "rest",
+            "--method", "PATCH",
+            "--uri", f"https://graph.microsoft.com/v1.0/applications/{object_id}",
+            "--headers", "Content-Type=application/json",
+            "--body", f"@{temp_file}"
+        ])
+        print(f"✓ Configured SPA platform with redirect URIs")
+    finally:
+        Path(temp_file).unlink()  # Clean up temp file
     
     # Set identifier URI
     identifier_uri = f"api://{app_id}"
