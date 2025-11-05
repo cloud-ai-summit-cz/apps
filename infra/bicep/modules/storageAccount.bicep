@@ -47,6 +47,15 @@ resource avatarsContainer 'Microsoft.Storage/storageAccounts/blobServices/contai
   }
 }
 
+// Container for trip gallery images
+resource galleryContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-01-01' = {
+  parent: blobService
+  name: 'gallery'
+  properties: {
+    publicAccess: 'None'
+  }
+}
+
 @description('Blob service default child scope useful for data-plane role assignments.')
 output blobDataScope string = '${sa.id}/blobServices/default'
 @description('Full storage account resource ID.')

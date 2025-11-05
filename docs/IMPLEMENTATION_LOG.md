@@ -1,5 +1,187 @@
 # Implementation Log
 
+## 2025-11-05 - Trip Service Authentication Fix & Integration Tests Passing
+
+**Fixed trip service authentication and all integration tests now passing (18/18).**
+
+**Issues Resolved:**
+
+1. **Missing Header Import:**
+   - Trip service routes missing `Header` import from FastAPI
+   - Added to imports: `from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile, Query`
+
+2. **Auth Dependency Bug:**
+   - `auth_dependency` function was missing `Header(None)` annotation
+   - Changed from: `def auth_dependency(authorization: str = None)`
+   - Changed to: `def auth_dependency(authorization: str = Header(None))`
+   - This prevented FastAPI from extracting the Authorization header
+
+3. **Missing Raw Token Access:**
+   - Inter-service calls needed to pass auth token to toy service
+   - Modified `verify_toy_ownership` to accept raw token as parameter
+   - Updated `create_trip` and other endpoints to extract token from Authorization header
+   - Pattern: `token = authorization.split(" ", 1)[1] if authorization else None`
+
+4. **File Upload Content-Type Issue:**
+   - Integration tests were sending `Content-Type: application/json` with multipart/form-data
+   - Fixed by creating separate upload headers: `upload_headers = {"Authorization": auth_headers["Authorization"]}`
+   - Applied to both gallery test methods
+
+**Test Results:**
+- ✅ All 8 toy service tests passing
+- ✅ All 7 trip authentication tests passing  
+- ✅ All 2 trip gallery tests passing
+- ✅ 1 leg status test passing
+- **Total: 18/18 tests passing in ~3.5 minutes**
+
+**Key Patterns Established:**
+- FastAPI dependency injection requires explicit `Header()` annotation
+- Inter-service calls propagate user authentication token
+- File uploads require separate header handling (no Content-Type override)
+- Both services running successfully on ports 8001 (toy) and 8002 (trip)
+
+## 2025-11-05 - Trip Service Implementation
+
+**Implemented complete trip service** following toy service patterns with comprehensive authentication, inter-service communication, and gallery management.
+
+**Features:**
+
+1. **Core Models (models/trip.py):**
+   - `Trip`: Complete trip entity with legs and gallery
+   - `TripCreate`: Trip creation with ordered legs validation
+   - `TripUpdate`: Partial trip updates
+   - `Leg`: Individual trip segment (location, country, planned/actual arrival, status)
+   - `GalleryImage`: Image metadata (leg association, blob reference, caption, source)
+   - `LegStatus` enum: planned, in_progress, completed, skipped
+   - `TripStatus` enum: planned, in_progress, completed, cancelled
+   - Automatic country code uppercase validation
+   - Sequential leg number validation (must be 1, 2, 3... with no gaps)
+
+2. **TripRepository (repositories/trip_repository.py):**
+   - Full async Cosmos DB integration using `azure.cosmos.aio`
+   - CRUD operations: create, get_by_id, update, delete
+   - List operations: by toy, by owner (with pagination)
+   - Gallery operations: add_gallery_image, remove_gallery_image
+   - Leg status updates: update_leg_status with actual_arrival tracking
+   - Partition key: trip_id for data locality
+   - Proper async lifecycle management
+
+3. **GalleryService (services/gallery_service.py):**
+   - Async blob storage for trip gallery images using `azure.storage.blob.aio`
+   - 10MB file size limit (larger than avatars for high-quality photos)
+   - Supported formats: JPEG, PNG, WebP
+   - Blob naming: `{trip_id}/{uuid}.{ext}` for organization
+   - Streaming downloads for memory efficiency
+   - Managed identity authentication (no SAS tokens)
+
+4. **REST API Routes (routes/trip_routes.py):**
+   - **Trip CRUD:**
+     - `POST /trip` - Create trip (requires toy ownership verification)
+     - `GET /trip/{trip_id}` - Get trip details (global read)
+     - `GET /trip?toy_id={id}` - List trips by toy (global read)
+     - `GET /trip?owner_oid={oid}` - List trips by owner (global read)
+     - `PATCH /trip/{trip_id}` - Update trip (owner only)
+     - `DELETE /trip/{trip_id}` - Delete trip (owner only)
+   - **Gallery:**
+     - `POST /trip/{trip_id}/gallery` - Upload image with leg number and caption (owner only)
+     - `GET /trip/{trip_id}/gallery/{image_id}` - Download image (global, streaming, cached 1hr)
+     - `DELETE /trip/{trip_id}/gallery/{image_id}` - Delete image (owner only)
+   - **Leg Status:**
+     - `PATCH /trip/{trip_id}/legs/{leg_number}/status` - Update leg status with actual arrival (owner only)
+
+5. **Authorization Pattern:**
+   - **Toy Ownership Verification:** Trip creation makes HTTP call to toy service to verify user owns the toy
+   - **Owner OID Denormalization:** `owner_oid` copied from toy to trip for fast authorization checks
+   - **Inter-Service Communication:** Uses httpx async client with bearer token forwarding
+   - **Shared Auth Module:** Reuses `src/shared/auth` with same token validation, require_owner()
+   - **Error Handling:** 404 if toy not found, 403 if not owner, 503 if toy service unavailable
+
+6. **Configuration (config.py):**
+   - All settings via Pydantic Settings with `.env` support
+   - Cosmos DB: endpoint, database, container (trips)
+   - Blob Storage: account URL, gallery container
+   - **Inter-service:** `toy_service_url` for ownership verification
+   - API: host, port (8002), log level
+   - Azure auth: tenant ID, app ID URI
+
+7. **FastAPI Application (main.py):**
+   - Lifespan management: Initialize async Cosmos/Blob clients on startup, cleanup on shutdown
+   - CORS middleware (wildcard for dev, TODO restrict in production)
+   - Health endpoint: `/health`
+   - Dependency injection of repositories and services into routes
+   - Logging: INFO by default, suppressed verbose Azure SDK logs
+
+**Integration Tests (src/integration-tests/test_trip_integration.py):**
+
+Created comprehensive test suite with three test classes:
+
+1. **TestTripServiceAuthentication:**
+   - Create and get trip (verifies toy ownership check, owner_oid denormalization)
+   - Authentication required (401 without token)
+   - Create trip requires toy ownership (403/404 for non-owned toy)
+   - Update trip (owner only)
+   - List trips by toy and by owner
+   - Delete trip (with gallery cleanup)
+
+2. **TestTripGallery:**
+   - Upload and get gallery image (with multipart, leg number, caption)
+   - Download image (streaming response, Cache-Control headers)
+   - Delete gallery image (owner only)
+
+3. **TestLegStatus:**
+   - Update leg status (in_progress, completed, etc.)
+   - Track actual arrival datetime
+
+All tests use real auth tokens, real Cosmos DB, real Blob Storage, and verify complete end-to-end flows.
+
+**Infrastructure Updates:**
+
+1. **Bicep - Storage (infra/bicep/modules/storageAccount.bicep):**
+   - Added `gallery` blob container (alongside existing `avatars`)
+   - Public access: None (private endpoints + Entra auth enforced)
+
+2. **Bicep - Cosmos DB (infra/bicep/modules/cosmosSqlServerless.bicep):**
+   - Added `trips` container with partition key `/trip_id`
+   - Database name fixed to `toytripdb` (consistent across services)
+   - Container outputs for both toys and trips
+
+**Technical Highlights:**
+
+- **Async-first:** All Azure SDK calls use async APIs (no thread pool workarounds)
+- **Streaming:** Gallery images streamed from blob storage (memory efficient)
+- **Cache-Control:** 1-hour browser cache for gallery images
+- **Validation:** Country codes uppercase, leg numbers sequential, file size limits
+- **Error handling:** Clear 401/403/404 distinction, structured error responses
+- **Cleanup:** Tests automatically delete trips (and gallery blobs) after execution
+- **Inter-service:** HTTP client with timeout (5s), proper error propagation
+
+**Authorization Flow:**
+
+```
+User → POST /trip (toy_id=X)
+  ↓
+Trip Service → GET /toy/X (with user's token)
+  ↓
+Toy Service → Validates token, checks owner_oid
+  ↓
+Trip Service ← Returns toy.owner_oid
+  ↓
+Trip Service → Creates trip with owner_oid denormalized
+```
+
+**Next Steps:**
+- Deploy both services to AKS with managed identity
+- Add frontend trip management UI (create, view, gallery)
+- Implement add-on service (accessories/experiences)
+- Add geo service for real-time tracking
+
+**Files Created/Modified:**
+- `src/services/trip/` - Complete service implementation (12 files)
+- `src/integration-tests/test_trip_integration.py` - 400+ lines of tests
+- `infra/bicep/modules/storageAccount.bicep` - Added gallery container
+- `infra/bicep/modules/cosmosSqlServerless.bicep` - Added trips container, fixed database name
+- `src/integration-tests/conftest.py` - Added trip_service_url to config
+
 ## 2025-11-03 - React Frontend Application with MSAL Authentication
 
 **Created modern React frontend** with TypeScript, Vite, TailwindCSS, and MSAL authentication for toy catalog and management.

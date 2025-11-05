@@ -75,15 +75,12 @@ def service_config() -> dict:
     Load service configuration from environment.
     
     Required environment variables:
-    - TOY_SERVICE_URL (default: http://localhost:8000)
-    - TRIP_SERVICE_URL (future)
-    - ADDON_SERVICE_URL (future)
+    - TOY_SERVICE_URL (default: http://localhost:8001)
+    - TRIP_SERVICE_URL (default: http://localhost:8002)
     """
     return {
-        "toy_service_url": os.getenv("TOY_SERVICE_URL", "http://localhost:8000"),
-        # Future services:
-        # "trip_service_url": os.getenv("TRIP_SERVICE_URL", "http://localhost:8001"),
-        # "addon_service_url": os.getenv("ADDON_SERVICE_URL", "http://localhost:8002"),
+        "toy_service_url": os.getenv("TOY_SERVICE_URL", "http://localhost:8001"),
+        "trip_service_url": os.getenv("TRIP_SERVICE_URL", "http://localhost:8002"),
     }
 
 

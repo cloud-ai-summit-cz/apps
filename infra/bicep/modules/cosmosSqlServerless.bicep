@@ -12,8 +12,9 @@ param publicNetworkAccess string = 'Enabled'
 
 var cosmosAccountName = 'cos${baseNameNoDash}'
 // Database and container names must match what application expects in .env
-var cosmosDatabaseName = 'toytripcompany'
-var cosmosContainerName = 'toys'
+var cosmosDatabaseName = 'toytripdb'
+var cosmosToysContainerName = 'toys'
+var cosmosTripsContainerName = 'trips'
 
 resource account 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
   name: cosmosAccountName
@@ -52,14 +53,30 @@ resource db 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-11-15' = {
 }
 
 // Create container via control plane (SDK cannot create containers due to disableKeyBasedMetadataWriteAccess)
-resource container 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-11-15' = {
+resource toysContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-11-15' = {
   parent: db
-  name: cosmosContainerName
+  name: cosmosToysContainerName
   properties: {
     resource: {
-      id: cosmosContainerName
+      id: cosmosToysContainerName
       partitionKey: {
         paths: ['/toy_id']
+        kind: 'Hash'
+      }
+    }
+    options: {}
+  }
+}
+
+// Create trips container
+resource tripsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-11-15' = {
+  parent: db
+  name: cosmosTripsContainerName
+  properties: {
+    resource: {
+      id: cosmosTripsContainerName
+      partitionKey: {
+        paths: ['/trip_id']
         kind: 'Hash'
       }
     }
@@ -71,13 +88,17 @@ resource container 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/container
 output cosmosAccountId string = account.id
 @description('Cosmos SQL database resource ID.')
 output cosmosDatabaseId string = db.id
-@description('Cosmos container resource ID.')
-output cosmosContainerId string = container.id
+@description('Cosmos toys container resource ID.')
+output cosmosToysContainerId string = toysContainer.id
+@description('Cosmos trips container resource ID.')
+output cosmosTripsContainerId string = tripsContainer.id
 @description('Cosmos account name used.')
 output cosmosAccountName string = cosmosAccountName
 @description('Cosmos database name used.')
 output cosmosDatabaseName string = cosmosDatabaseName
-@description('Cosmos container name used.')
-output cosmosContainerName string = cosmosContainerName
+@description('Cosmos toys container name used.')
+output cosmosToysContainerName string = cosmosToysContainerName
+@description('Cosmos trips container name used.')
+output cosmosTripsContainerName string = cosmosTripsContainerName
 @description('Document endpoint URI for data-plane SDK access.')
 output cosmosEndpoint string = account.properties.documentEndpoint
