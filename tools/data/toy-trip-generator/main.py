@@ -753,6 +753,11 @@ def main():
                     f"   ✅ Generated {len(trip_data['gallery_images'])} gallery images"
                 )
 
+                # Validate trip has images before saving
+                if not trip_data["gallery_images"]:
+                    print(f"   ⚠️  No images generated - skipping trip to {trip.location_name}")
+                    continue
+
                 # Add trip to collection
                 all_trips.append(trip_data)
 

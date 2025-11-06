@@ -1,5 +1,47 @@
 # Implementation Log
 
+## 2025-11-06 - Fixed Empty Gallery Images in Generated Trips
+
+**Problem:** Some trips in `trips.json` had empty `gallery_images` arrays despite successful generation runs. Analysis revealed 14 affected trips out of 92 total.
+
+**Root Cause:** When parallel image generation failed for all images in a trip, the code still saved the trip with an empty `gallery_images` array. This occurred before the image generation fix was fully implemented.
+
+**Solution:**
+
+1. **Created cleanup script** (`tools/data/clean-trip-images.py`):
+   - Scans trips.json for trips with empty gallery_images arrays
+   - Lists affected trips with toy name, location, and trip ID
+   - Removes incomplete trips from JSON
+   - Provides summary statistics
+
+2. **Added validation to generator** (`tools/data/toy-trip-generator/main.py`):
+   - Added check before saving trip: `if not trip_data["gallery_images"]: continue`
+   - Logs warning and skips trips with no successfully generated images
+   - Prevents future empty gallery_images from being saved
+
+**Results:**
+- Cleaned 14 incomplete trips from trips.json (92 → 78 trips)
+- Remaining 78 trips all have populated gallery images
+- Min images per trip: 1, Max: 8, Average: 5.3
+- Zero trips with empty gallery_images after cleanup
+
+**Affected Trips:**
+- Globetot - Borobudur (Magelang)
+- Puddle Pika - Taipei, Sydney
+- Snack Yak - Dubrovnik, Istanbul, Petropavlovsk-Kamchatsky, Santiago
+- Echo Gecko - Singapore, Quito
+- Carousel Kiwi - Mexico City
+- Carousel Corgi - Serengeti, Angkor, Sossusvlei, Bled
+
+**Validation:**
+- grep search confirms no remaining empty gallery_images arrays
+- Statistics show healthy distribution of images (1-8 per trip)
+- All trips now meet minimum data quality requirements
+
+**Prevention:** Generator validation ensures future runs won't save trips without images, maintaining data quality standards.
+
+---
+
 ## 2025-11-06 - Trip Model Refactor: Single Destination with Places
 
 **Refactored trip data model to represent trips to a single destination with multiple places/landmarks within that destination.**

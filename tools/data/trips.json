@@ -1,65 +1,5 @@
 [
   {
-    "trip_id": "e975f555-9f86-4268-86dc-8b34686ba9a1",
-    "toy_id": "1f23a9fe-2cdf-4f15-90dd-2e118cea9181",
-    "toy_name": "Globetot",
-    "title": "Globetot’s Borobudur Sunrise Quest",
-    "description": "Globetot zooms up the stone steps of the world’s largest Buddhist temple, tracing tiny toy fingers over intricate reliefs that tell epic tales! As dawn paints the sky, Globetot peeks from stupa terraces toward Punthuk Setumbu’s glowing horizon, then bounces over to Mendut and Pawon Temples for a mini-pilgrimage of playful discovery. It’s a sunrise-to-stupa adventure packed with ancient wonders and toy-sized thrills!",
-    "location_name": "Borobudur (Magelang)",
-    "country_code": "ID",
-    "gallery_images": []
-  },
-  {
-    "trip_id": "77ab26d3-9641-441d-9dae-c2fc8f766448",
-    "toy_id": "2d9d26c8-8d84-4c22-bf83-f94ebabb5935",
-    "toy_name": "Puddle Pika",
-    "title": "Puddle Pika’s Taipei Tasty-Trek",
-    "description": "Puddle Pika bounces through Taipei, nibbling night-market munchies at Shilin and squeaking with delight at sizzling scallion pancakes! The tiny traveler zips up to the clouds at Taipei 101, tiptoes past the grand guards at Chiang Kai-shek Memorial Hall, and marvels at glittering treasures in the National Palace Museum. With a triumphant hop up Elephant Mountain Trail for a postcard skyline view, Puddle Pika’s paws can’t stop clapping for this foodie-friendly, super-sparkly city!",
-    "location_name": "Taipei",
-    "country_code": "TW",
-    "gallery_images": []
-  },
-  {
-    "trip_id": "f679ea83-c0e1-4a76-af1e-1b1760416a1e",
-    "toy_id": "2d9d26c8-8d84-4c22-bf83-f94ebabb5935",
-    "toy_name": "Puddle Pika",
-    "title": "Puddle Pika's Splashy Sydney Sojourn",
-    "description": "Puddle Pika hops into the harbour breeze, marveling at the sail-like Sydney Opera House and scurrying over the mighty Harbour Bridge for squeaky views of sparkling blue. They wiggle through The Rocks’ cobbled lanes for tiny treasure tales, then bounce to Bondi Beach to boogie with seashells before a peaceful petal picnic in the Royal Botanic Garden. It’s a sun-kissed, waterfront wonder romp perfect for a pocket-sized adventurer!",
-    "location_name": "Sydney",
-    "country_code": "AU",
-    "gallery_images": []
-  },
-  {
-    "trip_id": "1271370d-b3e1-4c22-be22-93643e737fa0",
-    "toy_id": "aebafd83-bf22-4628-ab24-a37a7afd7ac3",
-    "toy_name": "Snack Yak",
-    "title": "Snack Yak’s Dubrovnik Wall-derful Dash",
-    "description": "Snack Yak trots onto the gleaming marble of Stradun, hooves clip-clopping past baroque facades like a tiny parade! It peeks over the mighty City Walls for sea-sparkle views, brave-bounces to Fort Lovrijenac like a heroic yak, and tiptoes through the Rector’s Palace halls before chiming a cheerful hello at Dubrovnik Cathedral. With each cobblestone snack stop, our plush explorer turns the Adriatic breeze into a giggly, grand Yak-venture!",
-    "location_name": "Dubrovnik",
-    "country_code": "HR",
-    "gallery_images": []
-  },
-  {
-    "trip_id": "782d6bf5-f97e-4808-a32f-50a2d293e0c7",
-    "toy_id": "b87961f4-399a-426a-af2c-2bf8d5ee7987",
-    "toy_name": "Echo Gecko",
-    "title": "Echo Gecko’s Sparkling Singapore Safari",
-    "description": "Echo Gecko scampers through a clean, green wonderland—zooming past the shimmering Marina Bay Sands and peeking at the glowing Supertrees in Gardens by the Bay. The tiny traveler splashes with the Merlion, tiptoes through the lush Botanic Gardens, and nibbles on colorful treats in Chinatown, turning every corner into a playful, multicultural feast for curious scales. Singapore’s futuristic fun and tasty adventures make Echo’s tail wiggle with delight!",
-    "location_name": "Singapore",
-    "country_code": "SG",
-    "gallery_images": []
-  },
-  {
-    "trip_id": "6fb32bd1-1ad7-4776-a7dc-a65e03275b48",
-    "toy_id": "b87961f4-399a-426a-af2c-2bf8d5ee7987",
-    "toy_name": "Echo Gecko",
-    "title": "Echo Gecko’s Equatorial Quito Quest",
-    "description": "Echo Gecko zips through Quito’s sky-high streets, leaping between cobblestone shadows in the colonial heart! It gawks at the gold-sparkling La Compañía de Jesús, counts clock-tower gargoyles at the Basílica del Voto Nacional, and rides the TelefériQo to touch the clouds. At Plaza Grande it practices tiny tail twirls, then hops to the Mitad del Mundo to straddle both hemispheres—two gecko footprints at once!",
-    "location_name": "Quito",
-    "country_code": "EC",
-    "gallery_images": []
-  },
-  {
     "trip_id": "3503f67d-cbb4-4e22-98a2-219f61679fcf",
     "toy_id": "7c206121-b83b-4ca3-ac70-924d18e8f380",
     "toy_name": "Monorail Snail",
@@ -2033,36 +1973,6 @@
     ]
   },
   {
-    "trip_id": "5b2d846d-408c-4cfa-a218-b4204d034447",
-    "toy_id": "44713b5f-ad5c-4bf8-88d4-36b321264d41",
-    "toy_name": "Snack Yak",
-    "title": "Snack Yak’s Istanbul Bridge-Bopping Adventure",
-    "description": "Snack Yak will gobble up sights across two continents, trotting from Europe to Asia over the Bosphorus like a brave little bridge boss! It’ll marvel at the glittering domes of Hagia Sophia and the Blue Mosque, tiptoe through Topkapi Palace’s treasure rooms, and play peekaboo with shadowy columns in the Basilica Cistern. After haggling for teeny treats in the Grand Bazaar, our snack-loving yak will hoof it to a ferry for a breezy cross-continental victory lap!",
-    "location_name": "Istanbul",
-    "country_code": "TR",
-    "gallery_images": []
-  },
-  {
-    "trip_id": "d6f19c18-3cf3-4e9b-a711-7d771e8c5794",
-    "toy_id": "44713b5f-ad5c-4bf8-88d4-36b321264d41",
-    "toy_name": "Snack Yak",
-    "title": "Snack Yak’s Kamchatka Volcano Quest",
-    "description": "Snack Yak trots into the wild edge of Russia to bob across Avacha Bay, waving at sea lions and splashing like a tiny yak captain! Then it zooms by chopper over the steamy Valley of Geysers, and bounces along lava trails near Mutnovsky, Gorely, and the pointy Vilyuchik Volcano—collecting “hot puff” badges for each rumble and whoosh. It’s a sizzling, splashing, sky-whirling adventure perfect for a brave snack-loving toy!",
-    "location_name": "Petropavlovsk-Kamchatsky",
-    "country_code": "RU",
-    "gallery_images": []
-  },
-  {
-    "trip_id": "34dee02f-9573-404e-91ab-42e13d8517d3",
-    "toy_id": "44713b5f-ad5c-4bf8-88d4-36b321264d41",
-    "toy_name": "Snack Yak",
-    "title": "Snack Yak’s Santiago Skyline Safari",
-    "description": "Snack Yak trots into Chile’s Andean capital, nibbling views from Cerro San Cristóbal and peeking at shiny skyscrapers from Sky Costanera’s super-high perch. It clacks across the colonial charms of Plaza de Armas, waves to the stately guards at La Moneda Palace, and jingles through artsy Barrio Lastarria hunting for tiny treats and colorful street surprises. With mountain breezes in its mane, our snack-loving yak makes Santiago a hoof-tapping, plaza-picnicking playground!",
-    "location_name": "Santiago",
-    "country_code": "CL",
-    "gallery_images": []
-  },
-  {
     "trip_id": "71830adb-a4c3-467b-8b3d-3e63d087b86a",
     "toy_id": "f20fd490-f6cf-4cc1-94f6-2f948f881272",
     "toy_name": "Bin Fox",
@@ -2107,16 +2017,6 @@
         "source": "generated"
       }
     ]
-  },
-  {
-    "trip_id": "6f3859ed-7857-4bb5-8a3d-d76be35937f8",
-    "toy_id": "0ceec6dd-95a9-4dee-8005-114d3939f834",
-    "toy_name": "Carousel Kiwi",
-    "title": "Carousel Kiwi’s Mexico City Whirl-and-Twirl",
-    "description": "Carousel Kiwi spins into the heart of Mexico City, hopping from the vast Zócalo to the ancient secrets of Templo Mayor like a tiny, feathered explorer! With a swish past the shimmering Palacio de Bellas Artes and a swoop up to Chapultepec Castle’s royal views, our toy traveler finishes with a colorful flutter through Frida Kahlo’s Casa Azul. It’s a whirlwind of Aztec echoes, colonial sparkle, and museum magic—perfect for a carousel critter on the go!",
-    "location_name": "Mexico City",
-    "country_code": "MX",
-    "gallery_images": []
   },
   {
     "trip_id": "adf9bbfc-2103-46ad-a09c-28a9ea12fe1c",
@@ -2489,16 +2389,6 @@
         "source": "generated"
       }
     ]
-  },
-  {
-    "trip_id": "bb48d297-06c0-40a4-b676-9ef7b4975877",
-    "toy_id": "57819281-a7fa-49d6-917a-9c2543afa7a4",
-    "toy_name": "Carousel Corgi",
-    "title": "Carousel Corgi’s Seronera Safari Spin",
-    "description": "Buckle up, little pup—Carousel Corgi is twirling through the Serengeti’s golden grasslands to chase the shadows of the Great Migration! From the bouncy Moru Kopjes to the lion lounges of Seronera Valley and the splishy Grumeti River, this brave toy will sniff out the Big Five and howl hello to wildebeest herds on parade. With the nearby Ngorongoro Crater peeking like a giant toy bowl, every spin is a tail-wagging, safari-sized surprise!",
-    "location_name": "Serengeti (Seronera)",
-    "country_code": "TZ",
-    "gallery_images": []
   },
   {
     "trip_id": "438c2398-1d6b-4050-89be-961de83c3762",
@@ -3760,36 +3650,6 @@
     ]
   },
   {
-    "trip_id": "84317631-28b8-451e-913e-b66cd1f8dab0",
-    "toy_id": "2884ff99-e1e1-49a5-afd6-e7b4582a1ab9",
-    "toy_name": "Carousel Corgi",
-    "title": "Carousel Corgi’s Jungle Temple Trot",
-    "description": "Carousel Corgi spins into Angkor’s mossy marvels, sniffing out stories in the stone at Angkor Wat and grinning at the many faces of Bayon. The pup prances through vine-tickled Ta Prohm, twirls past the rosy carvings of Banteay Srei, and bounds under the grand South Gate of Angkor Thom, collecting tiny leaf crowns and temple tales along the way.",
-    "location_name": "Angkor (Siem Reap)",
-    "country_code": "KH",
-    "gallery_images": []
-  },
-  {
-    "trip_id": "3f3675fa-7eab-43d6-8658-ca7b45be2ff9",
-    "toy_id": "2884ff99-e1e1-49a5-afd6-e7b4582a1ab9",
-    "toy_name": "Carousel Corgi",
-    "title": "Carousel Corgi’s Sand-Sational Sossusvlei Sprint",
-    "description": "Carousel Corgi zooms across the rosy dunes of Sossusvlei, tail wagging like a desert windsock! From a slide down Dune 45 to a brave bounce atop Big Daddy, our plush explorer hop-scotches past the ghostly camel-thorn trees of Deadvlei and peeks into Sesriem Canyon before a sunset cuddle on Elim Dune. It’s a paw-some, red-sand romp in one of the world’s oldest playgrounds!",
-    "location_name": "Sossusvlei (Namib Desert)",
-    "country_code": "NA",
-    "gallery_images": []
-  },
-  {
-    "trip_id": "51e9f574-f4eb-4945-8561-251a06fde4f3",
-    "toy_id": "2884ff99-e1e1-49a5-afd6-e7b4582a1ab9",
-    "toy_name": "Carousel Corgi",
-    "title": "Carousel Corgi’s Bled Lake Bounce",
-    "description": "Carousel Corgi twirls along the turquoise shores of Lake Bled, barking a merry hello to swans and hopping aboard a pletna boat to the island church for a bell-ringing wish. With ears perked, our brave pup scampers up the Mala Osojnica trail and Ojstrica viewpoint for postcard-perfect peeks, then trots to cliff-top Bled Castle to guard the glittering waters like a tiny royal knight. A celebratory lick of creamy Bled cake makes this alpine fairytale complete!",
-    "location_name": "Bled",
-    "country_code": "SI",
-    "gallery_images": []
-  },
-  {
     "trip_id": "bfd4a718-f53d-4920-93f4-c7e9b55264b6",
     "toy_id": "9ee42dde-eb19-4944-acf0-3527fcb0c4b2",
     "toy_name": "Nap Narwhal",
@@ -3884,6 +3744,225 @@
         "blob_name": "43e7477e-beab-4044-a9a5-660d3fcaf8f0.jpg",
         "landmark": "Pont Alexandre III",
         "caption": "Nap Narwhal at Pont Alexandre III",
+        "source": "generated"
+      }
+    ]
+  },
+  {
+    "trip_id": "ec41c566-74f1-4dc0-a45f-499c3ab7cd77",
+    "toy_id": "1f23a9fe-2cdf-4f15-90dd-2e118cea9181",
+    "toy_name": "Globetot",
+    "title": "Globetot’s Thundering Victoria Falls Frolic",
+    "description": "Globetot zips to Livingstone to feel the earth tremble at Mosi-oa-Tunya, where misty rainbows sprinkle sparkle-drops on tiny travel toes! Our brave toy tiptoes across Knife-Edge Bridge for splashy views, peeks over to Livingstone Island, and (in the safe season) waves hello to Devil’s Pool like a fearless floaty. As the sun melts into gold, Globetot lounges on a Zambezi River sunset cruise, counting hippo bobbles and collecting sky-colored stickers for its suitcase!",
+    "location_name": "Victoria Falls (Livingstone)",
+    "country_code": "ZM",
+    "gallery_images": [
+      {
+        "image_id": "a6165e99-80ec-4dce-b835-140d6779bdff",
+        "blob_name": "a6165e99-80ec-4dce-b835-140d6779bdff.jpg",
+        "landmark": "Victoria Falls (Mosi-oa-Tunya)",
+        "caption": "Globetot at Victoria Falls (Mosi-oa-Tunya)",
+        "source": "generated"
+      },
+      {
+        "image_id": "0374ed5d-1e8a-48a1-b949-295662730aba",
+        "blob_name": "0374ed5d-1e8a-48a1-b949-295662730aba.jpg",
+        "landmark": "Devil’s Pool (seasonal)",
+        "caption": "Globetot at Devil’s Pool (seasonal)",
+        "source": "generated"
+      },
+      {
+        "image_id": "b556c73c-0c10-4b0e-b489-98eb52224b32",
+        "blob_name": "b556c73c-0c10-4b0e-b489-98eb52224b32.jpg",
+        "landmark": "Zambezi River Sunset Cruise",
+        "caption": "Globetot at Zambezi River Sunset Cruise",
+        "source": "generated"
+      },
+      {
+        "image_id": "8a29ecd7-4cbf-4ca3-9fcb-f82ffdd6362a",
+        "blob_name": "8a29ecd7-4cbf-4ca3-9fcb-f82ffdd6362a.jpg",
+        "landmark": "Helicopter Flight of Angels",
+        "caption": "Globetot at Helicopter Flight of Angels",
+        "source": "generated"
+      },
+      {
+        "image_id": "44f9653e-786e-4d78-9e4d-ab2af685ae3f",
+        "blob_name": "44f9653e-786e-4d78-9e4d-ab2af685ae3f.jpg",
+        "landmark": "Knife-Edge Bridge",
+        "caption": "Globetot at Knife-Edge Bridge",
+        "source": "generated"
+      },
+      {
+        "image_id": "db95bfb8-7926-4692-97e2-669cb34ba2df",
+        "blob_name": "db95bfb8-7926-4692-97e2-669cb34ba2df.jpg",
+        "landmark": "Victoria Falls Bridge",
+        "caption": "Globetot at Victoria Falls Bridge",
+        "source": "generated"
+      },
+      {
+        "image_id": "f7fd6bdb-804a-4cd9-8226-a7e2977e0a41",
+        "blob_name": "f7fd6bdb-804a-4cd9-8226-a7e2977e0a41.jpg",
+        "landmark": "Mosi-oa-Tunya National Park",
+        "caption": "Globetot at Mosi-oa-Tunya National Park",
+        "source": "generated"
+      }
+    ]
+  },
+  {
+    "trip_id": "31bc707e-af49-46a3-b3f7-519a922f7be3",
+    "toy_id": "2d9d26c8-8d84-4c22-bf83-f94ebabb5935",
+    "toy_name": "Puddle Pika",
+    "title": "Puddle Pika’s Venetian Splashabout",
+    "description": "Puddle Pika zips across the Grand Canal on a gondola, tail twitching as charming palazzos and the Rialto Bridge glide by like a storybook come to life. They peek at shimmering mosaics in St. Mark’s Basilica, scamper through the Doge’s Palace, and play hide-and-squeak under the Bridge of Sighs. With every splashy step on lagoon breezes, Venice becomes a maze of marvels just the right size for a pint‑sized explorer!",
+    "location_name": "Venice",
+    "country_code": "IT",
+    "gallery_images": [
+      {
+        "image_id": "79412d81-73fb-4c51-8807-c0e2724d3049",
+        "blob_name": "79412d81-73fb-4c51-8807-c0e2724d3049.jpg",
+        "landmark": "Rialto Bridge",
+        "caption": "Puddle Pika at Rialto Bridge",
+        "source": "generated"
+      },
+      {
+        "image_id": "42cc30a6-bad6-4f09-98d8-e7cb68e60d37",
+        "blob_name": "42cc30a6-bad6-4f09-98d8-e7cb68e60d37.jpg",
+        "landmark": "Burano Island",
+        "caption": "Puddle Pika at Burano Island",
+        "source": "generated"
+      },
+      {
+        "image_id": "893542e2-0e22-4b99-a86b-1693ea607218",
+        "blob_name": "893542e2-0e22-4b99-a86b-1693ea607218.jpg",
+        "landmark": "St. Mark’s Basilica",
+        "caption": "Puddle Pika at St. Mark’s Basilica",
+        "source": "generated"
+      },
+      {
+        "image_id": "742f96d4-df79-4f82-aae0-292ff95fe1ff",
+        "blob_name": "742f96d4-df79-4f82-aae0-292ff95fe1ff.jpg",
+        "landmark": "Bridge of Sighs",
+        "caption": "Puddle Pika at Bridge of Sighs",
+        "source": "generated"
+      }
+    ]
+  },
+  {
+    "trip_id": "0b6ef2a1-0100-4b91-9f70-37b4ae71c351",
+    "toy_id": "aebafd83-bf22-4628-ab24-a37a7afd7ac3",
+    "toy_name": "Snack Yak",
+    "title": "Snack Yak’s Lalibela Rock-Quest",
+    "description": "Snack Yak trots into Lalibela to explore legendary rock-hewn churches carved straight from the volcanic tuff—like a secret stone playground! The yak will tip-hoof past Bet Giyorgis (St. George) and peek into Biete Medhane Alem, Biete Maryam, Biete Amanuel, and Biete Abba Libanos, collecting pebble-sized “souvenirs” of stories along the way. Pilgrim paths become yak tracks as Snack Yak ‘yak-yodels’ through echoing passageways and marvels at ancient carvings that feel larger than a jumbo snack pack!",
+    "location_name": "Lalibela",
+    "country_code": "ET",
+    "gallery_images": [
+      {
+        "image_id": "7c89565c-f23f-4fbf-b47f-45a93c9a3829",
+        "blob_name": "7c89565c-f23f-4fbf-b47f-45a93c9a3829.jpg",
+        "landmark": "Biete Maryam",
+        "caption": "Snack Yak at Biete Maryam",
+        "source": "generated"
+      },
+      {
+        "image_id": "50aadf4b-650b-4294-bcd5-05e55f0d52bf",
+        "blob_name": "50aadf4b-650b-4294-bcd5-05e55f0d52bf.jpg",
+        "landmark": "Biete Medhane Alem",
+        "caption": "Snack Yak at Biete Medhane Alem",
+        "source": "generated"
+      },
+      {
+        "image_id": "9752eb9d-ddba-483f-bfa2-dbc5e55611a8",
+        "blob_name": "9752eb9d-ddba-483f-bfa2-dbc5e55611a8.jpg",
+        "landmark": "Biete Abba Libanos",
+        "caption": "Snack Yak at Biete Abba Libanos",
+        "source": "generated"
+      },
+      {
+        "image_id": "8eb7d493-01b0-4258-b9f6-ba048942f282",
+        "blob_name": "8eb7d493-01b0-4258-b9f6-ba048942f282.jpg",
+        "landmark": "Biete Amanuel",
+        "caption": "Snack Yak at Biete Amanuel",
+        "source": "generated"
+      },
+      {
+        "image_id": "1b02bf96-90e6-4cd1-877a-702b53c9198a",
+        "blob_name": "1b02bf96-90e6-4cd1-877a-702b53c9198a.jpg",
+        "landmark": "Bet Giyorgis (St. George)",
+        "caption": "Snack Yak at Bet Giyorgis (St. George)",
+        "source": "generated"
+      },
+      {
+        "image_id": "d2fc6f85-e36b-4b04-9c65-40f016b88871",
+        "blob_name": "d2fc6f85-e36b-4b04-9c65-40f016b88871.jpg",
+        "landmark": "Northwestern Cluster Churches",
+        "caption": "Snack Yak at Northwestern Cluster Churches",
+        "source": "generated"
+      },
+      {
+        "image_id": "9db9314f-5d68-4f4c-ac0b-668b14d67f06",
+        "blob_name": "9db9314f-5d68-4f4c-ac0b-668b14d67f06.jpg",
+        "landmark": "Tunnel of Baptism",
+        "caption": "Snack Yak at Tunnel of Baptism",
+        "source": "generated"
+      },
+      {
+        "image_id": "05c953ab-b4a6-4980-af19-877c01d35e2d",
+        "blob_name": "05c953ab-b4a6-4980-af19-877c01d35e2d.jpg",
+        "landmark": "Ashetan Maryam Monastery",
+        "caption": "Snack Yak at Ashetan Maryam Monastery",
+        "source": "generated"
+      }
+    ]
+  },
+  {
+    "trip_id": "740c0d87-d417-486a-9003-dda3d02e942f",
+    "toy_id": "b87961f4-399a-426a-af2c-2bf8d5ee7987",
+    "toy_name": "Echo Gecko",
+    "title": "Echo Gecko’s Sparkling Reims Romp",
+    "description": "Echo Gecko skitters into the coronation capital, craning up at the lofty spires of Notre-Dame de Reims before practicing a teeny royal wave at the Palace of Tau. Down in the cool Pommery cellars, our tiny traveler echoes through bubbly halls, then bounces to the Basilica of Saint-Remi for a knightly gecko quest. A quick dash to Épernay’s Avenue de Champagne tops it off—where every pop sounds like a cheer for Echo’s glittery, grape-tastic adventure!",
+    "location_name": "Reims (Champagne)",
+    "country_code": "FR",
+    "gallery_images": [
+      {
+        "image_id": "a84b39b7-8fc2-40e5-a380-70786a30fd26",
+        "blob_name": "a84b39b7-8fc2-40e5-a380-70786a30fd26.jpg",
+        "landmark": "Pommery Cellars",
+        "caption": "Echo Gecko at Pommery Cellars",
+        "source": "generated"
+      },
+      {
+        "image_id": "e2c8a566-cfd8-4c77-a180-1cee1cfbe97f",
+        "blob_name": "e2c8a566-cfd8-4c77-a180-1cee1cfbe97f.jpg",
+        "landmark": "Palace of Tau",
+        "caption": "Echo Gecko at Palace of Tau",
+        "source": "generated"
+      },
+      {
+        "image_id": "a2f8a153-6c20-421c-838b-5762138d7ae0",
+        "blob_name": "a2f8a153-6c20-421c-838b-5762138d7ae0.jpg",
+        "landmark": "Reims Cathedral (Notre-Dame)",
+        "caption": "Echo Gecko at Reims Cathedral (Notre-Dame)",
+        "source": "generated"
+      },
+      {
+        "image_id": "6fee3127-ae1e-4b1a-aee4-d57374d4116b",
+        "blob_name": "6fee3127-ae1e-4b1a-aee4-d57374d4116b.jpg",
+        "landmark": "Basilica of Saint-Remi",
+        "caption": "Echo Gecko at Basilica of Saint-Remi",
+        "source": "generated"
+      },
+      {
+        "image_id": "17802fba-9f31-4ecb-bbfe-ae5b2ceb08a6",
+        "blob_name": "17802fba-9f31-4ecb-bbfe-ae5b2ceb08a6.jpg",
+        "landmark": "Avenue de Champagne (Épernay)",
+        "caption": "Echo Gecko at Avenue de Champagne (Épernay)",
+        "source": "generated"
+      },
+      {
+        "image_id": "0f84f2f6-f1a8-47cb-b74a-1b3d0e52cff8",
+        "blob_name": "0f84f2f6-f1a8-47cb-b74a-1b3d0e52cff8.jpg",
+        "landmark": "Foujita Chapel",
+        "caption": "Echo Gecko at Foujita Chapel",
         "source": "generated"
       }
     ]
