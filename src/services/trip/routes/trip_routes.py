@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "shared"))
 from auth.dependencies import create_auth_dependency, require_owner
 from auth.models import AuthContext
 
-from models import Trip, TripCreate, TripUpdate, GalleryImage, LegStatus
+from models import Trip, TripCreate, TripUpdate, GalleryImage, PlaceStatus
 from repositories import TripRepository
 from services import GalleryService
 
@@ -151,10 +151,12 @@ async def create_trip(
     trip = Trip(
         title=trip_data.title.strip(),
         description=trip_data.description.strip() if trip_data.description else None,
+        location_name=trip_data.location_name.strip(),
+        country_code=trip_data.country_code,
         toy_id=trip_data.toy_id,
         owner_oid=owner_oid,
         public_tracking_enabled=trip_data.public_tracking_enabled,
-        legs=trip_data.legs,
+        places=trip_data.places,
     )
 
     created_trip = await repo.create(trip)
@@ -170,7 +172,7 @@ async def get_trip(
     repo: TripRepository = Depends(get_trip_repo),
 ) -> Trip:
     """
-    Get trip details including legs and gallery.
+    Get trip details including places and gallery.
 
     Global read access.
     """
@@ -285,7 +287,8 @@ async def delete_trip(
 @router.post("/{trip_id}/gallery", response_model=Trip)
 async def upload_gallery_image(
     trip_id: UUID,
-    leg_number: int = Query(..., ge=1, description="Leg number for this image"),
+    place_number: int | None = Query(None, ge=1, description="Optional place number for this image"),
+    landmark: str | None = Query(None, max_length=200, description="Optional landmark name"),
     caption: str | None = Query(None, max_length=500, description="Optional image caption"),
     file: UploadFile = File(..., description="Gallery image (JPEG, PNG, or WebP)"),
     auth_ctx: AuthContext = Depends(auth_dependency),
@@ -293,8 +296,9 @@ async def upload_gallery_image(
     gallery_svc: GalleryService = Depends(get_gallery_svc),
 ) -> Trip:
     """
-    Upload a gallery image for a trip leg.
+    Upload a gallery image for a trip.
 
+    Can optionally associate with a specific place or landmark.
     Only the owner can upload images.
     """
     # Get existing trip
@@ -305,9 +309,9 @@ async def upload_gallery_image(
     # Check ownership
     require_owner(auth_ctx, trip.owner_oid)
 
-    # Verify leg number exists
-    if not any(leg.leg_number == leg_number for leg in trip.legs):
-        raise HTTPException(status_code=400, detail=f"Leg {leg_number} does not exist in this trip")
+    # Verify place number exists if provided
+    if place_number is not None and not any(place.place_number == place_number for place in trip.places):
+        raise HTTPException(status_code=400, detail=f"Place {place_number} does not exist in this trip")
 
     try:
         # Upload image to blob storage
@@ -315,7 +319,8 @@ async def upload_gallery_image(
 
         # Create gallery image metadata
         image = GalleryImage(
-            leg_number=leg_number,
+            place_number=place_number,
+            landmark=landmark,
             blob_name=blob_name,
             caption=caption,
             source="user",
@@ -326,7 +331,7 @@ async def upload_gallery_image(
         if not updated_trip:
             raise HTTPException(status_code=404, detail="Trip not found")
 
-        logger.info(f"Uploaded gallery image for trip {trip_id}, leg {leg_number}")
+        logger.info(f"Uploaded gallery image for trip {trip_id}, place {place_number}, landmark {landmark}")
         return updated_trip
 
     except ValueError as e:
@@ -417,22 +422,22 @@ async def delete_gallery_image(
     logger.info(f"Deleted gallery image {image_id} from trip {trip_id}")
 
 
-# Leg status endpoints
+# Place status endpoints
 
 
-@router.patch("/{trip_id}/legs/{leg_number}/status", response_model=Trip)
-async def update_leg_status(
+@router.patch("/{trip_id}/places/{place_number}/status", response_model=Trip)
+async def update_place_status(
     trip_id: UUID,
-    leg_number: int,
-    status: LegStatus,
-    actual_arrival: datetime | None = None,
+    place_number: int,
+    status: PlaceStatus,
+    actual_visit: datetime | None = None,
     auth_ctx: AuthContext = Depends(auth_dependency),
     repo: TripRepository = Depends(get_trip_repo),
 ) -> Trip:
     """
-    Update the status of a trip leg.
+    Update the status of a place visit.
 
-    Only the owner can update leg status.
+    Only the owner can update place status.
     """
     # Get existing trip
     trip = await repo.get_by_id(trip_id)
@@ -442,14 +447,14 @@ async def update_leg_status(
     # Check ownership
     require_owner(auth_ctx, trip.owner_oid)
 
-    # Verify leg exists
-    if not any(leg.leg_number == leg_number for leg in trip.legs):
-        raise HTTPException(status_code=404, detail=f"Leg {leg_number} not found")
+    # Verify place exists
+    if not any(place.place_number == place_number for place in trip.places):
+        raise HTTPException(status_code=404, detail=f"Place {place_number} not found")
 
-    # Update leg status
-    updated_trip = await repo.update_leg_status(trip_id, leg_number, status, actual_arrival)
+    # Update place status
+    updated_trip = await repo.update_place_status(trip_id, place_number, status, actual_visit)
     if not updated_trip:
         raise HTTPException(status_code=404, detail="Trip not found")
 
-    logger.info(f"Updated leg {leg_number} status to {status} for trip {trip_id}")
+    logger.info(f"Updated place {place_number} status to {status} for trip {trip_id}")
     return updated_trip

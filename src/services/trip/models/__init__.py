@@ -1,8 +1,8 @@
 """Trip service models."""
 from models.trip import (
     GalleryImage,
-    Leg,
-    LegStatus,
+    Place,
+    PlaceStatus,
     Trip,
     TripCreate,
     TripDocument,
@@ -11,8 +11,8 @@ from models.trip import (
 )
 
 __all__ = [
-    "Leg",
-    "LegStatus",
+    "Place",
+    "PlaceStatus",
     "GalleryImage",
     "Trip",
     "TripCreate",

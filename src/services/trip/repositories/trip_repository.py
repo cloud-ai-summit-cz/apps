@@ -12,7 +12,7 @@ from azure.cosmos.aio import ContainerProxy, CosmosClient, DatabaseProxy
 from azure.cosmos import exceptions
 from azure.identity.aio import DefaultAzureCredential
 
-from models import Trip, TripDocument, GalleryImage, Leg, LegStatus
+from models import Trip, TripDocument, GalleryImage, Place, PlaceStatus
 
 logger = logging.getLogger(__name__)
 
@@ -301,15 +301,15 @@ class TripRepository:
             logger.debug(f"Trip not found for removing gallery image: {trip_id_str}")
             return None
 
-    async def update_leg_status(self, trip_id: UUID, leg_number: int, status: LegStatus, actual_arrival: Any = None) -> Trip | None:
+    async def update_place_status(self, trip_id: UUID, place_number: int, status: PlaceStatus, actual_visit: Any = None) -> Trip | None:
         """
-        Update the status of a specific leg.
+        Update the status of a specific place.
 
         Args:
             trip_id: UUID of the trip
-            leg_number: Leg number to update
+            place_number: Place number to update
             status: New status
-            actual_arrival: Actual arrival datetime (optional)
+            actual_visit: Actual visit datetime (optional)
 
         Returns:
             Updated Trip if found, None otherwise
@@ -321,13 +321,13 @@ class TripRepository:
             # Read current item
             item = await container.read_item(item=trip_id_str, partition_key=trip_id_str)
 
-            # Update leg status
-            if "legs" in item:
-                for leg in item["legs"]:
-                    if leg.get("leg_number") == leg_number:
-                        leg["status"] = status.value
-                        if actual_arrival is not None:
-                            leg["actual_arrival"] = actual_arrival.isoformat() if hasattr(actual_arrival, "isoformat") else actual_arrival
+            # Update place status
+            if "places" in item:
+                for place in item["places"]:
+                    if place.get("place_number") == place_number:
+                        place["status"] = status.value
+                        if actual_visit is not None:
+                            place["actual_visit"] = actual_visit.isoformat() if hasattr(actual_visit, "isoformat") else actual_visit
                         break
 
             # Update timestamp
@@ -336,11 +336,11 @@ class TripRepository:
 
             # Replace item
             updated_item = await container.replace_item(item=item, body=item)
-            logger.info(f"Updated leg {leg_number} status to {status} for trip: {trip_id_str}")
+            logger.info(f"Updated place {place_number} status to {status} for trip: {trip_id_str}")
             return TripDocument(**updated_item).to_trip()
 
         except exceptions.CosmosResourceNotFoundError:
-            logger.debug(f"Trip not found for updating leg status: {trip_id_str}")
+            logger.debug(f"Trip not found for updating place status: {trip_id_str}")
             return None
 
     async def close(self):

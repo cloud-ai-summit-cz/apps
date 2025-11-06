@@ -3,7 +3,7 @@ Import trip profiles from JSON into the trip service.
 
 This script:
 1. Reads trip profiles from JSON file
-2. Creates trips via API (with legs)
+2. Creates trips via API (single destination per trip)
 3. Uploads gallery images from images folder
 
 Requires:
@@ -129,14 +129,8 @@ def main():
             "toy_id": profile["toy_id"],
             "title": profile["title"],
             "description": profile.get("description", ""),
-            "legs": [
-                {
-                    "leg_number": leg["leg_number"],
-                    "location_name": leg["location_name"],
-                    "country_code": leg["country_code"],
-                }
-                for leg in profile["legs"]
-            ],
+            "location_name": profile["location_name"],
+            "country_code": profile["country_code"],
         }
 
         try:
@@ -147,7 +141,7 @@ def main():
             trip = response.json()
             trip_id = trip["id"]
             print(f"   ✅ Created trip (ID: {trip_id})")
-            print(f"      Legs: {len(trip_data['legs'])}")
+            print(f"      Location: {profile['location_name']}, {profile['country_code']}")
             created += 1
         except httpx.HTTPError as e:
             print(f"   ❌ Failed to create trip: {e}")
@@ -166,7 +160,7 @@ def main():
 
             for img_idx, image_meta in enumerate(gallery_images, 1):
                 blob_name = image_meta["blob_name"]
-                leg_number = image_meta["leg_number"]
+                landmark = image_meta.get("landmark", "")
                 caption = image_meta.get("caption", "")
 
                 image_file = images_path / blob_name
@@ -179,7 +173,9 @@ def main():
                 try:
                     with open(image_file, "rb") as img:
                         files = {"file": (blob_name, img, "image/jpeg")}
-                        data = {"leg_number": str(leg_number)}
+                        data = {}
+                        if landmark:
+                            data["landmark"] = landmark
                         if caption:
                             data["caption"] = caption
 

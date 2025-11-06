@@ -1,5 +1,24 @@
 # Implementation Log
 
+## 2025-11-06 - Fixed Trip Service Import Errors (Part 2)
+
+**Issue**: Trip service failed to start due to incorrect model imports referencing non-existent `Leg` and `LegStatus` classes.
+
+**Root Cause**: The trip service code was using outdated naming conventions. After the trip model refactor (earlier today), the data model uses `Place` and `PlaceStatus` to represent destinations/landmarks within a trip. However, several files still imported and referenced the old `Leg` and `LegStatus` classes.
+
+**Changes Made**:
+1. Updated `src/services/trip/models/__init__.py` to export `Place` and `PlaceStatus` instead of `Leg` and `LegStatus`
+2. Fixed imports in `src/services/trip/repositories/trip_repository.py` to use correct model classes
+3. Renamed `update_leg_status()` method to `update_place_status()` in repository (updated method logic to work with places)
+4. Updated route handler in `src/services/trip/routes/trip_routes.py`:
+   - Changed endpoint from `PATCH /{trip_id}/legs/{leg_number}/status` to `PATCH /{trip_id}/places/{place_number}/status`
+   - Updated function name and all references from legs to places
+   - Fixed parameter names and documentation
+
+**Result**: Trip service now starts successfully without import errors. The API correctly reflects the domain model where trips have "places to visit" rather than "legs".
+
+---
+
 ## 2025-11-06 - Fixed Empty Gallery Images in Generated Trips
 
 **Problem:** Some trips in `trips.json` had empty `gallery_images` arrays despite successful generation runs. Analysis revealed 14 affected trips out of 92 total.
