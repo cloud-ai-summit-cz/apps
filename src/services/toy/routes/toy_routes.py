@@ -74,6 +74,7 @@ async def create_toy(
     Register a new toy.
 
     The owner_oid is automatically set from the authenticated user's token.
+    If toy_data.id is provided, it will be used; otherwise a new UUID is generated.
     """
     if not auth_ctx.is_user:
         raise HTTPException(status_code=403, detail="Only users can create toys")
@@ -84,8 +85,9 @@ async def create_toy(
     if not isinstance(user, UserPrincipal):
         raise HTTPException(status_code=403, detail="Invalid principal type")
 
-    # Create toy with owner_oid from token
+    # Create toy with owner_oid from token, using provided ID if available
     toy = Toy(
+        id=toy_data.id if toy_data.id else None,  # Will auto-generate if None
         name=toy_data.name.strip(),
         description=toy_data.description.strip() if toy_data.description else None,
         owner_oid=user.oid,

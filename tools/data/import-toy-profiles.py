@@ -117,15 +117,22 @@ def main():
     
     for idx, profile in enumerate(profiles, 1):
         toy_name = profile.get("name", "Unknown")
+        toy_id = profile.get("id")
         avatar_blob_name = profile.get("avatar_blob_name")
         
         print(f"\n[{idx}/{len(profiles)}] {toy_name}")
+        if toy_id:
+            print(f"   Using explicit ID: {toy_id}")
         
         # Create toy
         toy_data = {
             "name": profile["name"],
             "description": profile.get("description", "")
         }
+        
+        # Include ID if present in profile
+        if toy_id:
+            toy_data["id"] = toy_id
         
         try:
             response = httpx.post(

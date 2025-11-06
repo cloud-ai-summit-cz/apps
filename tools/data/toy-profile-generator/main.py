@@ -66,6 +66,9 @@ def load_config() -> dict[str, Any]:
 def create_openai_client(endpoint: str) -> AzureOpenAI:
     """
     Create authenticated AzureOpenAI client using DefaultAzureCredential.
+    
+    Excludes SharedTokenCacheCredential to avoid authority validation issues
+    in development environments (see docs/COMMON_ERRORS.md).
 
     Args:
         endpoint: Azure OpenAI endpoint URL.
@@ -275,6 +278,8 @@ def main():
             print(f"   ✨ Name: {profile.name}")
             print(f"   📝 Description: {profile.description[:60]}...")
 
+            # Generate UUIDs for toy and image
+            toy_id = str(uuid.uuid4())
             image_id = str(uuid.uuid4())
             image_filename = f"{image_id}.jpg"
             image_path = images_dir / image_filename
@@ -287,6 +292,7 @@ def main():
 
             owner_oid = random.choice(config["owner_oids"])
             toy_data = {
+                "id": toy_id,
                 "owner_oid": owner_oid,
                 "name": profile.name,
                 "description": profile.description,

@@ -48,7 +48,7 @@ uv run main.py
 ### Output
 
 - **JSON data:** `toy_profiles.json` in current directory
-  - Array of objects with: `owner_oid`, `name`, `description`, `avatar_blob_name`
+  - Array of objects with: `id`, `owner_oid`, `name`, `description`, `avatar_blob_name`
 - **Images:** `../toy-images/*.jpg` (UUID-named JPEG files, 256x256px)
 
 ### Example Output
@@ -56,6 +56,7 @@ uv run main.py
 ```json
 [
   {
+    "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
     "owner_oid": "12345678-1234-1234-1234-123456789012",
     "name": "Captain Whiskers",
     "description": "A dashing pirate cat with a tiny tricorn hat...",

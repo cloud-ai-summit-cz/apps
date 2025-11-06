@@ -15,7 +15,7 @@ class ToyBase(BaseModel):
 class ToyCreate(ToyBase):
     """Model for creating a new toy."""
 
-    pass
+    id: UUID | None = Field(None, description="Optional explicit toy ID (for imports); auto-generated if omitted")
 
 
 class ToyUpdate(BaseModel):

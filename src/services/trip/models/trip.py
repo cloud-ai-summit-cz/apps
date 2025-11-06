@@ -6,12 +6,11 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field, field_validator, field_serializer
 
 
-class LegStatus(str, Enum):
-    """Status of a trip leg."""
+class PlaceStatus(str, Enum):
+    """Status of a place visit."""
 
     PLANNED = "planned"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
+    VISITED = "visited"
     SKIPPED = "skipped"
 
 
@@ -24,24 +23,17 @@ class TripStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
-class Leg(BaseModel):
-    """A single leg/segment within a trip."""
+class Place(BaseModel):
+    """A specific place/landmark to visit within the destination."""
 
-    leg_number: int = Field(..., ge=1, description="Sequential leg number (1-indexed)")
-    location_name: str = Field(..., min_length=1, max_length=200, description="Location name (city, landmark)")
-    country_code: str = Field(..., min_length=2, max_length=2, description="ISO 3166-1 alpha-2 country code")
-    planned_arrival: datetime | None = Field(None, description="Planned arrival time (optional)")
-    actual_arrival: datetime | None = Field(None, description="Actual arrival time")
-    status: LegStatus = Field(default=LegStatus.PLANNED, description="Leg status")
-    notes: str | None = Field(None, max_length=1000, description="Optional notes about the leg")
+    place_number: int = Field(..., ge=1, description="Sequential place number (1-indexed)")
+    name: str = Field(..., min_length=1, max_length=200, description="Place/landmark name")
+    planned_visit: datetime | None = Field(None, description="Planned visit time (optional)")
+    actual_visit: datetime | None = Field(None, description="Actual visit time")
+    status: PlaceStatus = Field(default=PlaceStatus.PLANNED, description="Visit status")
+    notes: str | None = Field(None, max_length=1000, description="Optional notes about the visit")
 
-    @field_validator("country_code")
-    @classmethod
-    def validate_country_code(cls, v: str) -> str:
-        """Ensure country code is uppercase."""
-        return v.upper()
-
-    @field_serializer('planned_arrival', 'actual_arrival')
+    @field_serializer('planned_visit', 'actual_visit')
     def serialize_datetime(self, value: datetime | None) -> str | None:
         """Serialize datetime to ISO format."""
         return value.isoformat() if value else None
@@ -51,7 +43,8 @@ class GalleryImage(BaseModel):
     """Gallery image metadata."""
 
     image_id: UUID = Field(default_factory=uuid4, description="Unique image identifier")
-    leg_number: int = Field(..., ge=1, description="Associated leg number")
+    place_number: int | None = Field(None, ge=1, description="Associated place number (optional)")
+    landmark: str | None = Field(None, max_length=200, description="Landmark name featured in the image")
     blob_name: str = Field(..., description="Internal blob storage reference")
     caption: str | None = Field(None, max_length=500, description="Optional image caption")
     uploaded_at: datetime = Field(default_factory=lambda: datetime.now(UTC), description="Upload timestamp")
@@ -73,30 +66,38 @@ class TripBase(BaseModel):
 
     title: str = Field(..., min_length=1, max_length=200, description="Trip title")
     description: str | None = Field(None, max_length=1000, description="Trip description")
+    location_name: str = Field(..., min_length=1, max_length=200, description="Destination city or location")
+    country_code: str = Field(..., min_length=2, max_length=2, description="ISO 3166-1 alpha-2 country code")
     public_tracking_enabled: bool = Field(default=False, description="Enable public location sharing")
+
+    @field_validator("country_code")
+    @classmethod
+    def validate_country_code(cls, v: str) -> str:
+        """Ensure country code is uppercase."""
+        return v.upper()
 
 
 class TripCreate(TripBase):
     """Model for creating a new trip."""
 
     toy_id: UUID = Field(..., description="ID of the toy taking this trip")
-    legs: list[Leg] = Field(..., min_length=1, description="Ordered list of trip legs (at least one required)")
+    places: list[Place] = Field(default_factory=list, description="Optional list of places to visit within destination")
 
-    @field_validator("legs")
+    @field_validator("places")
     @classmethod
-    def validate_leg_numbers(cls, v: list[Leg]) -> list[Leg]:
-        """Ensure leg numbers are sequential starting from 1."""
+    def validate_place_numbers(cls, v: list[Place]) -> list[Place]:
+        """Ensure place numbers are sequential starting from 1 if provided."""
         if not v:
-            raise ValueError("At least one leg is required")
+            return v
 
-        leg_numbers = [leg.leg_number for leg in v]
+        place_numbers = [place.place_number for place in v]
         expected = list(range(1, len(v) + 1))
 
-        if sorted(leg_numbers) != expected:
-            raise ValueError(f"Leg numbers must be sequential from 1 to {len(v)}")
+        if sorted(place_numbers) != expected:
+            raise ValueError(f"Place numbers must be sequential from 1 to {len(v)}")
 
-        if len(set(leg_numbers)) != len(leg_numbers):
-            raise ValueError("Leg numbers must be unique")
+        if len(set(place_numbers)) != len(place_numbers):
+            raise ValueError("Place numbers must be unique")
 
         return v
 
@@ -106,16 +107,24 @@ class TripUpdate(BaseModel):
 
     title: str | None = Field(None, min_length=1, max_length=200)
     description: str | None = Field(None, max_length=1000)
+    location_name: str | None = Field(None, min_length=1, max_length=200)
+    country_code: str | None = Field(None, min_length=2, max_length=2)
     public_tracking_enabled: bool | None = None
     status: TripStatus | None = None
 
-    @field_validator("title")
+    @field_validator("title", "location_name")
     @classmethod
-    def validate_title_not_empty(cls, v: str | None) -> str | None:
-        """Ensure title is not just whitespace if provided."""
+    def validate_not_empty(cls, v: str | None) -> str | None:
+        """Ensure fields are not just whitespace if provided."""
         if v is not None and not v.strip():
-            raise ValueError("Title cannot be empty or whitespace only")
+            raise ValueError("Field cannot be empty or whitespace only")
         return v.strip() if v else None
+
+    @field_validator("country_code")
+    @classmethod
+    def validate_country_code(cls, v: str | None) -> str | None:
+        """Ensure country code is uppercase if provided."""
+        return v.upper() if v else None
 
 
 class Trip(TripBase):
@@ -125,7 +134,7 @@ class Trip(TripBase):
     toy_id: UUID = Field(..., description="ID of the toy taking this trip")
     owner_oid: str = Field(..., description="Entra object ID of the toy owner (denormalized for fast auth)")
     status: TripStatus = Field(default=TripStatus.PLANNED, description="Overall trip status")
-    legs: list[Leg] = Field(default_factory=list, description="Ordered list of trip legs")
+    places: list[Place] = Field(default_factory=list, description="Places to visit within destination")
     gallery: list[GalleryImage] = Field(default_factory=list, description="Gallery images")
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), description="Creation timestamp")
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC), description="Last modification timestamp")
@@ -179,13 +188,15 @@ class TripDocument(Trip):
         data = {
             "title": trip.title,
             "description": trip.description,
+            "location_name": trip.location_name,
+            "country_code": trip.country_code,
             "public_tracking_enabled": trip.public_tracking_enabled,
             "id": str(trip.id),
             "trip_id": str(trip.id),
             "toy_id": str(trip.toy_id),
             "owner_oid": trip.owner_oid,
             "status": trip.status,
-            "legs": [leg.model_dump() for leg in trip.legs],
+            "places": [place.model_dump() for place in trip.places],
             "gallery": [img.model_dump() for img in trip.gallery],
             "created_at": trip.created_at,
             "updated_at": trip.updated_at,

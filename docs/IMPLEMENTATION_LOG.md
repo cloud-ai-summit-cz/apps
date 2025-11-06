@@ -1,5 +1,218 @@
 # Implementation Log
 
+## 2025-11-06 - Trip Model Refactor: Single Destination with Places
+
+**Refactored trip data model to represent trips to a single destination with multiple places/landmarks within that destination.**
+
+**Changes:**
+
+1. **Data Model (docs/DATA_MODELS.md):**
+   - Changed from multi-leg trips to single-destination trips
+   - Removed `Leg` model, added `Place` model
+   - Trip now has `location_name` and `country_code` fields directly
+   - Places are optional landmarks/spots within the destination
+   - Gallery images can optionally link to specific places
+
+2. **Service Models (src/services/trip/models/trip.py):**
+   - Renamed `LegStatus` to `PlaceStatus` (planned, visited, skipped)
+   - Replaced `Leg` model with `Place` model
+   - Added `location_name` and `country_code` to `TripBase`
+   - Updated `TripCreate` to accept optional `places` list instead of required `legs`
+   - Updated `GalleryImage` to have optional `place_number` and `landmark` fields
+   - Updated all serialization and validation logic
+
+3. **Generator (tools/data/toy-trip-generator/main.py):**
+   - Added destinations caching to `destinations.json`
+   - Changed from generating multi-leg itineraries to single-destination trips
+   - Each trip visits ONE destination with multiple gallery images from that location
+   - Gallery images include `landmark` field and `source: "generated"`
+   - Increased destinations from 30+ to 50+ for more variety
+
+**Rationale:**
+
+The original multi-leg model was conceptually wrong for the use case. Real trips are planned to destinations (e.g., "Paris trip", "Tokyo trip"), not chains of disconnected locations. Within a destination, travelers visit multiple places/landmarks. This model better reflects:
+- How people actually plan travel
+- How photo galleries are organized (all from one destination)
+- The toy's journey narrative (focused adventure in one location)
+
+**Breaking Changes:**
+
+- Trip creation API now requires `location_name` and `country_code` instead of `legs` array
+- Gallery image metadata changed from `leg_number` to optional `place_number`
+- Integration tests need updates to match new schema
+
+**Migration Path:**
+
+- Existing trips in database will need migration (future task)
+- For now, cleaning slate and regenerating with new model
+- Import scripts will use new schema going forward
+
+## 2025-11-05 - Toy Service: Optional ID Support for Import
+
+**Modified toy service to support explicit toy IDs during creation while maintaining auto-generation for normal use.**
+
+**Changes:**
+
+1. **models/toy.py:**
+   - Added optional `id` field to `ToyCreate` model
+   - When provided, the explicit ID is used during creation
+   - When omitted, UUID auto-generation occurs as before
+
+2. **routes/toy_routes.py:**
+   - Updated `create_toy` endpoint to accept optional `id` from `ToyCreate`
+   - Passes provided ID to `Toy` model constructor
+   - Maintains backward compatibility with existing clients
+
+3. **tools/data/import-toy-profiles.py:**
+   - Reads `id` field from toy_profiles.json
+   - Includes `id` in API request when present
+   - Logs when using explicit IDs during import
+
+**Rationale:**
+
+The toy-profile-generator now creates stable UUIDs stored in JSON. Import script must preserve these IDs to maintain referential integrity with trips and other related data. Normal toy creation (via UI/API) continues to auto-generate IDs.
+
+**Implementation Pattern:**
+
+```python
+# ToyCreate model
+id: UUID | None = Field(None, description="Optional explicit toy ID (for imports)")
+
+# In create_toy route
+toy = Toy(
+    id=toy_data.id if toy_data.id else None,  # Will auto-generate if None
+    name=toy_data.name.strip(),
+    ...
+)
+```
+
+This pattern enables:
+- Import scripts to provide explicit IDs from JSON
+- Normal creation flows to omit ID and rely on auto-generation
+- Cosmos DB to accept the provided ID during document creation
+
+## 2025-11-05 - Pre-Generated UUIDs for Offline Data Generation
+
+**Updated toy-profile-generator and toy-trip-generator to use pre-generated UUIDs stored in JSON files.**
+
+**Changes:**
+
+1. **toy-profile-generator** (tools/data/toy-profile-generator/):
+   - Now generates `toy_id` UUID for each toy profile
+   - Stores `id` field in toy_profiles.json
+   - Updated README to document `id` field in output format
+   - Example: `{"id": "f47ac10b-...", "owner_oid": "...", "name": "Captain Whiskers", ...}`
+
+2. **toy-trip-generator** (tools/data/toy-trip-generator/):
+   - Removed httpx dependency (no more API calls)
+   - Removed auth token loading and service URL configuration
+   - Now reads toy_profiles.json directly instead of fetching from API
+   - Loads avatars from toy-images/ folder locally
+   - Uses pre-generated toy UUIDs from JSON
+   - Updated .env files to remove TOY_SERVICE_URL and AUTH_TOKEN_PATH
+   - Updated README to document JSON-based approach
+
+3. **Simplified Workflow:**
+   - Generate toys with UUIDs → `toy_profiles.json` (offline)
+   - Generate trips reading toy UUIDs → `trips.json` (offline, no running services)
+   - Import toys with pre-generated UUIDs → toy service
+   - Import trips with pre-generated UUIDs → trip service
+
+**Key Benefits:**
+
+- **Offline Generation:** No running services needed for data generation
+- **Stable IDs:** UUIDs known before import, can reference across files
+- **Simpler Setup:** No auth token or service URLs needed for generators
+- **Consistent:** All UUIDs pre-generated and stored in JSON files
+
+**Technical Notes:**
+
+- Import scripts may need to support client-provided UUIDs (verify server accepts)
+- All UUIDs generated via `uuid.uuid4()` for randomness
+- No more uuid5/MD5 hashing needed since UUIDs stored in JSON
+
+## 2025-11-05 - Toy Trip Generator & Data Management Scripts
+
+**Created comprehensive trip generation tooling with AI-generated itineraries and gallery images.**
+
+**New Components:**
+
+1. **toy-trip-generator/** (tools/data/toy-trip-generator/):
+   - Reads toy profiles from toy_profiles.json (no service dependency)
+   - Generates 1-3 trips per toy with famous destinations
+   - Creates 2-5 leg itineraries (Paris, Rome, Machu Picchu, Prague, etc.)
+   - AI-generated gallery images (3-8 per trip) featuring toy at landmarks
+   - Uses Azure OpenAI GPT-5 for destinations/itineraries and gpt-image-1 for images
+   - Image editing API to composite toy avatar into landmark scenes
+   - Outputs trips.json and trip-images/ folder (512x512 JPEGs)
+   - Incremental generation with resume capability
+
+2. **Trip Management Scripts** (tools/data/):
+   - `check-trip-profiles.py`: Verify trips in service, test gallery image downloads
+   - `clean-trip-profiles.py`: Delete all trips (Admin.FullAccess role support)
+   - `import-trip-profiles.py`: Import trips.json to trip service with gallery uploads
+
+3. **Enhanced Data Tools**:
+   - Updated .env to include TRIP_SERVICE_URL and trip data paths
+   - Comprehensive README with full workflow
+   - Admin role support for cleanup scripts
+
+**Key Design Decisions:**
+
+1. **Generator Independence:**
+   - toy-trip-generator reads toy_profiles.json directly (not API)
+   - No auth token or running services needed for generation
+   - Simpler workflow: generate all data, then import to services
+
+2. **Stable Toy IDs:**
+   - Trip generator uses pre-generated UUIDs from toy_profiles.json
+   - Allows trips to reference toys before they're imported to service
+
+3. **Image Generation:**
+   - Uses Azure OpenAI image editing (not generation)
+   - Toy avatar as input + landmark scene prompt
+   - Maintains toy character consistency across all gallery images
+   - Generates diverse scenes: varied distance, angle, time of day
+
+4. **Famous Destinations:**
+   - AI generates 30+ destination list with landmarks
+   - Each destination has 5-10 specific landmarks
+   - Structured output ensures valid country codes and location names
+
+5. **Incremental Processing:**
+   - Tracks which toys already have trips (by toy_name)
+   - Saves after each trip (safe interruption)
+   - Validates image files on load
+
+**Workflow:**
+
+```
+1. toy-profile-generator → toy_profiles.json + toy-images/
+2. toy-trip-generator → trips.json + trip-images/ (reads toy_profiles.json)
+3. Start services + get auth token
+4. import-toy-profiles.py (uploads toys to service)
+5. import-trip-profiles.py (uploads trips to service)
+6. check scripts for verification
+```
+
+**Files Created:**
+- tools/data/toy-trip-generator/main.py (620 lines)
+- tools/data/toy-trip-generator/README.md
+- tools/data/toy-trip-generator/.env.example
+- tools/data/toy-trip-generator/.env
+- tools/data/toy-trip-generator/pyproject.toml
+- tools/data/check-trip-profiles.py
+- tools/data/clean-trip-profiles.py
+- tools/data/import-trip-profiles.py
+- tools/data/.env (updated with trip config)
+- tools/data/README.md (enhanced workflow)
+
+**Dependencies:**
+- openai >= 2.0.0 (Azure OpenAI client)
+- azure-identity >= 1.19.0 (DefaultAzureCredential)
+- pillow >= 11.0.0 (Image processing)
+- python-dotenv >= 1.0.1 (Environment config)
+
 ## 2025-11-05 - Trip Service Authentication Fix & Integration Tests Passing
 
 **Fixed trip service authentication and all integration tests now passing (18/18).**

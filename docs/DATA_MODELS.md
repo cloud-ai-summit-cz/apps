@@ -62,7 +62,80 @@ Represents a registered toy that can participate in trips.
 * Avatar upload: Owner only
 * Avatar read: Global (any authenticated user/system)
 
-### 2.2 Add-On Order
+### 2.2 Trip
+Represents a trip to a single destination for a toy, with multiple places/landmarks to visit within that destination.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| id | string (UUID) | Yes | Unique trip identifier (system-generated) |
+| toy_id | string (UUID) | Yes | Reference to the toy taking this trip |
+| owner_oid | string | Yes | Entra object ID of the toy owner (denormalized for fast authorization) |
+| title | string | Yes | Trip title (max 200 chars) |
+| description | string | No | Trip description (max 1000 chars) |
+| location_name | string | Yes | Destination city or location (max 200 chars) |
+| country_code | string | Yes | ISO 3166-1 alpha-2 country code (uppercase) |
+| status | TripStatus | Yes | Overall trip status (planned, in_progress, completed, cancelled) |
+| public_tracking_enabled | bool | Yes | Enable public location sharing (default: false) |
+| places | list[Place] | No | Specific places/landmarks to visit within destination (optional) |
+| gallery | list[GalleryImage] | Yes | Gallery images from the destination (empty list by default) |
+| created_at | datetime | Yes | Creation timestamp |
+| updated_at | datetime | Yes | Last modification timestamp |
+
+**Place Model:**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| place_number | int | Yes | Sequential place number (1-indexed) |
+| name | string | Yes | Place/landmark name (max 200 chars) |
+| planned_visit | datetime | No | Planned visit time (optional) |
+| actual_visit | datetime | No | Actual visit time |
+| status | PlaceStatus | Yes | Visit status (planned, visited, skipped) |
+| notes | string | No | Optional notes about the visit (max 1000 chars) |
+
+**GalleryImage Model:**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| image_id | string (UUID) | Yes | Unique image identifier (system-generated) |
+| place_number | int | No | Associated place number if linked to specific place (optional) |
+| landmark | string | No | Landmark name featured in the image (max 200 chars) |
+| blob_name | string | Yes | Internal blob storage reference (e.g., "gallery/{uuid}.jpg") |
+| caption | string | No | Optional image caption (max 500 chars) |
+| uploaded_at | datetime | Yes | Upload timestamp |
+| source | string | Yes | Image source: "user", "addon", or "generated" |
+
+**Validation Rules:**
+* `title`: Required, 1-200 characters
+* `description`: Optional, max 1000 characters
+* `location_name`: Required, represents the single destination for this trip
+* `country_code`: Must be valid ISO 3166-1 alpha-2 code (automatically uppercased)
+* `places`: Optional list of places to visit within the destination; if provided, place_number must be sequential from 1
+* `toy_id`: Must reference existing toy
+* `owner_oid`: Denormalized from toy for fast authorization checks
+
+**Image Handling:**
+* **Storage:** Gallery images stored in blob storage `gallery` container
+* **Access:** Clients retrieve via `GET /trip/{id}/gallery/{image_id}` endpoint
+* **Upload:** Clients upload via `POST /trip/{id}/gallery` with multipart/form-data
+* **Security:** Same private endpoint + Entra auth pattern as toy avatars
+
+**Authorization:**
+* Create: Toy owner only (validated via toy service inter-service call)
+* Read: Global (any authenticated user/system)
+* Update/Delete: Toy owner only (validated via owner_oid match)
+* Gallery upload: Toy owner only
+* Gallery read: Global
+
+**Status Transitions:**
+* Trip status can be updated by owner
+* Places can be updated individually if provided
+* Public tracking can be toggled by owner
+
+**Design Rationale:**
+* Each trip represents a journey to ONE destination (e.g., Paris, Tokyo, Grand Canyon)
+* Within that destination, the toy can visit multiple places/landmarks (e.g., Eiffel Tower, Louvre, Arc de Triomphe)
+* Gallery images are from the destination and can optionally be linked to specific places
+* This model better reflects real travel: trips are planned to destinations, not multiple disconnected locations
+
+### 2.3 Add-On Order
 Implicitly links to trip and toy; authorization uses trip → toy → owner_oid chain.
 
 ## 3. Serialization / Storage
