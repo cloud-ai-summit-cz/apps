@@ -1,5 +1,219 @@
 # Implementation Log
 
+## 2025-11-07 - Naming Consistency and Unique String Optimization
+
+**Changes**:
+1. **Shortened unique string**: Reduced from 13 characters to 6 characters using `substring(sanitizedUnique, 0, 6)` to create more concise resource names
+2. **Inline naming**: Removed intermediate `var` declarations in all modules; resource names now use inline expressions directly (e.g., `name: 'vnet-${baseNameDash}'` instead of `name: vnetName`)
+
+**Benefits**:
+- More concise resource names (e.g., `vnet-demo-abcdef` instead of `vnet-demo-abcdefghijklm`)
+- Consistent naming pattern across all modules
+- Reduced code verbosity and improved readability
+- Single source of truth for each resource name (no duplicate var declarations)
+
+**Affected Modules**: networking.bicep, storageAccount.bicep, cosmosSqlServerless.bicep, acr.bicep
+
+## 2025-11-07 - Azure Naming Conventions Applied
+
+**Change**: Updated all resource names to follow [Azure Cloud Adoption Framework naming conventions](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ready/azure-best-practices/resource-abbreviations).
+
+**Format**: `abbreviation-basename-additionalname` where additional names are only for resources with multiple instances (e.g., identities).
+
+**Updated Resources**:
+- Virtual Network: `vnet-${baseName}` (was `${baseName}-vnet`)
+- NAT Gateway: `ng-${baseName}` (was `${baseName}-nat`)
+- Public IP: `pip-${baseName}-natgw` (was `${baseName}-nat-pip`)
+- AKS Cluster: `aks-${baseName}` ✅ (already correct)
+- Container Registry: `cr${baseNameNoDash}` (was `acr${baseNameNoDash}`)
+- Storage Account: `st${baseNameNoDash}` ✅ (already correct)
+- Cosmos DB: `cosmos${baseNameNoDash}` (was `cos${baseNameNoDash}`)
+- Managed Identities: `id-${baseName}-cluster` and `id-${baseName}-kubelet` (was `${baseName}-aks-identity` and `${baseName}-aks-kubelet-identity`)
+- Private Endpoints: `pep-${baseName}-storage`, `pep-${baseName}-cosmos`, `pep-${baseName}-acr` (was `${resourceName}-pe`)
+
+**Note**: `baseName` and `baseNameNoDash` already include the unique suffix from `uniqueString()` in main.bicep, so no additional uniqueness suffix is needed.
+
+**Reference**: [Azure resource abbreviations](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ready/azure-best-practices/resource-abbreviations)
+
+## 2025-11-07 - Fix: AKS Network Permissions
+
+**Issue**: Deployment failed with error: `ResourceMissingPermissionError - Service principal or user-assigned identity must be given certain permissions to resource /subscriptions/.../virtualNetworks/.../subnets/snet-aks-api. Check access result not allowed for action Microsoft.Network/virtualNetworks/subnets/joinLoadBalancer/action`
+
+**Root Cause**: AKS cluster identity needs "Network Contributor" role on the resource group to manage network resources (subnets, load balancers, etc.).
+
+**Solution**: 
+- Added "Network Contributor" role assignment (role ID: `4d97b98b-1d4f-4787-a291-c67834d212e7`)
+- Granted to: AKS cluster identity (`aksClusterIdentity`)
+- Scoped to: Resource group (covers all network resources including VNet and subnets)
+- Added as dependency for AKS module deployment
+
+**Complete RBAC Strategy for AKS**:
+1. ✅ **Kubelet identity** → "AcrPull" on resource group (for ACR image pulling)
+2. ✅ **Cluster identity** → "Managed Identity Operator" on kubelet identity (for identity assignment)
+3. ✅ **Cluster identity** → "Network Contributor" on resource group (for VNet/subnet management)
+
+All role assignments are scoped to resource group level and use deterministic GUIDs for idempotent deployments.
+
+**Reference**: [AKS managed identity permissions](https://learn.microsoft.com/en-us/azure/aks/use-managed-identity)
+
+## 2025-11-07 - Fix: AKS Image Cleaner Configuration
+
+**Issue**: Deployment failed with error: `Managed cluster 'Automatic' SKU should enable 'ImageCleaner' feature with recommended values`
+
+**Solution**: Changed `imageCleaner.intervalHours` from `24` (1 day) to `168` (7 days), which is the recommended value for AKS Automatic SKU.
+
+## 2025-11-07 - Fix: AKS Managed Identity Permissions
+
+**Issue**: Deployment failed with error: `CustomKubeletIdentityMissingPermissionError - The cluster using user-assigned managed identity must be granted 'Managed Identity Operator' role to assign kubelet identity`
+
+**Root Cause**: When using separate user-assigned managed identities for AKS cluster control plane and kubelet, the cluster identity needs permission to manage/assign the kubelet identity.
+
+**Solution**: 
+- Added "Managed Identity Operator" role assignment (role ID: `f1a07417-d97a-45cb-824c-7a7467783830`)
+- Granted to: AKS cluster identity (`aksClusterIdentity`)
+- Scoped to: Kubelet identity resource (`aksKubeletIdentity`)
+- Added as dependency for AKS module deployment
+
+**Key Learning**:
+When using custom kubelet identity with AKS:
+1. ✅ Kubelet identity needs "AcrPull" role on ACR (for pulling images)
+2. ✅ Cluster identity needs "Managed Identity Operator" role on kubelet identity (for assignment)
+3. Both role assignments must complete before AKS cluster creation
+
+**Reference**: [Use managed identities in AKS](https://learn.microsoft.com/en-us/azure/aks/use-managed-identity#add-role-assignment)
+
+## 2025-11-07 - Fix: AKS Advanced Networking Configuration
+
+**Issue**: Deployment failed with error: `Missing required field networkProfile.advancedNetworking.enabled`
+
+**Solution**: Added `enabled: true` property to `advancedNetworking` configuration in the network profile. This is required when using Advanced Container Networking Services (ACNS) for observability features.
+
+## 2025-11-07 - Fix: AKS Automatic Agent Pool Configuration
+
+**Issue**: Deployment failed with error: `.properties.nodeProvisioningProfile.mode cannot be Auto unless all AgentPools have property .properties.enableAutoScaling set to one of [false]`
+
+**Root Cause**: AKS Automatic mode uses its own Node Auto Provisioning (NAP) mechanism powered by Karpenter. When using AKS Automatic SKU, the agent pool should NOT have:
+- `enableAutoScaling: true`
+- `minCount` / `maxCount` parameters
+
+These settings are for traditional AKS clusters with manual node provisioning.
+
+**Solution**: 
+- Removed `enableAutoScaling`, `minCount`, and `maxCount` from agent pool configuration
+- AKS Automatic handles node provisioning automatically based on pod resource requirements
+- Only `count` is needed to specify the initial number of system nodes (3 nodes)
+
+**Key Learning**:
+- ✅ **AKS Automatic**: Uses Karpenter for automatic node provisioning - NO enableAutoScaling
+- ❌ **Traditional AKS**: Uses cluster autoscaler - NEEDS enableAutoScaling + min/maxCount
+- AKS Automatic is simpler: just specify initial count, rest is handled automatically
+
+**Reference**: [AKS Automatic quickstart Bicep samples](https://learn.microsoft.com/en-us/azure/aks/automatic/quick-automatic-custom-network)
+
+## 2025-11-07 - Fix: Resource Naming Convention and NAT Gateway Optimization
+
+**Changes**:
+1. **Naming Convention**: Updated all modules to follow consistent naming pattern from main.bicep:
+   - `baseNameDash` (e.g., `prefix-uniqueid`) - used for most resources (VNet, NAT Gateway, AKS, identities)
+   - `baseNameNoDash` (e.g., `prefixuniqueid`) - used for storage and ACR (alphanumeric only resources)
+
+2. **NAT Gateway Optimization**: Reduced from 2 public IPs to 1 public IP:
+   - Zone redundancy is provided by the single zone-redundant public IP with `zones: ['1', '2', '3']`
+   - NAT Gateway itself has no zones specified (placed in "no zone")
+   - Simpler configuration, lower cost, still fully zone-redundant
+
+**Files Updated**:
+- `modules/networking.bicep`: Updated to accept `baseNameDash`, changed to single public IP
+- `modules/acr.bicep`: Updated to accept `baseNameNoDash` (matching storage account pattern)
+- `main.bicep`: Updated parameter names for networking and ACR modules
+
+## 2025-11-07 - Fix: NAT Gateway Zone Configuration
+
+**Issue**: Deployment failed with error: `ResourceCannotHaveMultipleZonesSpecified - Resource has 3 zones specified. Only one zone can be specified for this resource.`
+
+**Root Cause**: NAT Gateway is a **zonal resource** that can only be deployed to a single zone or "no zone". It cannot span multiple zones like some other Azure resources.
+
+**Solution**: 
+- Removed `zones: ['1', '2', '3']` from NAT Gateway resource definition
+- Zone redundancy is achieved through **zone-redundant public IP addresses** (which do support zones [1,2,3])
+- NAT Gateway placed in "no zone" can still provide outbound connectivity with zone-redundant public IPs
+
+**Key Learning**: 
+For NAT Gateway high availability:
+- ✅ **Public IPs**: Should be zone-redundant with `zones: ['1', '2', '3']`
+- ❌ **NAT Gateway**: Should NOT have zones specified (placed in "no zone")
+- The zone-redundant public IPs provide the actual zone redundancy for outbound connectivity
+
+**Reference**: [Azure NAT Gateway and availability zones](https://learn.microsoft.com/en-us/azure/nat-gateway/nat-availability-zones)
+
+## 2025-11-07 - Azure Infrastructure: Networking, AKS Automatic, and Container Registry
+
+**Objective**: Establish production-ready Azure infrastructure with AKS Automatic, custom networking, and container registry for Kubernetes-based deployments.
+
+**Architecture Decisions**:
+
+1. **Network Design**:
+   - **Custom VNet** (`10.240.0.0/16`) with three subnets:
+     - AKS nodes subnet (`10.240.0.0/22`) - 1,024 IPs for cluster nodes
+     - AKS API subnet (`10.240.4.0/28`) - delegated to Microsoft.ContainerService for API server VNET integration
+     - Private endpoints subnet (`10.240.5.0/24`) - 256 IPs for Azure service private endpoints
+   - **Zone-redundant NAT Gateway** with 2 public IPs for stable outbound connectivity
+   - **Private DNS zones** pre-configured for Cosmos DB, Storage, and ACR
+
+2. **AKS Automatic Configuration**:
+   - **SKU**: Automatic mode (Standard tier) - fully managed node provisioning
+   - **Networking**: Azure CNI Overlay with Cilium dataplane and network policies
+   - **Advanced Container Networking Services** enabled for observability (pod metrics, DNS, L4 metrics)
+   - **API Server**: Public endpoint with VNET integration (not private cluster for easier CI/CD)
+   - **Outbound**: User-assigned NAT Gateway (stable IPs for external integrations)
+   - **Identity**: User-assigned managed identity for control plane + separate kubelet identity for ACR pull
+   - **Security**: Azure RBAC for K8s auth, workload identity (OIDC), image cleaner, local accounts disabled
+   - **Auto-scaling**: Node auto-provisioning based on workload demand (starts with 3 system nodes)
+   - **Monitoring**: Managed Prometheus and Container Insights automatically configured
+
+3. **Container Registry**:
+   - **Premium SKU** with zone redundancy
+   - Admin user disabled (managed identity auth only)
+   - Kubelet identity granted AcrPull role for seamless image pulling
+   - Optional private endpoint support
+
+4. **Private Endpoint Strategy**:
+   - Controlled via `enablePrivateEndpoints` parameter (default: `false`)
+   - When enabled: disables public access, creates private endpoints, configures DNS
+   - Applies to: Cosmos DB, Storage Account, and ACR
+   - **Recommendation**: Keep disabled for dev/test, enable for production
+
+**Implementation Details**:
+
+**New Modules Created**:
+- `modules/networking.bicep`: VNet, NAT Gateway, subnets, private DNS zones
+- `modules/aksAutomatic.bicep`: AKS Automatic cluster with advanced networking
+- `modules/acr.bicep`: Azure Container Registry with optional private endpoint
+
+**Updated Modules**:
+- `modules/cosmosSqlServerless.bicep`: Added optional private endpoint support
+- `modules/storageAccount.bicep`: Added optional private endpoint support
+- `main.bicep`: Orchestrates all resources with proper dependencies
+
+**Key Features**:
+- **Production-Ready**: Zone redundancy, managed identities, private networking support
+- **Developer-Friendly**: Public endpoints by default, easy kubectl access, simplified config
+- **Scalable**: Auto-provisioning nodes, NAT Gateway for stable egress
+- **Secure**: RBAC throughout, no admin accounts, workload identity support
+- **Observable**: Prometheus metrics, Container Insights, network observability
+
+**Deployment Command**:
+```bash
+az deployment group create \
+  --resource-group <rg-name> \
+  --template-file infra/bicep/main.bicep \
+  --parameters prefix=<prefix> \
+               userObjectId=<user-object-id> \
+               enablePrivateEndpoints=false
+```
+
+**Documentation**: Updated `docs/DEPLOYMENT.md` with comprehensive infrastructure overview, network architecture, deployment process, and operational guidance.
+
 ## 2025-11-07 - Simplified Trip Service: Removed Places Concept
 
 **Objective**: Eliminate the redundant `places` concept from the trip service to simplify the data model and align with actual usage patterns.

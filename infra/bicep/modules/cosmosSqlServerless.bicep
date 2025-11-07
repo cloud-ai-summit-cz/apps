@@ -1,6 +1,6 @@
 @description('Base name without dash constructed in main (letters only).')
 param baseNameNoDash string
-@description('Base name with dash constructed in main (reserved for future or tagging).')
+@description('Base name with dash constructed in main.')
 param baseNameDash string
 
 @description('Azure location for all resources.')
@@ -8,16 +8,15 @@ param location string
 
 @description('Public network access toggle (remain Enabled until Private Endpoint introduced).')
 param publicNetworkAccess string = 'Enabled'
-// Consistency level hardcoded to Session (can be changed later if needed)
 
-var cosmosAccountName = 'cos${baseNameNoDash}'
-// Database and container names must match what application expects in .env
-var cosmosDatabaseName = 'toytripdb'
-var cosmosToysContainerName = 'toys'
-var cosmosTripsContainerName = 'trips'
+@description('Optional: Subnet ID for private endpoint. If empty, no private endpoint is created.')
+param privateEndpointSubnetId string = ''
+
+@description('Optional: Private DNS Zone ID for Cosmos DB. Required if privateEndpointSubnetId is provided.')
+param privateDnsZoneId string = ''
 
 resource account 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
-  name: cosmosAccountName
+  name: 'cosmos${baseNameNoDash}'
   location: location
   kind: 'GlobalDocumentDB'
   properties: {
@@ -43,10 +42,10 @@ resource account 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
 // Create database via control plane (SDK cannot create DB due to disableKeyBasedMetadataWriteAccess)
 resource db 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-11-15' = {
   parent: account
-  name: cosmosDatabaseName
+  name: 'toytripdb'
   properties: {
     resource: {
-      id: cosmosDatabaseName
+      id: 'toytripdb'
     }
     options: {}
   }
@@ -55,10 +54,10 @@ resource db 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-11-15' = {
 // Create container via control plane (SDK cannot create containers due to disableKeyBasedMetadataWriteAccess)
 resource toysContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-11-15' = {
   parent: db
-  name: cosmosToysContainerName
+  name: 'toys'
   properties: {
     resource: {
-      id: cosmosToysContainerName
+      id: 'toys'
       partitionKey: {
         paths: ['/toy_id']
         kind: 'Hash'
@@ -71,16 +70,52 @@ resource toysContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/conta
 // Create trips container
 resource tripsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-11-15' = {
   parent: db
-  name: cosmosTripsContainerName
+  name: 'trips'
   properties: {
     resource: {
-      id: cosmosTripsContainerName
+      id: 'trips'
       partitionKey: {
         paths: ['/trip_id']
         kind: 'Hash'
       }
     }
     options: {}
+  }
+}
+
+// Private Endpoint for Cosmos DB (optional)
+resource cosmosPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-01-01' = if (!empty(privateEndpointSubnetId) && !empty(privateDnsZoneId)) {
+  name: 'pep-${baseNameDash}-cosmos'
+  location: location
+  properties: {
+    subnet: {
+      id: privateEndpointSubnetId
+    }
+    privateLinkServiceConnections: [
+      {
+        name: 'pep-${baseNameDash}-cosmos-connection'
+        properties: {
+          privateLinkServiceId: account.id
+          groupIds: ['Sql']
+        }
+      }
+    ]
+  }
+}
+
+// DNS Zone Group for Private Endpoint
+resource cosmosDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-01-01' = if (!empty(privateEndpointSubnetId) && !empty(privateDnsZoneId)) {
+  parent: cosmosPrivateEndpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'privatelink-documents-azure-com'
+        properties: {
+          privateDnsZoneId: privateDnsZoneId
+        }
+      }
+    ]
   }
 }
 
@@ -93,12 +128,12 @@ output cosmosToysContainerId string = toysContainer.id
 @description('Cosmos trips container resource ID.')
 output cosmosTripsContainerId string = tripsContainer.id
 @description('Cosmos account name used.')
-output cosmosAccountName string = cosmosAccountName
+output cosmosAccountName string = 'cosmos${baseNameNoDash}'
 @description('Cosmos database name used.')
-output cosmosDatabaseName string = cosmosDatabaseName
+output cosmosDatabaseName string = 'toytripdb'
 @description('Cosmos toys container name used.')
-output cosmosToysContainerName string = cosmosToysContainerName
+output cosmosToysContainerName string = 'toys'
 @description('Cosmos trips container name used.')
-output cosmosTripsContainerName string = cosmosTripsContainerName
+output cosmosTripsContainerName string = 'trips'
 @description('Document endpoint URI for data-plane SDK access.')
 output cosmosEndpoint string = account.properties.documentEndpoint

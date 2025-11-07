@@ -1,0 +1,1458 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.33.93.31351",
+      "templateHash": "12575471572824252270"
+    }
+  },
+  "parameters": {
+    "prefix": {
+      "type": "string",
+      "metadata": {
+        "description": "Prefix used for naming resources."
+      }
+    },
+    "userObjectId": {
+      "type": "string",
+      "metadata": {
+        "description": "Object ID of the user (or managed identity later) that should have data-plane contributor access."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Location for all resources."
+      }
+    },
+    "enablePrivateEndpoints": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Enable private endpoints for Cosmos DB, Storage, and ACR."
+      }
+    },
+    "enablePublicAccess": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable public network access for Cosmos DB, Storage, and ACR."
+      }
+    }
+  },
+  "variables": {
+    "rawUnique": "[uniqueString(subscription().id, parameters('prefix'))]",
+    "sanitizedUnique": "[substring(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(variables('rawUnique'), '0', 'a'), '1', 'b'), '2', 'c'), '3', 'd'), '4', 'e'), '5', 'f'), '6', 'g'), '7', 'h'), '8', 'i'), '9', 'j'), 0, 6)]",
+    "baseNameDash": "[format('{0}-{1}', parameters('prefix'), variables('sanitizedUnique'))]",
+    "baseNameNoDash": "[format('{0}{1}', parameters('prefix'), variables('sanitizedUnique'))]",
+    "cosmosRbacAssignments": [
+      {
+        "principalObjectId": "[parameters('userObjectId')]",
+        "roleName": "Cosmos DB Built-in Data Contributor"
+      }
+    ]
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[format('id-{0}-cluster', variables('baseNameDash'))]",
+      "location": "[parameters('location')]"
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[format('id-{0}-kubelet', variables('baseNameDash'))]",
+      "location": "[parameters('location')]"
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-kubelet', variables('baseNameDash'))), subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d'))]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-kubelet', variables('baseNameDash'))), '2023-01-31').principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-kubelet', variables('baseNameDash')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[format('Microsoft.ManagedIdentity/userAssignedIdentities/{0}', format('id-{0}-kubelet', variables('baseNameDash')))]",
+      "name": "[guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-kubelet', variables('baseNameDash'))), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-cluster', variables('baseNameDash'))), subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f1a07417-d97a-45cb-824c-7a7467783830'))]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f1a07417-d97a-45cb-824c-7a7467783830')]",
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-cluster', variables('baseNameDash'))), '2023-01-31').principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-cluster', variables('baseNameDash')))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-kubelet', variables('baseNameDash')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-cluster', variables('baseNameDash'))), subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4d97b98b-1d4f-4787-a291-c67834d212e7'), 'network')]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4d97b98b-1d4f-4787-a291-c67834d212e7')]",
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-cluster', variables('baseNameDash'))), '2023-01-31').principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-cluster', variables('baseNameDash')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "networkingDeploy",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "baseNameDash": {
+            "value": "[variables('baseNameDash')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.33.93.31351",
+              "templateHash": "15368442216554252335"
+            }
+          },
+          "parameters": {
+            "baseNameDash": {
+              "type": "string",
+              "metadata": {
+                "description": "Base name with dash constructed in main."
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Location for all resources."
+              }
+            },
+            "vnetAddressPrefix": {
+              "type": "string",
+              "defaultValue": "10.240.0.0/16",
+              "metadata": {
+                "description": "Virtual network address space."
+              }
+            },
+            "aksNodesSubnetPrefix": {
+              "type": "string",
+              "defaultValue": "10.240.0.0/22",
+              "metadata": {
+                "description": "AKS nodes subnet address prefix."
+              }
+            },
+            "aksApiSubnetPrefix": {
+              "type": "string",
+              "defaultValue": "10.240.4.0/28",
+              "metadata": {
+                "description": "AKS API server subnet address prefix."
+              }
+            },
+            "privateEndpointsSubnetPrefix": {
+              "type": "string",
+              "defaultValue": "10.240.5.0/24",
+              "metadata": {
+                "description": "Private endpoints subnet address prefix."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/publicIPAddresses",
+              "apiVersion": "2024-01-01",
+              "name": "[format('pip-{0}-natgw', parameters('baseNameDash'))]",
+              "location": "[parameters('location')]",
+              "sku": {
+                "name": "Standard",
+                "tier": "Regional"
+              },
+              "zones": [
+                "1",
+                "2",
+                "3"
+              ],
+              "properties": {
+                "publicIPAllocationMethod": "Static",
+                "publicIPAddressVersion": "IPv4",
+                "idleTimeoutInMinutes": 4
+              }
+            },
+            {
+              "type": "Microsoft.Network/natGateways",
+              "apiVersion": "2024-01-01",
+              "name": "[format('ng-{0}', parameters('baseNameDash'))]",
+              "location": "[parameters('location')]",
+              "sku": {
+                "name": "Standard"
+              },
+              "properties": {
+                "idleTimeoutInMinutes": 4,
+                "publicIpAddresses": [
+                  {
+                    "id": "[resourceId('Microsoft.Network/publicIPAddresses', format('pip-{0}-natgw', parameters('baseNameDash')))]"
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses', format('pip-{0}-natgw', parameters('baseNameDash')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/virtualNetworks",
+              "apiVersion": "2024-01-01",
+              "name": "[format('vnet-{0}', parameters('baseNameDash'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "addressSpace": {
+                  "addressPrefixes": [
+                    "[parameters('vnetAddressPrefix')]"
+                  ]
+                },
+                "subnets": [
+                  {
+                    "name": "snet-aks-nodes",
+                    "properties": {
+                      "addressPrefix": "[parameters('aksNodesSubnetPrefix')]",
+                      "natGateway": {
+                        "id": "[resourceId('Microsoft.Network/natGateways', format('ng-{0}', parameters('baseNameDash')))]"
+                      },
+                      "privateEndpointNetworkPolicies": "Disabled",
+                      "privateLinkServiceNetworkPolicies": "Enabled"
+                    }
+                  },
+                  {
+                    "name": "snet-aks-api",
+                    "properties": {
+                      "addressPrefix": "[parameters('aksApiSubnetPrefix')]",
+                      "delegations": [
+                        {
+                          "name": "aks-delegation",
+                          "properties": {
+                            "serviceName": "Microsoft.ContainerService/managedClusters"
+                          }
+                        }
+                      ],
+                      "privateEndpointNetworkPolicies": "Disabled"
+                    }
+                  },
+                  {
+                    "name": "snet-private-endpoints",
+                    "properties": {
+                      "addressPrefix": "[parameters('privateEndpointsSubnetPrefix')]",
+                      "privateEndpointNetworkPolicies": "Disabled",
+                      "privateLinkServiceNetworkPolicies": "Enabled"
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/natGateways', format('ng-{0}', parameters('baseNameDash')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2020-06-01",
+              "name": "privatelink.documents.azure.com",
+              "location": "global"
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2020-06-01",
+              "name": "[format('privatelink.blob.{0}', environment().suffixes.storage)]",
+              "location": "global"
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2020-06-01",
+              "name": "privatelink.azurecr.io",
+              "location": "global"
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2020-06-01",
+              "name": "[format('{0}/{1}', 'privatelink.documents.azure.com', format('vnet-{0}-cosmos-link', parameters('baseNameDash')))]",
+              "location": "global",
+              "properties": {
+                "virtualNetwork": {
+                  "id": "[resourceId('Microsoft.Network/virtualNetworks', format('vnet-{0}', parameters('baseNameDash')))]"
+                },
+                "registrationEnabled": false
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.documents.azure.com')]",
+                "[resourceId('Microsoft.Network/virtualNetworks', format('vnet-{0}', parameters('baseNameDash')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2020-06-01",
+              "name": "[format('{0}/{1}', format('privatelink.blob.{0}', environment().suffixes.storage), format('vnet-{0}-blob-link', parameters('baseNameDash')))]",
+              "location": "global",
+              "properties": {
+                "virtualNetwork": {
+                  "id": "[resourceId('Microsoft.Network/virtualNetworks', format('vnet-{0}', parameters('baseNameDash')))]"
+                },
+                "registrationEnabled": false
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', format('privatelink.blob.{0}', environment().suffixes.storage))]",
+                "[resourceId('Microsoft.Network/virtualNetworks', format('vnet-{0}', parameters('baseNameDash')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2020-06-01",
+              "name": "[format('{0}/{1}', 'privatelink.azurecr.io', format('vnet-{0}-acr-link', parameters('baseNameDash')))]",
+              "location": "global",
+              "properties": {
+                "virtualNetwork": {
+                  "id": "[resourceId('Microsoft.Network/virtualNetworks', format('vnet-{0}', parameters('baseNameDash')))]"
+                },
+                "registrationEnabled": false
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.azurecr.io')]",
+                "[resourceId('Microsoft.Network/virtualNetworks', format('vnet-{0}', parameters('baseNameDash')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "vnetId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/virtualNetworks', format('vnet-{0}', parameters('baseNameDash')))]"
+            },
+            "vnetName": {
+              "type": "string",
+              "value": "[format('vnet-{0}', parameters('baseNameDash'))]"
+            },
+            "aksNodesSubnetId": {
+              "type": "string",
+              "value": "[format('{0}/subnets/snet-aks-nodes', resourceId('Microsoft.Network/virtualNetworks', format('vnet-{0}', parameters('baseNameDash'))))]"
+            },
+            "aksApiSubnetId": {
+              "type": "string",
+              "value": "[format('{0}/subnets/snet-aks-api', resourceId('Microsoft.Network/virtualNetworks', format('vnet-{0}', parameters('baseNameDash'))))]"
+            },
+            "privateEndpointsSubnetId": {
+              "type": "string",
+              "value": "[format('{0}/subnets/snet-private-endpoints', resourceId('Microsoft.Network/virtualNetworks', format('vnet-{0}', parameters('baseNameDash'))))]"
+            },
+            "cosmosDnsZoneId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.documents.azure.com')]"
+            },
+            "blobDnsZoneId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/privateDnsZones', format('privatelink.blob.{0}', environment().suffixes.storage))]"
+            },
+            "acrDnsZoneId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.azurecr.io')]"
+            },
+            "natGatewayId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/natGateways', format('ng-{0}', parameters('baseNameDash')))]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "acrDeploy",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "baseNameNoDash": {
+            "value": "[variables('baseNameNoDash')]"
+          },
+          "baseNameDash": {
+            "value": "[variables('baseNameDash')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "publicNetworkAccess": "[if(parameters('enablePublicAccess'), createObject('value', 'Enabled'), createObject('value', 'Disabled'))]",
+          "privateEndpointSubnetId": "[if(parameters('enablePrivateEndpoints'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'networkingDeploy'), '2022-09-01').outputs.privateEndpointsSubnetId.value), createObject('value', ''))]",
+          "privateDnsZoneId": "[if(parameters('enablePrivateEndpoints'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'networkingDeploy'), '2022-09-01').outputs.acrDnsZoneId.value), createObject('value', ''))]"
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.33.93.31351",
+              "templateHash": "7755658120002685469"
+            }
+          },
+          "parameters": {
+            "baseNameNoDash": {
+              "type": "string",
+              "metadata": {
+                "description": "Base name without dash constructed in main (letters only)."
+              }
+            },
+            "baseNameDash": {
+              "type": "string",
+              "metadata": {
+                "description": "Base name with dash constructed in main."
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Location for the Azure Container Registry."
+              }
+            },
+            "sku": {
+              "type": "string",
+              "defaultValue": "Standard",
+              "allowedValues": [
+                "Basic",
+                "Standard",
+                "Premium"
+              ],
+              "metadata": {
+                "description": "SKU for Azure Container Registry."
+              }
+            },
+            "publicNetworkAccess": {
+              "type": "string",
+              "defaultValue": "Enabled",
+              "metadata": {
+                "description": "Enable public network access."
+              }
+            },
+            "privateEndpointSubnetId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional: Subnet ID for private endpoint. If empty, no private endpoint is created."
+              }
+            },
+            "privateDnsZoneId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional: Private DNS Zone ID for ACR. Required if privateEndpointSubnetId is provided."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ContainerRegistry/registries",
+              "apiVersion": "2023-07-01",
+              "name": "[format('cr{0}', parameters('baseNameNoDash'))]",
+              "location": "[parameters('location')]",
+              "sku": {
+                "name": "[parameters('sku')]"
+              },
+              "properties": {
+                "adminUserEnabled": false,
+                "publicNetworkAccess": "[parameters('publicNetworkAccess')]",
+                "networkRuleBypassOptions": "AzureServices"
+              }
+            },
+            {
+              "condition": "[and(not(empty(parameters('privateEndpointSubnetId'))), not(empty(parameters('privateDnsZoneId'))))]",
+              "type": "Microsoft.Network/privateEndpoints",
+              "apiVersion": "2024-01-01",
+              "name": "[format('pep-{0}-acr', parameters('baseNameNoDash'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "subnet": {
+                  "id": "[parameters('privateEndpointSubnetId')]"
+                },
+                "privateLinkServiceConnections": [
+                  {
+                    "name": "[format('pep-{0}-acr-connection', parameters('baseNameDash'))]",
+                    "properties": {
+                      "privateLinkServiceId": "[resourceId('Microsoft.ContainerRegistry/registries', format('cr{0}', parameters('baseNameNoDash')))]",
+                      "groupIds": [
+                        "registry"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ContainerRegistry/registries', format('cr{0}', parameters('baseNameNoDash')))]"
+              ]
+            },
+            {
+              "condition": "[and(not(empty(parameters('privateEndpointSubnetId'))), not(empty(parameters('privateDnsZoneId'))))]",
+              "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+              "apiVersion": "2024-01-01",
+              "name": "[format('{0}/{1}', format('pep-{0}-acr', parameters('baseNameNoDash')), 'default')]",
+              "properties": {
+                "privateDnsZoneConfigs": [
+                  {
+                    "name": "privatelink-azurecr-io",
+                    "properties": {
+                      "privateDnsZoneId": "[parameters('privateDnsZoneId')]"
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateEndpoints', format('pep-{0}-acr', parameters('baseNameNoDash')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "acrId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.ContainerRegistry/registries', format('cr{0}', parameters('baseNameNoDash')))]"
+            },
+            "acrName": {
+              "type": "string",
+              "value": "[format('cr{0}', parameters('baseNameNoDash'))]"
+            },
+            "acrLoginServer": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ContainerRegistry/registries', format('cr{0}', parameters('baseNameNoDash'))), '2023-07-01').loginServer]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'networkingDeploy')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "aksDeploy",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "baseName": {
+            "value": "[variables('baseNameDash')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "clusterSubnetId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'networkingDeploy'), '2022-09-01').outputs.aksNodesSubnetId.value]"
+          },
+          "apiServerSubnetId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'networkingDeploy'), '2022-09-01').outputs.aksApiSubnetId.value]"
+          },
+          "clusterIdentityId": {
+            "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-cluster', variables('baseNameDash')))]"
+          },
+          "clusterIdentityPrincipalId": {
+            "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-cluster', variables('baseNameDash'))), '2023-01-31').principalId]"
+          },
+          "kubeletIdentityId": {
+            "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-kubelet', variables('baseNameDash')))]"
+          },
+          "kubeletIdentityPrincipalId": {
+            "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-kubelet', variables('baseNameDash'))), '2023-01-31').principalId]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.33.93.31351",
+              "templateHash": "14337366074365918505"
+            }
+          },
+          "parameters": {
+            "baseName": {
+              "type": "string",
+              "metadata": {
+                "description": "Base name for resource naming."
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Location for the AKS cluster."
+              }
+            },
+            "clusterSubnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Subnet ID for AKS cluster nodes."
+              }
+            },
+            "apiServerSubnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Subnet ID for AKS API server VNET integration."
+              }
+            },
+            "clusterIdentityId": {
+              "type": "string",
+              "metadata": {
+                "description": "User-assigned managed identity resource ID for the cluster."
+              }
+            },
+            "clusterIdentityPrincipalId": {
+              "type": "string",
+              "metadata": {
+                "description": "User-assigned managed identity principal ID for the cluster."
+              }
+            },
+            "kubeletIdentityId": {
+              "type": "string",
+              "metadata": {
+                "description": "User-assigned managed identity resource ID for kubelet (AcrPull)."
+              }
+            },
+            "kubeletIdentityPrincipalId": {
+              "type": "string",
+              "metadata": {
+                "description": "User-assigned managed identity principal ID for kubelet."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ContainerService/managedClusters",
+              "apiVersion": "2024-09-02-preview",
+              "name": "[format('aks-{0}', parameters('baseName'))]",
+              "location": "[parameters('location')]",
+              "sku": {
+                "name": "Automatic",
+                "tier": "Standard"
+              },
+              "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                  "[format('{0}', parameters('clusterIdentityId'))]": {}
+                }
+              },
+              "properties": {
+                "agentPoolProfiles": [
+                  {
+                    "name": "systempool",
+                    "mode": "System",
+                    "count": 3,
+                    "vnetSubnetID": "[parameters('clusterSubnetId')]"
+                  }
+                ],
+                "apiServerAccessProfile": {
+                  "subnetId": "[parameters('apiServerSubnetId')]",
+                  "enablePrivateCluster": false
+                },
+                "networkProfile": {
+                  "networkPlugin": "azure",
+                  "networkPluginMode": "overlay",
+                  "networkPolicy": "cilium",
+                  "networkDataplane": "cilium",
+                  "loadBalancerSku": "standard",
+                  "outboundType": "userAssignedNATGateway",
+                  "serviceCidr": "10.250.0.0/16",
+                  "dnsServiceIP": "10.250.0.10",
+                  "advancedNetworking": {
+                    "enabled": true,
+                    "observability": {
+                      "enabled": true
+                    }
+                  }
+                },
+                "identityProfile": {
+                  "kubeletidentity": {
+                    "resourceId": "[parameters('kubeletIdentityId')]",
+                    "clientId": "[reference(parameters('kubeletIdentityId'), '2023-01-31').clientId]",
+                    "objectId": "[parameters('kubeletIdentityPrincipalId')]"
+                  }
+                },
+                "aadProfile": {
+                  "managed": true,
+                  "enableAzureRBAC": true
+                },
+                "disableLocalAccounts": true,
+                "securityProfile": {
+                  "workloadIdentity": {
+                    "enabled": true
+                  },
+                  "imageCleaner": {
+                    "enabled": true,
+                    "intervalHours": 168
+                  }
+                },
+                "oidcIssuerProfile": {
+                  "enabled": true
+                },
+                "autoUpgradeProfile": {
+                  "upgradeChannel": "stable",
+                  "nodeOSUpgradeChannel": "NodeImage"
+                },
+                "azureMonitorProfile": {
+                  "metrics": {
+                    "enabled": true,
+                    "kubeStateMetrics": {
+                      "metricLabelsAllowlist": "",
+                      "metricAnnotationsAllowList": ""
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "aksClusterId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.ContainerService/managedClusters', format('aks-{0}', parameters('baseName')))]"
+            },
+            "aksClusterName": {
+              "type": "string",
+              "value": "[format('aks-{0}', parameters('baseName'))]"
+            },
+            "aksFqdn": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ContainerService/managedClusters', format('aks-{0}', parameters('baseName'))), '2024-09-02-preview').fqdn]"
+            },
+            "aksOidcIssuerUrl": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ContainerService/managedClusters', format('aks-{0}', parameters('baseName'))), '2024-09-02-preview').oidcIssuerProfile.issuerURL]"
+            },
+            "aksKubeletIdentityObjectId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ContainerService/managedClusters', format('aks-{0}', parameters('baseName'))), '2024-09-02-preview').identityProfile.kubeletidentity.objectId]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Authorization/roleAssignments', guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-kubelet', variables('baseNameDash'))), subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-cluster', variables('baseNameDash')))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-kubelet', variables('baseNameDash')))]",
+        "[extensionResourceId(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-kubelet', variables('baseNameDash'))), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-kubelet', variables('baseNameDash'))), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-cluster', variables('baseNameDash'))), subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f1a07417-d97a-45cb-824c-7a7467783830')))]",
+        "[resourceId('Microsoft.Authorization/roleAssignments', guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-cluster', variables('baseNameDash'))), subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4d97b98b-1d4f-4787-a291-c67834d212e7'), 'network'))]",
+        "[resourceId('Microsoft.Resources/deployments', 'networkingDeploy')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "storageDeploy",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "baseNameNoDash": {
+            "value": "[variables('baseNameNoDash')]"
+          },
+          "baseNameDash": {
+            "value": "[variables('baseNameDash')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "publicNetworkAccess": "[if(parameters('enablePublicAccess'), createObject('value', 'Enabled'), createObject('value', 'Disabled'))]",
+          "privateEndpointSubnetId": "[if(parameters('enablePrivateEndpoints'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'networkingDeploy'), '2022-09-01').outputs.privateEndpointsSubnetId.value), createObject('value', ''))]",
+          "privateDnsZoneId": "[if(parameters('enablePrivateEndpoints'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'networkingDeploy'), '2022-09-01').outputs.blobDnsZoneId.value), createObject('value', ''))]"
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.33.93.31351",
+              "templateHash": "12965343309209218960"
+            }
+          },
+          "parameters": {
+            "baseNameNoDash": {
+              "type": "string",
+              "metadata": {
+                "description": "Base name without dash constructed in main (letters only)."
+              }
+            },
+            "baseNameDash": {
+              "type": "string",
+              "metadata": {
+                "description": "Base name with dash constructed in main."
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure location for the storage account."
+              }
+            },
+            "publicNetworkAccess": {
+              "type": "string",
+              "defaultValue": "Enabled",
+              "metadata": {
+                "description": "Allow public network access (keep Enabled until Private Endpoints are introduced)."
+              }
+            },
+            "privateEndpointSubnetId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional: Subnet ID for private endpoint. If empty, no private endpoint is created."
+              }
+            },
+            "privateDnsZoneId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional: Private DNS Zone ID for Blob storage. Required if privateEndpointSubnetId is provided."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Storage/storageAccounts",
+              "apiVersion": "2023-01-01",
+              "name": "[format('st{0}', parameters('baseNameNoDash'))]",
+              "location": "[parameters('location')]",
+              "sku": {
+                "name": "Standard_ZRS"
+              },
+              "kind": "StorageV2",
+              "properties": {
+                "allowBlobPublicAccess": false,
+                "minimumTlsVersion": "TLS1_2",
+                "publicNetworkAccess": "[parameters('publicNetworkAccess')]",
+                "supportsHttpsTrafficOnly": true
+              },
+              "tags": {
+                "baseNameDash": "[parameters('baseNameDash')]"
+              }
+            },
+            {
+              "type": "Microsoft.Storage/storageAccounts/blobServices",
+              "apiVersion": "2023-01-01",
+              "name": "[format('{0}/{1}', format('st{0}', parameters('baseNameNoDash')), 'default')]",
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', format('st{0}', parameters('baseNameNoDash')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+              "apiVersion": "2023-01-01",
+              "name": "[format('{0}/{1}/{2}', format('st{0}', parameters('baseNameNoDash')), 'default', 'avatars')]",
+              "properties": {
+                "publicAccess": "None"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', format('st{0}', parameters('baseNameNoDash')), 'default')]"
+              ]
+            },
+            {
+              "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+              "apiVersion": "2023-01-01",
+              "name": "[format('{0}/{1}/{2}', format('st{0}', parameters('baseNameNoDash')), 'default', 'gallery')]",
+              "properties": {
+                "publicAccess": "None"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', format('st{0}', parameters('baseNameNoDash')), 'default')]"
+              ]
+            },
+            {
+              "condition": "[and(not(empty(parameters('privateEndpointSubnetId'))), not(empty(parameters('privateDnsZoneId'))))]",
+              "type": "Microsoft.Network/privateEndpoints",
+              "apiVersion": "2024-01-01",
+              "name": "[format('pep-{0}-storage', parameters('baseNameDash'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "subnet": {
+                  "id": "[parameters('privateEndpointSubnetId')]"
+                },
+                "privateLinkServiceConnections": [
+                  {
+                    "name": "[format('pep-{0}-storage-connection', parameters('baseNameDash'))]",
+                    "properties": {
+                      "privateLinkServiceId": "[resourceId('Microsoft.Storage/storageAccounts', format('st{0}', parameters('baseNameNoDash')))]",
+                      "groupIds": [
+                        "blob"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', format('st{0}', parameters('baseNameNoDash')))]"
+              ]
+            },
+            {
+              "condition": "[and(not(empty(parameters('privateEndpointSubnetId'))), not(empty(parameters('privateDnsZoneId'))))]",
+              "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+              "apiVersion": "2024-01-01",
+              "name": "[format('{0}/{1}', format('pep-{0}-storage', parameters('baseNameDash')), 'default')]",
+              "properties": {
+                "privateDnsZoneConfigs": [
+                  {
+                    "name": "privatelink-blob-core-windows-net",
+                    "properties": {
+                      "privateDnsZoneId": "[parameters('privateDnsZoneId')]"
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateEndpoints', format('pep-{0}-storage', parameters('baseNameDash')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "blobDataScope": {
+              "type": "string",
+              "metadata": {
+                "description": "Blob service default child scope useful for data-plane role assignments."
+              },
+              "value": "[format('{0}/blobServices/default', resourceId('Microsoft.Storage/storageAccounts', format('st{0}', parameters('baseNameNoDash'))))]"
+            },
+            "storageAccountId": {
+              "type": "string",
+              "metadata": {
+                "description": "Full storage account resource ID."
+              },
+              "value": "[resourceId('Microsoft.Storage/storageAccounts', format('st{0}', parameters('baseNameNoDash')))]"
+            },
+            "storageAccountName": {
+              "type": "string",
+              "metadata": {
+                "description": "Storage account name used."
+              },
+              "value": "[format('st{0}', parameters('baseNameNoDash'))]"
+            },
+            "blobEndpoint": {
+              "type": "string",
+              "metadata": {
+                "description": "Primary blob endpoint (data-plane URI)."
+              },
+              "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', format('st{0}', parameters('baseNameNoDash'))), '2023-01-01').primaryEndpoints.blob]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'networkingDeploy')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "cosmosDeploy",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "baseNameNoDash": {
+            "value": "[variables('baseNameNoDash')]"
+          },
+          "baseNameDash": {
+            "value": "[variables('baseNameDash')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "publicNetworkAccess": "[if(parameters('enablePublicAccess'), createObject('value', 'Enabled'), createObject('value', 'Disabled'))]",
+          "privateEndpointSubnetId": "[if(parameters('enablePrivateEndpoints'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'networkingDeploy'), '2022-09-01').outputs.privateEndpointsSubnetId.value), createObject('value', ''))]",
+          "privateDnsZoneId": "[if(parameters('enablePrivateEndpoints'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'networkingDeploy'), '2022-09-01').outputs.cosmosDnsZoneId.value), createObject('value', ''))]"
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.33.93.31351",
+              "templateHash": "5068139329948741980"
+            }
+          },
+          "parameters": {
+            "baseNameNoDash": {
+              "type": "string",
+              "metadata": {
+                "description": "Base name without dash constructed in main (letters only)."
+              }
+            },
+            "baseNameDash": {
+              "type": "string",
+              "metadata": {
+                "description": "Base name with dash constructed in main."
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure location for all resources."
+              }
+            },
+            "publicNetworkAccess": {
+              "type": "string",
+              "defaultValue": "Enabled",
+              "metadata": {
+                "description": "Public network access toggle (remain Enabled until Private Endpoint introduced)."
+              }
+            },
+            "privateEndpointSubnetId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional: Subnet ID for private endpoint. If empty, no private endpoint is created."
+              }
+            },
+            "privateDnsZoneId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional: Private DNS Zone ID for Cosmos DB. Required if privateEndpointSubnetId is provided."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.DocumentDB/databaseAccounts",
+              "apiVersion": "2024-11-15",
+              "name": "[format('cosmos{0}', parameters('baseNameNoDash'))]",
+              "location": "[parameters('location')]",
+              "kind": "GlobalDocumentDB",
+              "properties": {
+                "databaseAccountOfferType": "Standard",
+                "disableKeyBasedMetadataWriteAccess": true,
+                "publicNetworkAccess": "[parameters('publicNetworkAccess')]",
+                "locations": [
+                  {
+                    "locationName": "[parameters('location')]",
+                    "failoverPriority": 0,
+                    "isZoneRedundant": false
+                  }
+                ],
+                "capabilities": [
+                  {
+                    "name": "EnableServerless"
+                  }
+                ],
+                "consistencyPolicy": {
+                  "defaultConsistencyLevel": "Session"
+                }
+              }
+            },
+            {
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases",
+              "apiVersion": "2024-11-15",
+              "name": "[format('{0}/{1}', format('cosmos{0}', parameters('baseNameNoDash')), 'toytripdb')]",
+              "properties": {
+                "resource": {
+                  "id": "toytripdb"
+                },
+                "options": {}
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('cosmos{0}', parameters('baseNameNoDash')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+              "apiVersion": "2024-11-15",
+              "name": "[format('{0}/{1}/{2}', format('cosmos{0}', parameters('baseNameNoDash')), 'toytripdb', 'toys')]",
+              "properties": {
+                "resource": {
+                  "id": "toys",
+                  "partitionKey": {
+                    "paths": [
+                      "/toy_id"
+                    ],
+                    "kind": "Hash"
+                  }
+                },
+                "options": {}
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', format('cosmos{0}', parameters('baseNameNoDash')), 'toytripdb')]"
+              ]
+            },
+            {
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+              "apiVersion": "2024-11-15",
+              "name": "[format('{0}/{1}/{2}', format('cosmos{0}', parameters('baseNameNoDash')), 'toytripdb', 'trips')]",
+              "properties": {
+                "resource": {
+                  "id": "trips",
+                  "partitionKey": {
+                    "paths": [
+                      "/trip_id"
+                    ],
+                    "kind": "Hash"
+                  }
+                },
+                "options": {}
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', format('cosmos{0}', parameters('baseNameNoDash')), 'toytripdb')]"
+              ]
+            },
+            {
+              "condition": "[and(not(empty(parameters('privateEndpointSubnetId'))), not(empty(parameters('privateDnsZoneId'))))]",
+              "type": "Microsoft.Network/privateEndpoints",
+              "apiVersion": "2024-01-01",
+              "name": "[format('pep-{0}-cosmos', parameters('baseNameDash'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "subnet": {
+                  "id": "[parameters('privateEndpointSubnetId')]"
+                },
+                "privateLinkServiceConnections": [
+                  {
+                    "name": "[format('pep-{0}-cosmos-connection', parameters('baseNameDash'))]",
+                    "properties": {
+                      "privateLinkServiceId": "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('cosmos{0}', parameters('baseNameNoDash')))]",
+                      "groupIds": [
+                        "Sql"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('cosmos{0}', parameters('baseNameNoDash')))]"
+              ]
+            },
+            {
+              "condition": "[and(not(empty(parameters('privateEndpointSubnetId'))), not(empty(parameters('privateDnsZoneId'))))]",
+              "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+              "apiVersion": "2024-01-01",
+              "name": "[format('{0}/{1}', format('pep-{0}-cosmos', parameters('baseNameDash')), 'default')]",
+              "properties": {
+                "privateDnsZoneConfigs": [
+                  {
+                    "name": "privatelink-documents-azure-com",
+                    "properties": {
+                      "privateDnsZoneId": "[parameters('privateDnsZoneId')]"
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateEndpoints', format('pep-{0}-cosmos', parameters('baseNameDash')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "cosmosAccountId": {
+              "type": "string",
+              "metadata": {
+                "description": "Cosmos DB account resource ID."
+              },
+              "value": "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('cosmos{0}', parameters('baseNameNoDash')))]"
+            },
+            "cosmosDatabaseId": {
+              "type": "string",
+              "metadata": {
+                "description": "Cosmos SQL database resource ID."
+              },
+              "value": "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', format('cosmos{0}', parameters('baseNameNoDash')), 'toytripdb')]"
+            },
+            "cosmosToysContainerId": {
+              "type": "string",
+              "metadata": {
+                "description": "Cosmos toys container resource ID."
+              },
+              "value": "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers', format('cosmos{0}', parameters('baseNameNoDash')), 'toytripdb', 'toys')]"
+            },
+            "cosmosTripsContainerId": {
+              "type": "string",
+              "metadata": {
+                "description": "Cosmos trips container resource ID."
+              },
+              "value": "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers', format('cosmos{0}', parameters('baseNameNoDash')), 'toytripdb', 'trips')]"
+            },
+            "cosmosAccountName": {
+              "type": "string",
+              "metadata": {
+                "description": "Cosmos account name used."
+              },
+              "value": "[format('cosmos{0}', parameters('baseNameNoDash'))]"
+            },
+            "cosmosDatabaseName": {
+              "type": "string",
+              "metadata": {
+                "description": "Cosmos database name used."
+              },
+              "value": "toytripdb"
+            },
+            "cosmosToysContainerName": {
+              "type": "string",
+              "metadata": {
+                "description": "Cosmos toys container name used."
+              },
+              "value": "toys"
+            },
+            "cosmosTripsContainerName": {
+              "type": "string",
+              "metadata": {
+                "description": "Cosmos trips container name used."
+              },
+              "value": "trips"
+            },
+            "cosmosEndpoint": {
+              "type": "string",
+              "metadata": {
+                "description": "Document endpoint URI for data-plane SDK access."
+              },
+              "value": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', format('cosmos{0}', parameters('baseNameNoDash'))), '2024-11-15').documentEndpoint]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'networkingDeploy')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "storageRbacDeploy",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "assignments": {
+            "value": [
+              {
+                "principalObjectId": "[parameters('userObjectId')]",
+                "roleName": "Storage Blob Data Contributor",
+                "storageAccountName": "[reference(resourceId('Microsoft.Resources/deployments', 'storageDeploy'), '2022-09-01').outputs.storageAccountName.value]"
+              }
+            ]
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.33.93.31351",
+              "templateHash": "3703332351988028030"
+            }
+          },
+          "parameters": {
+            "assignments": {
+              "type": "array",
+              "metadata": {
+                "description": "Array of storage role assignment objects: { principalObjectId: string, storageAccountName: string, roleName?: string, roleDefinitionId?: string }"
+              }
+            },
+            "defaultPrincipalType": {
+              "type": "string",
+              "defaultValue": "User",
+              "metadata": {
+                "description": "Optional default principal type if not specified per assignment (User, ServicePrincipal, Group, etc.)."
+              }
+            }
+          },
+          "variables": {
+            "roleMap": {
+              "Storage Blob Data Contributor": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]",
+              "Storage Blob Data Reader": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1')]",
+              "Storage Blob Data Owner": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b')]"
+            }
+          },
+          "resources": [
+            {
+              "copy": {
+                "name": "roleAssignments",
+                "count": "[length(parameters('assignments'))]"
+              },
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[format('Microsoft.Storage/storageAccounts/{0}', parameters('assignments')[copyIndex()].storageAccountName)]",
+              "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', parameters('assignments')[copyIndex()].storageAccountName), parameters('assignments')[copyIndex()].principalObjectId, coalesce(tryGet(parameters('assignments')[copyIndex()], 'roleDefinitionId'), variables('roleMap')[parameters('assignments')[copyIndex()].roleName]))]",
+              "properties": {
+                "roleDefinitionId": "[coalesce(tryGet(parameters('assignments')[copyIndex()], 'roleDefinitionId'), variables('roleMap')[parameters('assignments')[copyIndex()].roleName])]",
+                "principalId": "[parameters('assignments')[copyIndex()].principalObjectId]",
+                "principalType": "[parameters('defaultPrincipalType')]"
+              }
+            }
+          ],
+          "outputs": {
+            "count": {
+              "type": "int",
+              "metadata": {
+                "description": "Count of role assignments processed."
+              },
+              "value": "[length(parameters('assignments'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'storageDeploy')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "cosmosRbacDeploy",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "cosmosAccountName": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'cosmosDeploy'), '2022-09-01').outputs.cosmosAccountName.value]"
+          },
+          "assignments": {
+            "value": "[variables('cosmosRbacAssignments')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.33.93.31351",
+              "templateHash": "10126035406664237785"
+            }
+          },
+          "parameters": {
+            "cosmosAccountName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Cosmos DB account for which to assign roles."
+              }
+            },
+            "assignments": {
+              "type": "array",
+              "metadata": {
+                "description": "Array of Cosmos data-plane role assignment objects: { principalObjectId: string, roleDefinitionId?: string, roleName?: string, scope?: string }"
+              }
+            }
+          },
+          "variables": {
+            "builtInRoles": {
+              "Cosmos DB Built-in Data Reader": "00000000-0000-0000-0000-000000000001",
+              "Cosmos DB Built-in Data Contributor": "00000000-0000-0000-0000-000000000002"
+            }
+          },
+          "resources": [
+            {
+              "copy": {
+                "name": "cosmosRoleAssignments",
+                "count": "[length(parameters('assignments'))]"
+              },
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments",
+              "apiVersion": "2024-05-15",
+              "name": "[format('{0}/{1}', parameters('cosmosAccountName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosAccountName')), parameters('assignments')[copyIndex()].principalObjectId, coalesce(tryGet(parameters('assignments')[copyIndex()], 'roleDefinitionId'), variables('builtInRoles')[parameters('assignments')[copyIndex()].roleName])))]",
+              "properties": {
+                "principalId": "[parameters('assignments')[copyIndex()].principalObjectId]",
+                "roleDefinitionId": "[coalesce(tryGet(parameters('assignments')[copyIndex()], 'roleDefinitionId'), format('{0}/sqlRoleDefinitions/{1}', resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosAccountName')), variables('builtInRoles')[parameters('assignments')[copyIndex()].roleName]))]",
+                "scope": "[coalesce(tryGet(parameters('assignments')[copyIndex()], 'scope'), resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosAccountName')))]"
+              }
+            }
+          ],
+          "outputs": {
+            "count": {
+              "type": "int",
+              "metadata": {
+                "description": "Count of Cosmos role assignments processed."
+              },
+              "value": "[length(parameters('assignments'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'cosmosDeploy')]"
+      ]
+    }
+  ],
+  "outputs": {
+    "vnetId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'networkingDeploy'), '2022-09-01').outputs.vnetId.value]"
+    },
+    "vnetName": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'networkingDeploy'), '2022-09-01').outputs.vnetName.value]"
+    },
+    "aksClusterId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'aksDeploy'), '2022-09-01').outputs.aksClusterId.value]"
+    },
+    "aksClusterName": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'aksDeploy'), '2022-09-01').outputs.aksClusterName.value]"
+    },
+    "aksFqdn": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'aksDeploy'), '2022-09-01').outputs.aksFqdn.value]"
+    },
+    "aksOidcIssuerUrl": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'aksDeploy'), '2022-09-01').outputs.aksOidcIssuerUrl.value]"
+    },
+    "acrId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'acrDeploy'), '2022-09-01').outputs.acrId.value]"
+    },
+    "acrName": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'acrDeploy'), '2022-09-01').outputs.acrName.value]"
+    },
+    "acrLoginServer": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'acrDeploy'), '2022-09-01').outputs.acrLoginServer.value]"
+    },
+    "storageAccountId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'storageDeploy'), '2022-09-01').outputs.storageAccountId.value]"
+    },
+    "cosmosAccountId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'cosmosDeploy'), '2022-09-01').outputs.cosmosAccountId.value]"
+    },
+    "baseNameDash": {
+      "type": "string",
+      "value": "[variables('baseNameDash')]"
+    },
+    "baseNameNoDash": {
+      "type": "string",
+      "value": "[variables('baseNameNoDash')]"
+    }
+  }
+}

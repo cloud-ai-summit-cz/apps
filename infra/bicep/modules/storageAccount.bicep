@@ -1,6 +1,6 @@
 @description('Base name without dash constructed in main (letters only).')
 param baseNameNoDash string
-@description('Base name with dash constructed in main (currently unused, reserved for future).')
+@description('Base name with dash constructed in main.')
 param baseNameDash string
 
 @description('Azure location for the storage account.')
@@ -9,13 +9,14 @@ param location string
 @description('Allow public network access (keep Enabled until Private Endpoints are introduced).')
 param publicNetworkAccess string = 'Enabled'
 
-// SKU fixed to Standard_ZRS (zone-redundant); remove parameterization per request
-// (Can be reintroduced later if flexibility needed.)
+@description('Optional: Subnet ID for private endpoint. If empty, no private endpoint is created.')
+param privateEndpointSubnetId string = ''
 
-var storageAccountName = 'st${baseNameNoDash}'
+@description('Optional: Private DNS Zone ID for Blob storage. Required if privateEndpointSubnetId is provided.')
+param privateDnsZoneId string = ''
 
 resource sa 'Microsoft.Storage/storageAccounts@2023-01-01' = {
-  name: storageAccountName
+  name: 'st${baseNameNoDash}'
   location: location
   sku: {
     name: 'Standard_ZRS'
@@ -56,11 +57,47 @@ resource galleryContainer 'Microsoft.Storage/storageAccounts/blobServices/contai
   }
 }
 
+// Private Endpoint for Blob storage (optional)
+resource storagePrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-01-01' = if (!empty(privateEndpointSubnetId) && !empty(privateDnsZoneId)) {
+  name: 'pep-${baseNameDash}-storage'
+  location: location
+  properties: {
+    subnet: {
+      id: privateEndpointSubnetId
+    }
+    privateLinkServiceConnections: [
+      {
+        name: 'pep-${baseNameDash}-storage-connection'
+        properties: {
+          privateLinkServiceId: sa.id
+          groupIds: ['blob']
+        }
+      }
+    ]
+  }
+}
+
+// DNS Zone Group for Private Endpoint
+resource storageDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-01-01' = if (!empty(privateEndpointSubnetId) && !empty(privateDnsZoneId)) {
+  parent: storagePrivateEndpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'privatelink-blob-core-windows-net'
+        properties: {
+          privateDnsZoneId: privateDnsZoneId
+        }
+      }
+    ]
+  }
+}
+
 @description('Blob service default child scope useful for data-plane role assignments.')
 output blobDataScope string = '${sa.id}/blobServices/default'
 @description('Full storage account resource ID.')
 output storageAccountId string = sa.id
 @description('Storage account name used.')
-output storageAccountName string = storageAccountName
+output storageAccountName string = 'st${baseNameNoDash}'
 @description('Primary blob endpoint (data-plane URI).')
 output blobEndpoint string = sa.properties.primaryEndpoints.blob

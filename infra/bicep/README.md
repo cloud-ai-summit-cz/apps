@@ -1,44 +1,94 @@
-# Environment Deployment (Storage + Cosmos + RBAC)
+# Azure Infrastructure - Bicep Templates
 
 ## Overview
-Deploys a serverless Cosmos DB (SQL) account + database + container, a Storage Account (Blob), and assigns data-plane RBAC roles to a provided Entra ID object (user for now; later managed identities).
-
-Resources:
-- Storage Account: `st<prefix><random>` (public network access enabled, blob public access disabled)
-- Cosmos DB Account (Serverless): `cos<prefix><random>` with one database and container
-- Role Assignments: Storage Blob Data Contributor & Cosmos DB Built-in Data Contributor
+Complete Azure infrastructure for the ToyTrip application including:
+- **AKS Automatic**: Kubernetes cluster with CNI Overlay, Cilium, and auto-provisioning
+- **Azure Container Registry**: Premium tier with zone redundancy
+- **Cosmos DB**: Serverless SQL API with database + containers
+- **Storage Account**: Zone-redundant blob storage
+- **Networking**: Custom VNet, NAT Gateway, private DNS zones
+- **Security**: User-assigned managed identities, optional private endpoints
+- **Role Assignments**: Storage Blob Data Contributor & Cosmos DB Built-in Data Contributor
 
 Naming suffix derived from `uniqueString(subscription().id, prefix)` with digits mapped to letters (0→a ... 9→j) to satisfy letter-only requirement.
 
 ## Prerequisites
-- Azure CLI logged in: `az login`
+- Azure CLI 2.64.0+ (for Bicep with AKS Automatic support)
 - Correct subscription selected: `az account set -s <subscriptionId>`
 
-## Get Your Object ID
+## Deployment
+
+### Get Your Object ID
 ```pwsh
 $objectId = az ad signed-in-user show --query id -o tsv
 ```
 
 ## Create Resource Group
 ```pwsh
-$rg='rg-demo-bicep'
+$rg='rg-appdemo'
 az group create -n $rg -l swedencentral
 ```
 
 ## Deploy
 Update `infra/bicep/main.parameters.bicepparam` with your objectId.
+
 ```pwsh
 az deployment group create -g $rg -f main.bicep -p main.parameters.bicepparam
 ```
-Or override inline:
+
+### Post-Deployment Setup
+
+**Get AKS Credentials:**
 ```pwsh
-az deployment group create -g $rg -f main.bicep -p prefix='demo' userObjectId=$objectId location='swedencentral'
+az aks get-credentials --resource-group $rg --name aks-toytrip-<suffix>
+kubectl get nodes
+```
+
+**Login to ACR:**
+```pwsh
+$acrName = az deployment group show -g $rg -n main --query properties.outputs.acrName.value -o tsv
+az acr login --name $acrName
+```
+
+**Build and Push Container Images:**
+```pwsh
+# From repository root
+cd src/services/toy
+docker build -t ${acrName}.azurecr.io/toy-service:latest .
+docker push ${acrName}.azurecr.io/toy-service:latest
+
+cd ../trip
+docker build -t ${acrName}.azurecr.io/trip-service:latest .
+docker push ${acrName}.azurecr.io/trip-service:latest
 ```
 
 ## Inspect Outputs
 ```pwsh
 az deployment group show -g $rg -n main --query properties.outputs
 ```
+
+## Architecture
+
+### Network Design
+- **VNet**: 10.240.0.0/16
+  - `aks-nodes` subnet: 10.240.0.0/20 (4096 IPs) - delegated to AKS
+  - `aks-api` subnet: 10.240.16.0/28 (16 IPs) - delegated to Microsoft.ContainerService/managedClusters
+  - `private-endpoints` subnet: 10.240.16.16/28 (16 IPs)
+- **NAT Gateway**: Zone-redundant with 2 public IPs across zones 1, 2, 3
+- **Private DNS Zones**: Cosmos DB, Blob Storage, ACR (with VNet links)
+
+### AKS Automatic Configuration
+- **Node Provisioning**: Fully automatic with AI-driven scaling
+- **Networking**: Azure CNI Overlay + Cilium dataplane + Cilium network policies
+- **Observability**: Managed Prometheus, Container Insights, Advanced Container Networking Services
+- **Endpoint**: Public with VNET integration (aks-api subnet)
+- **Security**: Workload identity enabled, Azure RBAC, no local accounts
+- **Identities**: Separate UAMIs for cluster control plane and kubelet (with AcrPull)
+
+### Container Registry
+- **SKU**: Premium with zone redundancy
+- **Authentication**: Managed identity only (admin user disabled)
+- **Private Endpoint**: Optional (controlled by enablePrivateEndpoints parameter)
 
 ## Delete (Destroy Environment)
 Non-blocking delete:
@@ -50,12 +100,17 @@ Blocking delete (wait until finished):
 az group delete -n $rg -y
 ```
 
-## Next Steps (Roadmap)
-- Add Private Endpoints & set publicNetworkAccess to Disabled after approval.
-- Add Diagnostic Settings module (Log Analytics + categories).
-- Introduce Managed Identity module and extend `rbacAssignments`.
-- Parameterize partition key & additional Cosmos containers.
-- Optional IP firewall restriction prior to Private Endpoints.
+## Modules
+
+| Module | Purpose |
+|--------|---------|
+| `networking.bicep` | VNet, NAT Gateway, subnets, private DNS zones |
+| `aksAutomatic.bicep` | AKS Automatic cluster with CNI Overlay + Cilium + ACNS |
+| `acr.bicep` | Azure Container Registry (Premium, zone-redundant) |
+| `cosmosSqlServerless.bicep` | Cosmos DB SQL API (serverless) with optional PE |
+| `storageAccount.bicep` | Zone-redundant blob storage with optional PE |
+| `roleAssignments.bicep` | Storage Blob Data Contributor role assignment |
+| `cosmosRoleAssignments.bicep` | Cosmos DB Built-in Data Contributor role assignment |
 
 ## Notes
 - Role assignment propagation may take up to ~60s before effective.
