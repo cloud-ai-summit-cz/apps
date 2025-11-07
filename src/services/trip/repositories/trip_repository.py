@@ -12,7 +12,7 @@ from azure.cosmos.aio import ContainerProxy, CosmosClient, DatabaseProxy
 from azure.cosmos import exceptions
 from azure.identity.aio import DefaultAzureCredential
 
-from models import Trip, TripDocument, GalleryImage, Place, PlaceStatus
+from models import Trip, TripDocument, GalleryImage
 
 logger = logging.getLogger(__name__)
 
@@ -301,47 +301,7 @@ class TripRepository:
             logger.debug(f"Trip not found for removing gallery image: {trip_id_str}")
             return None
 
-    async def update_place_status(self, trip_id: UUID, place_number: int, status: PlaceStatus, actual_visit: Any = None) -> Trip | None:
-        """
-        Update the status of a specific place.
 
-        Args:
-            trip_id: UUID of the trip
-            place_number: Place number to update
-            status: New status
-            actual_visit: Actual visit datetime (optional)
-
-        Returns:
-            Updated Trip if found, None otherwise
-        """
-        container = await self._ensure_initialized()
-        trip_id_str = str(trip_id)
-
-        try:
-            # Read current item
-            item = await container.read_item(item=trip_id_str, partition_key=trip_id_str)
-
-            # Update place status
-            if "places" in item:
-                for place in item["places"]:
-                    if place.get("place_number") == place_number:
-                        place["status"] = status.value
-                        if actual_visit is not None:
-                            place["actual_visit"] = actual_visit.isoformat() if hasattr(actual_visit, "isoformat") else actual_visit
-                        break
-
-            # Update timestamp
-            from datetime import datetime, UTC
-            item["updated_at"] = datetime.now(UTC).isoformat()
-
-            # Replace item
-            updated_item = await container.replace_item(item=item, body=item)
-            logger.info(f"Updated place {place_number} status to {status} for trip: {trip_id_str}")
-            return TripDocument(**updated_item).to_trip()
-
-        except exceptions.CosmosResourceNotFoundError:
-            logger.debug(f"Trip not found for updating place status: {trip_id_str}")
-            return None
 
     async def close(self):
         """Close underlying Cosmos DB client if initialized.

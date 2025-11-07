@@ -1,5 +1,90 @@
 # Implementation Log
 
+## 2025-11-07 - Simplified Trip Service: Removed Places Concept
+
+**Objective**: Eliminate the redundant `places` concept from the trip service to simplify the data model and align with actual usage patterns.
+
+**Problem**: The trip service had a complex `places` concept with sequential numbering, status tracking, and validation, but the actual data only used landmark information stored in gallery images. This created unnecessary complexity without providing value.
+
+**Changes Made**:
+
+1. **Model Simplification**:
+   - Removed `Place` model and `PlaceStatus` enum entirely
+   - Removed `places` field from `Trip`, `TripCreate`, and related models
+   - Removed `place_number` field from `GalleryImage` model
+   - Kept `landmark` field in `GalleryImage` for location reference
+
+2. **API Cleanup**:
+   - Removed place status endpoints (`PATCH /trip/{id}/places/{number}/status`)
+   - Simplified gallery upload to only accept `landmark` and `caption` parameters
+   - Removed place-related validation in trip creation
+
+3. **Repository Updates**:
+   - Removed `update_place_status()` method from `TripRepository`
+   - Simplified trip document structure (no places array)
+   - Updated imports to remove place-related types
+
+4. **Integration Tests**:
+   - Updated all test data to use single-destination model
+   - Removed leg status test class (obsolete)
+   - Updated gallery tests to use landmark-only parameters
+   - Simplified trip creation assertions
+
+**Benefits**:
+- **Data Alignment**: Now matches existing JSON data structure (no places, landmarks in gallery)
+- **Reduced Complexity**: Eliminates sequential numbering, status management, and validation overhead  
+- **No Migration Required**: Existing data continues to work without changes
+- **Cleaner API**: Simpler, more focused endpoint structure
+- **Better UX**: Users work directly with landmarks through gallery images (more intuitive)
+
+**Frontend Updates**:
+- **Type Definitions**: Removed `Place`, `PlaceStatus` interfaces and `place_number` from `GalleryImage`
+- **Components Updated**: 
+  - `ToyDetail.tsx`: Removed places count display, fixed trip gallery display
+  - `TripList.tsx`: Removed places count from trip cards
+  - `TripDetail.tsx`: Removed entire places management section, place status functionality
+  - `TripGallery.tsx`: Replaced place selection with landmark input field
+  - `CreateTrip.tsx`: Removed places builder UI and functionality entirely
+- **API Client**: Removed `updatePlaceStatus()` method and place_number parameters from gallery upload
+- **Bug Fix**: Fixed toy service UUID validation error in `ToyCreate` (don't pass null to UUID field)
+
+**Result**: The trip service is now significantly simpler while maintaining all actual functionality. Location tracking happens naturally through gallery images with landmark metadata, which aligns with how users actually interact with the system. Frontend now correctly displays trips without the places concept, eliminating the original error.
+
+## 2024-11-07 - Documentation Updated for Places Removal
+
+**Objective**: Update all project documentation to reflect the complete removal of the places concept from the trip system.
+
+**Changes Made**:
+
+1. **DATA_MODELS.md**:
+   - Removed `Place` model definition and `PlaceStatus` enum
+   - Removed `places` field from `Trip` model
+   - Removed `place_number` from `GalleryImage` model
+   - Updated design rationale to reflect simplified single-destination model
+   - Updated validation rules to remove place-related constraints
+
+2. **API_REFERENCE.md**:
+   - Added gallery upload endpoint documentation (`POST /trip/{id}/gallery`)
+   - Updated trip service description to remove legs references
+   - Clarified gallery endpoints with current functionality
+
+3. **REQUIREMENTS.md**:
+   - Updated overview to remove "per leg" references  
+   - Changed glossary from legs/places model to destinations/landmarks model
+   - Updated user stories to reflect single-destination trips
+   - Simplified functional requirements to match actual implementation
+
+4. **DESIGN.md**:
+   - Updated trip service description to remove legs/statuses references
+   - Changed database partitioning description (legs → destinations)
+   - Updated OTEL spans to reflect current trip operations
+   - Simplified MCP tool signatures (removed leg_number parameters)
+   - Updated agent response aggregation to match simplified model
+
+**Result**: All documentation now consistently describes the simplified trip model with single destinations and landmark-based gallery tracking. The documentation accurately reflects the current implementation without any references to the deprecated places/legs concepts.
+
+---
+
 ## 2025-11-07 - Fixed Gallery Image Authentication (401 Unauthorized)
 
 **Issue**: Gallery images in TripDetail and TripGallery pages were returning 401 Unauthorized errors when displayed. The browser's `<img>` tags were attempting to load images directly from the backend without authentication headers.

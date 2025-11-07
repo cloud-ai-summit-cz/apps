@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { tripApiClient } from '../services/tripApiClient';
 import { toyApiClient } from '../services/toyApiClient';
-import { PlaceStatus } from '../types/trip';
-import type { TripCreate, Place } from '../types/trip';
+import type { TripCreate } from '../types/trip';
 import type { Toy } from '../types/toy';
 
 function CreateTrip() {
@@ -21,7 +20,6 @@ function CreateTrip() {
   const [locationName, setLocationName] = useState('');
   const [countryCode, setCountryCode] = useState('');
   const [publicTracking, setPublicTracking] = useState(false);
-  const [places, setPlaces] = useState<Place[]>([]);
 
   useEffect(() => {
     if (toyId) {
@@ -43,29 +41,7 @@ function CreateTrip() {
     }
   };
 
-  const addPlace = () => {
-    const newPlace: Place = {
-      place_number: places.length + 1,
-      name: '',
-      status: PlaceStatus.PLANNED,
-    };
-    setPlaces([...places, newPlace]);
-  };
 
-  const updatePlace = (index: number, field: keyof Place, value: string) => {
-    const updated = [...places];
-    (updated[index] as any)[field] = value;
-    setPlaces(updated);
-  };
-
-  const removePlace = (index: number) => {
-    const updated = places.filter((_, i) => i !== index);
-    // Renumber places
-    updated.forEach((place, i) => {
-      place.place_number = i + 1;
-    });
-    setPlaces(updated);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,14 +64,6 @@ function CreateTrip() {
       return;
     }
     
-    // Validate places have names
-    for (let i = 0; i < places.length; i++) {
-      if (!places[i].name.trim()) {
-        alert(`Please enter a name for place ${i + 1}`);
-        return;
-      }
-    }
-    
     try {
       setSubmitting(true);
       setError(null);
@@ -107,7 +75,6 @@ function CreateTrip() {
         location_name: locationName.trim(),
         country_code: countryCode.trim().toUpperCase(),
         public_tracking_enabled: publicTracking,
-        places: places.length > 0 ? places : undefined,
       };
       
       const newTrip = await tripApiClient.createTrip(tripData);
@@ -240,76 +207,7 @@ function CreateTrip() {
             </label>
           </div>
 
-          {/* Places */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <label className="block text-sm font-medium text-gray-700">
-                Places to Visit (Optional)
-              </label>
-              <button
-                type="button"
-                onClick={addPlace}
-                className="text-sm text-gray-900 hover:text-gray-700 flex items-center gap-1"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Add Place
-              </button>
-            </div>
 
-            {places.length === 0 ? (
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center text-gray-500">
-                <svg className="w-12 h-12 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                <p className="text-sm">No places added yet</p>
-                <p className="text-xs mt-1">Add specific landmarks or locations to visit</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {places.map((place, index) => (
-                  <div key={index} className="flex gap-3 items-start">
-                    <div className="flex-shrink-0 w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center font-medium text-sm">
-                      {place.place_number}
-                    </div>
-                    
-                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <input
-                        type="text"
-                        value={place.name}
-                        onChange={(e) => updatePlace(index, 'name', e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900"
-                        placeholder="Place name"
-                        maxLength={200}
-                        required
-                      />
-                      
-                      <input
-                        type="text"
-                        value={place.notes || ''}
-                        onChange={(e) => updatePlace(index, 'notes', e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900"
-                        placeholder="Notes (optional)"
-                        maxLength={1000}
-                      />
-                    </div>
-                    
-                    <button
-                      type="button"
-                      onClick={() => removePlace(index)}
-                      className="flex-shrink-0 text-gray-400 hover:text-red-600"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
 
           {/* Error Message */}
           {error && (

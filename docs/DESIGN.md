@@ -7,10 +7,10 @@ Demonstrate modern cloud-native microservices on AKS with: clear service boundar
 | Service | Shortname | Purpose |
 |---------|-----------|---------|
 | Toy Registry & Profiles | toy | Manage toy profiles (name, avatar, personality tags) for personalization. |
-| Trip & Gallery Service | trip | Create trips, manage legs & statuses, store gallery images per leg, expose trip detail & gallery listing. |
+| Trip & Gallery Service | trip | Create trips to single destinations, store gallery images from destinations, expose trip detail & gallery listing. |
 | Add‑On Services (Accessories & Experiences) | addon | Handle ordering & fulfillment of accessories (hat, outfit, souvenir prop) OR experiences (dinner, beer festival, boat rental, coffee & pancake stop); publish fulfillment image(s) to trip gallery. |
 | Geo Location & Live Stream | geo | Accept periodic location pings, manage public share flag, stream location (1s intervals) & live image frames (30s) via WebSocket; expose map feed. |
-| Story Composer (Batch AI) | story | Generate daily narrative/story recap using legs, gallery, add-ons, personality tags; store versions. |
+| Story Composer (Batch AI) | story | Generate daily narrative/story recap using destinations, gallery, add-ons, personality tags; store versions. |
 | AI Agent Service (Chat Backend via MCP) | agent | Backend for in‑app chat; uses MCP protocol tools to call other services (toy, trip, addon, story, geo) and compose responses (status, recent media, addon request, story refresh). |
 | Location Tracking Simulator (Demo) | demo-location | Emit synthetic location pings & occasional live frames for active trips (feeds geo service). |
 | Image Generation Service (Demo) | demo-media | Listen to trip/addon events; generate synthetic images (toy in location / addon fulfillment) and post to trip gallery. |
@@ -36,7 +36,7 @@ Accessories: hat, outfit, souvenir prop. Experiences: dinner, beer at festival, 
 ### 5.1 Cosmos DB
 Logical containers (indicative):
 * toys – partition by toy_id
-* trips – partition by trip_id (embed legs & gallery metadata)
+* trips – partition by trip_id (embed destination & gallery metadata)
 * addons – partition by addon_order_id
 * stories – partition by trip_id/date composite or trip_id
 * locations – partition by trip_id or date bucket (time-series)
@@ -57,7 +57,7 @@ Partition Rationale: locality for trip operations; independent scaling for locat
 
 ## 6. Observability & Telemetry
 Instrumentation:
-* OTEL spans: toy.register, trip.create, trip.leg.checkin, addon.order, addon.fulfill, story.compose, gallery.addImage, geo.streamTick.
+* OTEL spans: toy.register, trip.create, trip.gallery.upload, addon.order, addon.fulfill, story.compose, gallery.addImage, geo.streamTick.
 * Context propagation via correlation_id and trace headers through message envelopes.
 Metrics (Prometheus): story_jobs_pending, story_context_bytes, addon_requests_total, location_updates_per_second, media_generation_queue_depth, chat_status_latency_seconds.
 Dashboards (Grafana): scaling events timeline, story memory usage, media queue depth vs replicas, WebSocket connection count, error rates.
@@ -129,7 +129,7 @@ Token validated at connection upgrade; session length must not exceed token expi
 The agent service acts as a chat backend that consumes MCP tools exposed by other domain services (or an MCP adapter/gateway). Tools conceptually available to the agent (implemented by respective services or adapters):
 * get_trip_status(trip_id)
 * list_recent_media(trip_id, limit)
-* request_addon(trip_id, leg_number, addon_type)
+* request_addon(trip_id, addon_type)
 * refresh_daily_story(trip_id)
 * start_live_session(trip_id)
 * end_live_session(trip_id)
@@ -138,7 +138,7 @@ Flow:
 1. Chat UI sends natural language query to agent backend.
 2. Agent parses intent → selects appropriate MCP tool calls.
 3. Agent invokes tools (MCP protocol) against service endpoints/APIM.
-4. Aggregates responses (e.g., trip status + last media + next leg) and returns structured chat message.
+4. Aggregates responses (e.g., trip status + last media + destination info) and returns structured chat message.
 
 Low Latency Goal: <1s P95 for multi-tool status queries with parallel downstream requests.
 

@@ -69,23 +69,9 @@ class TestTripServiceAuthentication:
             "toy_id": test_toy_id,
             "title": "European Adventure",
             "description": "A grand tour of Europe",
+            "location_name": "Paris",
+            "country_code": "FR",
             "public_tracking_enabled": False,
-            "legs": [
-                {
-                    "leg_number": 1,
-                    "location_name": "Paris",
-                    "country_code": "fr",
-                    "planned_arrival": "2025-06-01T10:00:00Z",
-                    "status": "planned",
-                },
-                {
-                    "leg_number": 2,
-                    "location_name": "Rome",
-                    "country_code": "it",
-                    "planned_arrival": "2025-06-05T14:00:00Z",
-                    "status": "planned",
-                },
-            ],
         }
 
         response = httpx.post(f"{base_url}/trip", json=trip_data, headers=auth_headers, timeout=10.0)
@@ -96,9 +82,8 @@ class TestTripServiceAuthentication:
         assert trip["title"] == "European Adventure"
         assert trip["toy_id"] == test_toy_id
         assert trip["owner_oid"] == user_oid  # Denormalized from toy
-        assert len(trip["legs"]) == 2
-        assert trip["legs"][0]["location_name"] == "Paris"
-        assert trip["legs"][0]["country_code"] == "FR"  # Validated to uppercase
+        assert trip["location_name"] == "Paris"
+        assert trip["country_code"] == "FR"  # Validated to uppercase
 
         trip_id = trip["id"]
         cleanup_trips.append(trip_id)
@@ -110,7 +95,7 @@ class TestTripServiceAuthentication:
         retrieved_trip = response.json()
         assert retrieved_trip["id"] == trip_id
         assert retrieved_trip["title"] == "European Adventure"
-        assert len(retrieved_trip["legs"]) == 2
+        assert retrieved_trip["location_name"] == "Paris"
 
     @pytest.mark.usefixtures("check_services_available")
     def test_create_trip_requires_toy_ownership(
@@ -123,9 +108,8 @@ class TestTripServiceAuthentication:
         trip_data = {
             "toy_id": "00000000-0000-0000-0000-000000000000",
             "title": "Unauthorized Trip",
-            "legs": [
-                {"leg_number": 1, "location_name": "Nowhere", "country_code": "xx", "status": "planned"}
-            ],
+            "location_name": "Nowhere",
+            "country_code": "XX",
         }
 
         response = httpx.post(f"{base_url}/trip", json=trip_data, headers=auth_headers, timeout=10.0)
@@ -142,7 +126,8 @@ class TestTripServiceAuthentication:
         trip_data = {
             "toy_id": test_toy_id,
             "title": "Unauthorized Trip",
-            "legs": [{"leg_number": 1, "location_name": "Nowhere", "country_code": "xx", "status": "planned"}],
+            "location_name": "Nowhere",
+            "country_code": "XX",
         }
         response = httpx.post(f"{base_url}/trip", json=trip_data, timeout=10.0)
 
@@ -159,7 +144,8 @@ class TestTripServiceAuthentication:
         trip_data = {
             "toy_id": test_toy_id,
             "title": "Original Title",
-            "legs": [{"leg_number": 1, "location_name": "Berlin", "country_code": "de", "status": "planned"}],
+            "location_name": "Berlin",
+            "country_code": "DE",
         }
         response = httpx.post(f"{base_url}/trip", json=trip_data, headers=auth_headers, timeout=10.0)
         trip_id = response.json()["id"]
@@ -187,7 +173,8 @@ class TestTripServiceAuthentication:
             trip_data = {
                 "toy_id": test_toy_id,
                 "title": f"Trip {i}",
-                "legs": [{"leg_number": 1, "location_name": f"City {i}", "country_code": "us", "status": "planned"}],
+                "location_name": f"City {i}",
+                "country_code": "US",
             }
             response = httpx.post(f"{base_url}/trip", json=trip_data, headers=auth_headers, timeout=10.0)
             trip_ids.append(response.json()["id"])
@@ -215,7 +202,8 @@ class TestTripServiceAuthentication:
         trip_data = {
             "toy_id": test_toy_id,
             "title": "Owner Filter Test",
-            "legs": [{"leg_number": 1, "location_name": "Seattle", "country_code": "us", "status": "planned"}],
+            "location_name": "Seattle",
+            "country_code": "US",
         }
         response = httpx.post(f"{base_url}/trip", json=trip_data, headers=auth_headers, timeout=10.0)
         cleanup_trips.append(response.json()["id"])
@@ -238,7 +226,8 @@ class TestTripServiceAuthentication:
         trip_data = {
             "toy_id": test_toy_id,
             "title": "To Delete",
-            "legs": [{"leg_number": 1, "location_name": "London", "country_code": "gb", "status": "planned"}],
+            "location_name": "London",
+            "country_code": "GB",
         }
         response = httpx.post(f"{base_url}/trip", json=trip_data, headers=auth_headers, timeout=10.0)
         trip_id = response.json()["id"]
@@ -278,7 +267,8 @@ class TestTripGallery:
         trip_data = {
             "toy_id": test_toy_id,
             "title": "Gallery Test Trip",
-            "legs": [{"leg_number": 1, "location_name": "Prague", "country_code": "cz", "status": "planned"}],
+            "location_name": "Prague",
+            "country_code": "CZ",
         }
         response = httpx.post(f"{base_url}/trip", json=trip_data, headers=auth_headers, timeout=10.0)
         trip_id = response.json()["id"]
@@ -313,7 +303,7 @@ class TestTripGallery:
 
         # Upload image
         files = {"file": ("test.jpg", fake_image, "image/jpeg")}
-        params = {"leg_number": 1, "caption": "Test gallery image"}
+        params = {"landmark": "Test Landmark", "caption": "Test gallery image"}
 
         # For file uploads, only include Authorization header (not Content-Type)
         upload_headers = {"Authorization": auth_headers["Authorization"]}
@@ -329,7 +319,7 @@ class TestTripGallery:
         assert response.status_code == 200, f"Failed to upload image: {response.text}"
         trip = response.json()
         assert len(trip["gallery"]) == 1
-        assert trip["gallery"][0]["leg_number"] == 1
+        assert trip["gallery"][0]["landmark"] == "Test Landmark"
         assert trip["gallery"][0]["caption"] == "Test gallery image"
 
         image_id = trip["gallery"][0]["image_id"]
@@ -353,7 +343,7 @@ class TestTripGallery:
         # Upload image
         fake_image = BytesIO(b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00")
         files = {"file": ("test.jpg", fake_image, "image/jpeg")}
-        params = {"leg_number": 1}
+        params = {"landmark": "Test Landmark"}
 
         # For file uploads, only include Authorization header (not Content-Type)
         upload_headers = {"Authorization": auth_headers["Authorization"]}
@@ -380,69 +370,4 @@ class TestTripGallery:
         assert len(trip["gallery"]) == 0
 
 
-@pytest.mark.integration
-@pytest.mark.auth
-class TestLegStatus:
-    """Test leg status update operations."""
 
-    @pytest.fixture
-    def test_toy_id(self, service_config: dict, auth_headers: dict, cleanup_toys: list) -> str:
-        """Create a test toy."""
-        base_url = service_config["toy_service_url"]
-        response = httpx.post(f"{base_url}/toy", json={"name": "Leg Test Toy"}, headers=auth_headers, timeout=10.0)
-        toy_id = response.json()["id"]
-        cleanup_toys.append(toy_id)
-        return toy_id
-
-    @pytest.fixture
-    def test_trip_id(
-        self, service_config: dict, auth_headers: dict, test_toy_id: str, cleanup_trips: list
-    ) -> str:
-        """Create a test trip."""
-        base_url = service_config.get("trip_service_url", "http://localhost:8002")
-        trip_data = {
-            "toy_id": test_toy_id,
-            "title": "Leg Status Test",
-            "legs": [
-                {"leg_number": 1, "location_name": "Vienna", "country_code": "at", "status": "planned"},
-                {"leg_number": 2, "location_name": "Budapest", "country_code": "hu", "status": "planned"},
-            ],
-        }
-        response = httpx.post(f"{base_url}/trip", json=trip_data, headers=auth_headers, timeout=10.0)
-        trip_id = response.json()["id"]
-        cleanup_trips.append(trip_id)
-        return trip_id
-
-    @pytest.fixture
-    def cleanup_trips(self, service_config: dict, auth_headers: dict):
-        """Cleanup fixture for trips."""
-        trip_ids = []
-        yield trip_ids
-        base_url = service_config.get("trip_service_url", "http://localhost:8002")
-        for trip_id in trip_ids:
-            try:
-                httpx.delete(f"{base_url}/trip/{trip_id}", headers=auth_headers, timeout=10.0)
-            except Exception:  # noqa: S110
-                pass
-
-    @pytest.mark.usefixtures("check_services_available")
-    def test_update_leg_status(
-        self, service_config: dict, auth_headers: dict, test_trip_id: str
-    ):
-        """Test updating leg status."""
-        base_url = service_config.get("trip_service_url", "http://localhost:8002")
-
-        # Update leg 1 to in_progress
-        params = {"status": "in_progress", "actual_arrival": datetime.now(UTC).isoformat()}
-        response = httpx.patch(
-            f"{base_url}/trip/{test_trip_id}/legs/1/status",
-            params=params,
-            headers=auth_headers,
-            timeout=10.0,
-        )
-
-        assert response.status_code == 200
-        trip = response.json()
-        leg1 = next(leg for leg in trip["legs"] if leg["leg_number"] == 1)
-        assert leg1["status"] == "in_progress"
-        assert leg1["actual_arrival"] is not None

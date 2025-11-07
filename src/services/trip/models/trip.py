@@ -6,14 +6,6 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field, field_validator, field_serializer
 
 
-class PlaceStatus(str, Enum):
-    """Status of a place visit."""
-
-    PLANNED = "planned"
-    VISITED = "visited"
-    SKIPPED = "skipped"
-
-
 class TripStatus(str, Enum):
     """Overall trip status."""
 
@@ -23,27 +15,10 @@ class TripStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
-class Place(BaseModel):
-    """A specific place/landmark to visit within the destination."""
-
-    place_number: int = Field(..., ge=1, description="Sequential place number (1-indexed)")
-    name: str = Field(..., min_length=1, max_length=200, description="Place/landmark name")
-    planned_visit: datetime | None = Field(None, description="Planned visit time (optional)")
-    actual_visit: datetime | None = Field(None, description="Actual visit time")
-    status: PlaceStatus = Field(default=PlaceStatus.PLANNED, description="Visit status")
-    notes: str | None = Field(None, max_length=1000, description="Optional notes about the visit")
-
-    @field_serializer('planned_visit', 'actual_visit')
-    def serialize_datetime(self, value: datetime | None) -> str | None:
-        """Serialize datetime to ISO format."""
-        return value.isoformat() if value else None
-
-
 class GalleryImage(BaseModel):
     """Gallery image metadata."""
 
     image_id: UUID = Field(default_factory=uuid4, description="Unique image identifier")
-    place_number: int | None = Field(None, ge=1, description="Associated place number (optional)")
     landmark: str | None = Field(None, max_length=200, description="Landmark name featured in the image")
     blob_name: str = Field(..., description="Internal blob storage reference")
     caption: str | None = Field(None, max_length=500, description="Optional image caption")
@@ -81,25 +56,6 @@ class TripCreate(TripBase):
     """Model for creating a new trip."""
 
     toy_id: UUID = Field(..., description="ID of the toy taking this trip")
-    places: list[Place] = Field(default_factory=list, description="Optional list of places to visit within destination")
-
-    @field_validator("places")
-    @classmethod
-    def validate_place_numbers(cls, v: list[Place]) -> list[Place]:
-        """Ensure place numbers are sequential starting from 1 if provided."""
-        if not v:
-            return v
-
-        place_numbers = [place.place_number for place in v]
-        expected = list(range(1, len(v) + 1))
-
-        if sorted(place_numbers) != expected:
-            raise ValueError(f"Place numbers must be sequential from 1 to {len(v)}")
-
-        if len(set(place_numbers)) != len(place_numbers):
-            raise ValueError("Place numbers must be unique")
-
-        return v
 
 
 class TripUpdate(BaseModel):
@@ -134,7 +90,6 @@ class Trip(TripBase):
     toy_id: UUID = Field(..., description="ID of the toy taking this trip")
     owner_oid: str = Field(..., description="Entra object ID of the toy owner (denormalized for fast auth)")
     status: TripStatus = Field(default=TripStatus.PLANNED, description="Overall trip status")
-    places: list[Place] = Field(default_factory=list, description="Places to visit within destination")
     gallery: list[GalleryImage] = Field(default_factory=list, description="Gallery images")
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), description="Creation timestamp")
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC), description="Last modification timestamp")
@@ -196,7 +151,6 @@ class TripDocument(Trip):
             "toy_id": str(trip.toy_id),
             "owner_oid": trip.owner_oid,
             "status": trip.status,
-            "places": [place.model_dump() for place in trip.places],
             "gallery": [img.model_dump() for img in trip.gallery],
             "created_at": trip.created_at,
             "updated_at": trip.updated_at,

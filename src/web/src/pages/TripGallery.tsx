@@ -20,7 +20,6 @@ function TripGallery() {
   const [loadingImages, setLoadingImages] = useState<Set<string>>(new Set());
   
   // Upload form state
-  const [uploadPlaceNumber, setUploadPlaceNumber] = useState<number | undefined>(undefined);
   const [uploadLandmark, setUploadLandmark] = useState('');
   const [uploadCaption, setUploadCaption] = useState('');
 
@@ -110,14 +109,12 @@ function TripGallery() {
       setUploading(true);
       
       const metadata: any = {};
-      if (uploadPlaceNumber) metadata.place_number = uploadPlaceNumber;
       if (uploadLandmark.trim()) metadata.landmark = uploadLandmark.trim();
       if (uploadCaption.trim()) metadata.caption = uploadCaption.trim();
       
       await tripApiClient.uploadGalleryImage(tripId, file, metadata);
       
       // Reset form
-      setUploadPlaceNumber(undefined);
       setUploadLandmark('');
       setUploadCaption('');
       if (fileInputRef.current) {
@@ -205,21 +202,16 @@ function TripGallery() {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Place (Optional)
+                Landmark (Optional)
               </label>
-              <select
-                value={uploadPlaceNumber || ''}
-                onChange={(e) => setUploadPlaceNumber(e.target.value ? Number(e.target.value) : undefined)}
+              <input
+                type="text"
+                value={uploadLandmark}
+                onChange={(e) => setUploadLandmark(e.target.value)}
+                placeholder="Enter landmark name..."
                 disabled={uploading}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:opacity-50"
-              >
-                <option value="">No specific place</option>
-                {trip.places.map((place) => (
-                  <option key={place.place_number} value={place.place_number}>
-                    {place.place_number}. {place.name}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
             
             <div>
@@ -310,9 +302,6 @@ function TripGallery() {
                 <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all flex items-end p-3">
                   <div className="text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity">
                     {image.landmark && <div className="font-medium">{image.landmark}</div>}
-                    {image.place_number && (
-                      <div className="text-xs">Place {image.place_number}</div>
-                    )}
                   </div>
                 </div>
               </div>
@@ -371,14 +360,7 @@ function TripGallery() {
                     </div>
                   )}
                   
-                  {selectedImage.place_number && (
-                    <div className="mb-2">
-                      <span className="text-sm font-medium text-gray-700">Place:</span>
-                      <p className="text-gray-900">
-                        {trip.places.find(p => p.place_number === selectedImage.place_number)?.name || `Place ${selectedImage.place_number}`}
-                      </p>
-                    </div>
-                  )}
+
                 </div>
                 
                 <div className="text-sm text-gray-600">

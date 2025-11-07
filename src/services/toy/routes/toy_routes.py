@@ -86,12 +86,17 @@ async def create_toy(
         raise HTTPException(status_code=403, detail="Invalid principal type")
 
     # Create toy with owner_oid from token, using provided ID if available
-    toy = Toy(
-        id=toy_data.id if toy_data.id else None,  # Will auto-generate if None
-        name=toy_data.name.strip(),
-        description=toy_data.description.strip() if toy_data.description else None,
-        owner_oid=user.oid,
-    )
+    toy_kwargs = {
+        "name": toy_data.name.strip(),
+        "description": toy_data.description.strip() if toy_data.description else None,
+        "owner_oid": user.oid,
+    }
+    
+    # Only include id if it's provided (let Pydantic auto-generate otherwise)
+    if toy_data.id is not None:
+        toy_kwargs["id"] = toy_data.id
+        
+    toy = Toy(**toy_kwargs)
 
     created_toy = await repo.create(toy)
     logger.info(f"Created toy {created_toy.id} for owner {user.oid}")

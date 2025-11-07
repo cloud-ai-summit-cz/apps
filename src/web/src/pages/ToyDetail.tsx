@@ -412,7 +412,7 @@ function ToyDetail() {
                     <div className="flex-1 min-w-0">
                       <h3 className="font-medium text-gray-900 mb-1">{trip.title}</h3>
                       <div className="text-sm text-gray-600">
-                        {trip.location_name} • {trip.places.length} place{trip.places.length !== 1 ? 's' : ''} • {trip.gallery.length} photo{trip.gallery.length !== 1 ? 's' : ''}
+                        {trip.location_name} • {trip.gallery.length} photo{trip.gallery.length !== 1 ? 's' : ''}
                       </div>
                     </div>
                     <svg className="w-5 h-5 text-gray-400 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

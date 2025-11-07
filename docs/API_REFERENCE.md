@@ -42,8 +42,9 @@ Error Responses:
 | Method | Path | Description | Auth | Notes |
 |--------|------|-------------|------|-------|
 | POST | /trip | Create trip for toy | User | Must own toy |
-| GET | /trip/{trip_id} | Trip detail incl legs | User/System | Global read |
-| GET | /trip/{trip_id}/gallery | Gallery listing | User/System | Global read |
+| GET | /trip/{trip_id} | Trip detail | User/System | Global read; includes gallery metadata |
+| GET | /trip/{trip_id}/gallery | Gallery listing | User/System | Global read; full gallery images for trip |
+| POST | /trip/{trip_id}/gallery | Upload gallery image | User | Owner only; multipart/form-data with landmark info |
 
 ### 3.3 Add-On Service (`/addon`)
 | Method | Path | Description | Auth | Notes |

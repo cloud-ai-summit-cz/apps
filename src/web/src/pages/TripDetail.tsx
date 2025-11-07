@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useMsal } from '@azure/msal-react';
 import { tripApiClient } from '../services/tripApiClient';
-import { PlaceStatus, TripStatus } from '../types/trip';
+import { TripStatus } from '../types/trip';
 import type { Trip } from '../types/trip';
 
 function TripDetail() {
@@ -120,17 +120,7 @@ function TripDetail() {
     }
   };
 
-  const handlePlaceStatusChange = async (placeNumber: number, newStatus: PlaceStatus) => {
-    if (!tripId) return;
-    
-    try {
-      const actualVisit = newStatus === PlaceStatus.VISITED ? new Date().toISOString() : undefined;
-      await tripApiClient.updatePlaceStatus(tripId, placeNumber, newStatus, actualVisit);
-      await loadTrip();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to update place status');
-    }
-  };
+
 
   const getStatusBadge = (status: TripStatus) => {
     const badges = {
@@ -154,25 +144,7 @@ function TripDetail() {
     );
   };
 
-  const getPlaceStatusBadge = (status: PlaceStatus) => {
-    const badges = {
-      planned: 'bg-blue-50 text-blue-700 border-blue-200',
-      visited: 'bg-green-50 text-green-700 border-green-200',
-      skipped: 'bg-gray-50 text-gray-700 border-gray-200',
-    };
-    
-    const labels = {
-      planned: 'Planned',
-      visited: 'Visited',
-      skipped: 'Skipped',
-    };
-    
-    return (
-      <span className={`inline-block px-2 py-1 rounded text-xs font-medium border ${badges[status]}`}>
-        {labels[status]}
-      </span>
-    );
-  };
+
 
   const getCountryFlag = (countryCode: string) => {
     const codePoints = countryCode
@@ -313,50 +285,7 @@ function TripDetail() {
             )}
           </div>
 
-          {/* Places */}
-          {trip.places.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Places to Visit</h2>
-              <div className="space-y-3">
-                {trip.places.map((place) => (
-                  <div key={place.place_number} className="flex gap-4 items-start p-4 bg-gray-50 rounded-lg">
-                    <div className="flex-shrink-0 w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center font-medium">
-                      {place.place_number}
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <h3 className="font-medium text-gray-900">{place.name}</h3>
-                        {isOwner ? (
-                          <select
-                            value={place.status}
-                            onChange={(e) => handlePlaceStatusChange(place.place_number, e.target.value as PlaceStatus)}
-                            className="text-xs border border-gray-300 rounded px-2 py-1"
-                          >
-                            <option value={PlaceStatus.PLANNED}>Planned</option>
-                            <option value={PlaceStatus.VISITED}>Visited</option>
-                            <option value={PlaceStatus.SKIPPED}>Skipped</option>
-                          </select>
-                        ) : (
-                          getPlaceStatusBadge(place.status)
-                        )}
-                      </div>
-                      
-                      {place.notes && (
-                        <p className="text-sm text-gray-600 mb-2">{place.notes}</p>
-                      )}
-                      
-                      {place.actual_visit && (
-                        <p className="text-xs text-gray-500">
-                          Visited: {new Date(place.actual_visit).toLocaleString()}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+
 
           {/* Gallery Preview */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -444,10 +373,7 @@ function TripDetail() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h3 className="font-semibold text-gray-900 mb-3">Trip Info</h3>
             <div className="space-y-3 text-sm">
-              <div>
-                <span className="text-gray-500">Places:</span>
-                <span className="ml-2 font-medium">{trip.places.length}</span>
-              </div>
+
               <div>
                 <span className="text-gray-500">Photos:</span>
                 <span className="ml-2 font-medium">{trip.gallery.length}</span>

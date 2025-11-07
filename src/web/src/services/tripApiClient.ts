@@ -1,6 +1,6 @@
 import { msalInstance, tokenRequest } from '../config/authConfig';
 import { API_CONFIG } from '../config/apiConfig';
-import type { Trip, TripCreate, TripUpdate, TripListResponse, PlaceStatus } from '../types/trip';
+import type { Trip, TripCreate, TripUpdate, TripListResponse } from '../types/trip';
 
 class TripApiClient {
   private baseUrl: string;
@@ -125,7 +125,7 @@ class TripApiClient {
     tripId: string,
     file: File,
     metadata?: {
-      place_number?: number;
+
       landmark?: string;
       caption?: string;
     }
@@ -134,7 +134,7 @@ class TripApiClient {
     formData.append('file', file);
 
     const queryParams = new URLSearchParams();
-    if (metadata?.place_number) queryParams.append('place_number', metadata.place_number.toString());
+
     if (metadata?.landmark) queryParams.append('landmark', metadata.landmark);
     if (metadata?.caption) queryParams.append('caption', metadata.caption);
 
@@ -178,33 +178,7 @@ class TripApiClient {
     }
   }
 
-  async updatePlaceStatus(
-    tripId: string,
-    placeNumber: number,
-    status: PlaceStatus,
-    actualVisit?: string
-  ): Promise<Trip> {
-    const body: { status: PlaceStatus; actual_visit?: string } = { status };
-    if (actualVisit) {
-      body.actual_visit = actualVisit;
-    }
 
-    const response = await this.fetchWithAuth(
-      `${this.baseUrl}/trip/${tripId}/places/${placeNumber}/status?status=${status}${actualVisit ? `&actual_visit=${actualVisit}` : ''}`,
-      {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-    
-    if (!response.ok) {
-      throw new Error(`Failed to update place status: ${response.statusText}`);
-    }
-
-    return response.json();
-  }
 
   async getTripCountByToyId(toyId: string): Promise<number> {
     try {
