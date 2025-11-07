@@ -6,6 +6,7 @@ export interface Toy {
   avatar_blob_name?: string;
   created_at: string;
   updated_at: string;
+  tripCount?: number; // Loaded asynchronously from trip service
 }
 
 export interface CreateToyRequest {

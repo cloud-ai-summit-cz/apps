@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMsal } from '@azure/msal-react';
 import { toyApiClient } from '../services/toyApiClient';
+import { tripApiClient } from '../services/tripApiClient';
 import type { Toy } from '../types/toy';
 
 function ToyCatalog() {
@@ -10,6 +11,7 @@ function ToyCatalog() {
   const [error, setError] = useState<string | null>(null);
   const [avatarUrls, setAvatarUrls] = useState<Map<string, string>>(new Map());
   const [loadingAvatars, setLoadingAvatars] = useState<Set<string>>(new Set());
+  const [loadingTripCounts, setLoadingTripCounts] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
   const { accounts } = useMsal();
   const userOid = accounts[0]?.idTokenClaims?.oid as string | undefined;
@@ -60,6 +62,41 @@ function ToyCatalog() {
     }
   };
 
+  const loadTripCount = async (toyId: string) => {
+    // Skip if already loading
+    if (loadingTripCounts.has(toyId)) {
+      return;
+    }
+
+    setLoadingTripCounts(prev => new Set(prev).add(toyId));
+
+    try {
+      const count = await tripApiClient.getTripCountByToyId(toyId);
+      setToys(prev => {
+        // Check if already loaded to avoid race conditions
+        const existingToy = prev.find(t => t.id === toyId);
+        if (existingToy?.tripCount !== undefined) {
+          return prev;
+        }
+        return prev.map(t => 
+          t.id === toyId ? { ...t, tripCount: count } : t
+        );
+      });
+    } catch (err) {
+      console.error(`Failed to load trip count for toy ${toyId}:`, err);
+      // Set to 0 on error so we don't keep retrying
+      setToys(prev => prev.map(t => 
+        t.id === toyId ? { ...t, tripCount: 0 } : t
+      ));
+    } finally {
+      setLoadingTripCounts(prev => {
+        const next = new Set(prev);
+        next.delete(toyId);
+        return next;
+      });
+    }
+  };
+
   const loadToys = async () => {
     try {
       setLoading(true);
@@ -76,6 +113,13 @@ function ToyCatalog() {
       });
       
       setToys(sortedToys);
+
+      // Load trip counts in parallel (non-blocking)
+      // Using Promise.allSettled to handle failures gracefully
+      const tripCountPromises = sortedToys.map(toy => loadTripCount(toy.id));
+      Promise.allSettled(tripCountPromises).catch(err => {
+        console.error('Error loading trip counts:', err);
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load toys');
     } finally {
@@ -175,8 +219,22 @@ function ToyCatalog() {
                   className="relative aspect-square bg-gray-100"
                 >
                   {isOwned && (
-                    <div className="absolute top-2 right-2 bg-gray-900 text-white text-xs px-2 py-1 rounded-full font-medium shadow-sm z-10">
-                      My Toy
+                    <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
+                      <div className="bg-gray-900 text-white text-xs px-2 py-1 rounded-full font-medium shadow-sm">
+                        My Toy
+                      </div>
+                      {toy.tripCount !== undefined ? (
+                        <div className="bg-gray-700 text-white text-xs px-2 py-1 rounded-full font-medium shadow-sm flex items-center gap-1">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          {toy.tripCount}
+                        </div>
+                      ) : loadingTripCounts.has(toy.id) ? (
+                        <div className="bg-gray-600 text-white text-xs px-2 py-1 rounded-full font-medium shadow-sm animate-pulse">
+                          ...
+                        </div>
+                      ) : null}
                     </div>
                   )}
                   {hasAvatar ? (

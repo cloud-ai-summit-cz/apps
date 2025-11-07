@@ -205,6 +205,23 @@ class TripApiClient {
 
     return response.json();
   }
+
+  async getTripCountByToyId(toyId: string): Promise<number> {
+    try {
+      const response = await this.fetchWithAuth(`${this.baseUrl}/trip?toy_id=${toyId}&limit=1000`);
+      
+      if (!response.ok) {
+        console.error(`Failed to fetch trip count for toy ${toyId}`);
+        return 0;
+      }
+
+      const data: TripListResponse = await response.json();
+      return data.total;
+    } catch (error) {
+      console.error(`Error fetching trip count for toy ${toyId}:`, error);
+      return 0;
+    }
+  }
 }
 
 export const tripApiClient = new TripApiClient();

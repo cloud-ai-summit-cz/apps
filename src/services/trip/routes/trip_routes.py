@@ -190,7 +190,7 @@ async def list_trips(
     repo: TripRepository = Depends(get_trip_repo),
     toy_id: UUID | None = Query(None, description="Filter by toy ID"),
     owner_oid: str | None = Query(None, description="Filter by owner OID"),
-    limit: int = Query(20, ge=1, le=100, description="Maximum results"),
+    limit: int = Query(20, ge=1, le=1000, description="Maximum results"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
 ) -> dict:
     """
