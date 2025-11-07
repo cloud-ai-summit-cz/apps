@@ -1,5 +1,155 @@
 # Implementation Log
 
+## 2025-11-07 - Fixed Gallery Image Authentication (401 Unauthorized)
+
+**Issue**: Gallery images in TripDetail and TripGallery pages were returning 401 Unauthorized errors when displayed. The browser's `<img>` tags were attempting to load images directly from the backend without authentication headers.
+
+**Root Cause**: 
+- Backend gallery image endpoint (`GET /trip/{trip_id}/gallery/{image_id}`) requires bearer token authentication (matching avatar endpoint pattern)
+- Frontend was using direct image URLs in `<img src="...">` tags
+- Browsers don't automatically include Authorization headers when loading images via src attribute
+- This caused all gallery image requests to fail with 401 Unauthorized
+
+**Solution Applied**:
+
+Implemented blob URL pattern (matching toy avatar approach) in both TripDetail and TripGallery components:
+
+1. **TripDetail.tsx**:
+   - Added `galleryBlobUrls` state (Map<imageId, blobUrl>)
+   - Created `loadGalleryImages()` to fetch first 6 preview images with auth
+   - Used `tripApiClient.getGalleryImageBlob()` to fetch images with bearer token and create blob URLs
+   - Updated gallery preview grid to use blob URLs with loading spinner fallback
+   - Added cleanup effect to revoke blob URLs on unmount
+
+2. **TripGallery.tsx**:
+   - Added `galleryBlobUrls` and `loadingImages` state
+   - Created `loadGalleryImages()` to fetch all gallery images with auth tokens
+   - Updated gallery grid to show loading spinners while images load
+   - Modified image modal to use blob URLs
+   - Added error state display for failed image loads
+   - Implemented blob URL cleanup on component unmount
+
+**Technical Implementation**:
+
+```typescript
+// Fetch image with auth and create blob URL
+const blobUrl = await tripApiClient.getGalleryImageBlob(tripId, imageId);
+// Uses: fetchWithAuth -> acquireTokenSilent/Popup -> fetch with Bearer token
+
+// Display in img tag (no auth needed, blob URL is local)
+<img src={blobUrl} alt="..." />
+
+// Cleanup
+useEffect(() => {
+  return () => {
+    galleryBlobUrls.forEach(url => URL.revokeObjectURL(url));
+  };
+}, [trip?.id]);
+```
+
+**User Experience Improvements**:
+
+- Loading spinners show while images are being fetched (prevents broken image icons)
+- Error icons display for failed image loads (network issues, permissions)
+- Images load progressively (visible feedback)
+- Proper memory management (blob URLs revoked on unmount)
+
+**Result**: Gallery images now load successfully with proper authentication. The pattern matches the existing toy avatar implementation, ensuring consistency across the application.
+
+---
+
+## 2025-11-06 - Trip Service Frontend Integration
+
+**Objective**: Integrate trip service functionality into the React frontend, enabling users to create, view, and manage trips and gallery images for their toys.
+
+**Implementation Overview**:
+
+Created a complete frontend integration for the trip service following the existing architectural patterns established by the toy service implementation.
+
+**Components Created**:
+
+1. **Type Definitions** (`src/web/src/types/trip.ts`):
+   - TypeScript interfaces matching Python Pydantic models
+   - Enums: `PlaceStatus` (planned, visited, skipped), `TripStatus` (planned, in_progress, completed, cancelled)
+   - Models: `Trip`, `TripCreate`, `TripUpdate`, `Place`, `GalleryImage`, `TripListResponse`
+
+2. **API Client** (`src/web/src/services/tripApiClient.ts`):
+   - Reused MSAL auth token acquisition pattern from `toyApiClient.ts`
+   - CRUD operations: `createTrip`, `getTrip`, `listTrips`, `updateTrip`, `deleteTrip`
+   - Gallery operations: `uploadGalleryImage`, `getGalleryImageUrl`, `getGalleryImageBlob`, `deleteGalleryImage`
+   - Place status management: `updatePlaceStatus`
+   - All methods use bearer token auth with silent/popup fallback
+
+3. **Configuration**:
+   - Added `TRIP_SERVICE_BASE_URL` to `apiConfig.ts` (default: `http://localhost:8002`)
+   - Updated `vite-env.d.ts` with `VITE_TRIP_SERVICE_URL` environment variable type
+
+4. **Page Components**:
+   - **TripList** (`pages/TripList.tsx`): Display all trips for a toy with create button, status badges, country flags, quick stats
+   - **CreateTrip** (`pages/CreateTrip.tsx`): Multi-field form with places builder (add/remove places, sequential numbering), validation
+   - **TripDetail** (`pages/TripDetail.tsx`): Comprehensive trip view with editable info, places list with status updates, gallery preview, sidebar with quick actions
+   - **TripGallery** (`pages/TripGallery.tsx`): Full gallery grid view with upload form (supports place association, landmark, caption), image modal with metadata display, delete functionality
+
+5. **Routing** (`routes/AppRoutes.tsx`):
+   - `/toy/:toyId/trips` - List trips for a toy
+   - `/toy/:toyId/trip/create` - Create new trip
+   - `/trip/:tripId` - Trip detail view
+   - `/trip/:tripId/gallery` - Gallery management
+
+6. **ToyDetail Integration** (`pages/ToyDetail.tsx`):
+   - Added trips section below toy info
+   - Loads and displays up to 5 recent trips
+   - "View All" and "Create New Trip" actions for owners
+   - Empty state with CTA for first trip
+
+**Design Patterns Applied**:
+
+- **Authorization**: Global read access; write operations check `owner_oid === userOid`
+- **Loading States**: Consistent spinner patterns across all components
+- **Error Handling**: Try-catch with user-friendly error messages
+- **Responsive Design**: Tailwind CSS grid/flex layouts, mobile-first approach
+- **Navigation**: Breadcrumb-style back buttons, contextual navigation between related views
+- **Empty States**: Friendly messaging with CTAs for owners
+
+**User Experience Features**:
+
+- Country flag emoji display from country codes
+- Status badges with semantic colors
+- Interactive place status dropdowns (owners only)
+- Image upload with metadata (place, landmark, caption)
+- Gallery modal with full image view and metadata
+- Quick stats (places count, photos count, dates)
+- Sequential place numbering with validation
+
+**Technical Decisions**:
+
+1. **API Client Pattern**: Followed existing `toyApiClient` structure for consistency
+2. **Type Safety**: Full TypeScript coverage matching backend Pydantic models
+3. **Auth Flow**: Reused MSAL token acquisition with silent/popup fallback
+4. **Gallery Images**: URL-based rendering (no blob pre-fetching) for performance
+5. **Place Management**: Inline status updates without separate edit mode
+6. **Image Upload**: FormData with query params for metadata (matches backend API)
+
+**Backend API Alignment**:
+
+- Trip creation requires toy ownership (verified by backend via toy service call)
+- Global read access for all authenticated users (as per design)
+- Owner-only write operations enforced in UI and backend
+- Gallery images support optional place association and metadata
+- Place status transitions tracked with actual visit timestamps
+
+**Future Extensibility**:
+
+- Placeholder sections for live tracking (WebSocket)
+- Ready for story/narrative integration
+- Add-on ordering UI foundation
+- Map visualization integration points
+- Chat agent integration hooks
+
+**Result**: Complete trip management functionality integrated into frontend with consistent UX patterns, full CRUD operations, gallery management, and proper authorization flows. Users can now create trips, add places, upload photos, and track visit status—all matching the MVP requirements.
+
+---
+
 ## 2025-11-06 - Fixed Trip Service Import Errors (Part 2)
 
 **Issue**: Trip service failed to start due to incorrect model imports referencing non-existent `Leg` and `LegStatus` classes.

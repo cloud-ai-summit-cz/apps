@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_TOY_SERVICE_URL?: string;
+  readonly VITE_TRIP_SERVICE_URL?: string;
 }
 
 interface ImportMeta {

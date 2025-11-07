@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMsal } from '@azure/msal-react';
 import { toyApiClient } from '../services/toyApiClient';
+import { tripApiClient } from '../services/tripApiClient';
 import type { Toy } from '../types/toy';
+import type { Trip } from '../types/trip';
 
 function ToyDetail() {
   const { id } = useParams<{ id: string }>();
@@ -21,6 +23,8 @@ function ToyDetail() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [loadingAvatar, setLoadingAvatar] = useState(false);
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [loadingTrips, setLoadingTrips] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isOwner = toy && toy.owner_oid === userOid;
@@ -28,6 +32,7 @@ function ToyDetail() {
   useEffect(() => {
     if (id) {
       loadToy();
+      loadTrips();
     }
   }, [id]);
 
@@ -73,6 +78,20 @@ function ToyDetail() {
       console.error('Failed to load avatar:', err);
     } finally {
       setLoadingAvatar(false);
+    }
+  };
+
+  const loadTrips = async () => {
+    if (!id) return;
+    
+    try {
+      setLoadingTrips(true);
+      const tripsData = await tripApiClient.listTrips({ toy_id: id, limit: 5 });
+      setTrips(tripsData.items);
+    } catch (err) {
+      console.error('Failed to load trips:', err);
+    } finally {
+      setLoadingTrips(false);
     }
   };
 
@@ -345,6 +364,80 @@ function ToyDetail() {
               )}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Trips Section */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mt-6">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Trips</h2>
+            <button
+              onClick={() => navigate(`/toy/${id}/trips`)}
+              className="text-gray-600 hover:text-gray-900 text-sm flex items-center gap-1"
+            >
+              View All
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+
+          {loadingTrips ? (
+            <div className="text-center py-8 text-gray-500">Loading trips...</div>
+          ) : trips.length === 0 ? (
+            <div className="text-center py-8">
+              <svg className="w-12 h-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-gray-600 mb-3">No trips yet</p>
+              {isOwner && (
+                <button
+                  onClick={() => navigate(`/toy/${id}/trip/create`)}
+                  className="bg-gray-900 text-white px-4 py-2 rounded-md hover:bg-gray-800 text-sm"
+                >
+                  Create First Trip
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {trips.map((trip) => (
+                <div
+                  key={trip.id}
+                  onClick={() => navigate(`/trip/${trip.id}?from=toy`)}
+                  className="p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-gray-900 mb-1">{trip.title}</h3>
+                      <div className="text-sm text-gray-600">
+                        {trip.location_name} • {trip.places.length} place{trip.places.length !== 1 ? 's' : ''} • {trip.gallery.length} photo{trip.gallery.length !== 1 ? 's' : ''}
+                      </div>
+                    </div>
+                    <svg className="w-5 h-5 text-gray-400 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </div>
+              ))}
+              
+              {isOwner && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/toy/${id}/trip/create`);
+                  }}
+                  className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-gray-400 hover:text-gray-900 transition-colors flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Create New Trip
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
