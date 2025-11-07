@@ -48,8 +48,8 @@ module acr 'modules/acr.bicep' = {
     baseNameDash: baseNameDash
     location: location
     publicNetworkAccess: enablePublicAccess ? 'Enabled' : 'Disabled'
-    privateEndpointSubnetId: enablePrivateEndpoints ? networking.outputs.privateEndpointsSubnetId : ''
-    privateDnsZoneId: enablePrivateEndpoints ? networking.outputs.acrDnsZoneId : ''
+    // privateEndpointSubnetId: enablePrivateEndpoints ? networking.outputs.privateEndpointsSubnetId : ''
+    // privateDnsZoneId: enablePrivateEndpoints ? networking.outputs.acrDnsZoneId : ''
   }
 }
 
