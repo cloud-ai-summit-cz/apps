@@ -27,8 +27,10 @@ jobs:
         id: config
         run: |
           ACR_NAME=$(yq '.acr.name' env/staging/infra_config/azure.yaml)
+          ACR_LOGIN_SERVER=$(yq '.acr.loginServer' env/staging/infra_config/azure.yaml)
           echo "acr_name=$ACR_NAME" >> $GITHUB_OUTPUT
-          echo "Loaded ACR: $ACR_NAME"
+          echo "acr_login_server=$ACR_LOGIN_SERVER" >> $GITHUB_OUTPUT
+          echo "Loaded ACR: $ACR_NAME ($ACR_LOGIN_SERVER)"
       
       - name: Azure Login
         uses: azure/login@v2
@@ -37,12 +39,9 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       
-      - name: ACR Login
-        uses: azure/cli@v2
-        with:
-          azcliversion: latest
-          inlineScript: |
-            az acr login --name ${{ steps.config.outputs.acr_name }}
+      - name: Log in to Azure Container Registry
+        run: |
+          az acr login --name ${{ steps.config.outputs.acr_name }}
       
       - name: Build and Push to ACR
         uses: docker/build-push-action@v6
@@ -50,5 +49,5 @@ jobs:
           context: ./src/web
           push: true
           tags: |
-            ${{ steps.config.outputs.acr_name }}.azurecr.io/${{ env.SERVICE_NAME }}:${{ github.sha }}
-            ${{ steps.config.outputs.acr_name }}.azurecr.io/${{ env.SERVICE_NAME }}:latest
+            ${{ steps.config.outputs.acr_login_server }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+            ${{ steps.config.outputs.acr_login_server }}/${{ env.SERVICE_NAME }}:latest

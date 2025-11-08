@@ -1,5 +1,48 @@
 # Implementation Log
 
+## 2025-01-08 - Token-Based ACR Authentication in Build Workflows
+
+**Context**: Implemented Azure AD token-based authentication for ACR in all build workflows to avoid Docker daemon dependency and comply with disabled admin credentials.
+
+**Problem**: 
+- Initial approach using `az acr login` failed because the `azure/cli` action runs in a container without Docker daemon
+- ACR has admin user disabled (security requirement), preventing admin credential usage
+- Needed token-based authentication compatible with `docker/build-push-action`
+
+**Solution**:
+Implemented Azure AD access token authentication using `docker/login-action@v3`:
+
+1. **Get ACR Access Token**: Use `az account get-access-token --resource https://management.azure.com` to retrieve Azure AD token from existing OIDC session
+2. **Mask Token**: Use `::add-mask::` to prevent token leakage in logs
+3. **Docker Login**: Use `docker/login-action@v3` with:
+   - `registry`: ACR login server from azure.yaml
+   - `username`: `00000000-0000-0000-0000-000000000000` (special Azure AD identifier)
+   - `password`: Azure AD access token
+4. **Build and Push**: `docker/build-push-action@v6` uses the authenticated Docker session
+
+**Updated Workflows**:
+- `.github/workflows/build-toy.yml`: Token-based ACR auth + dynamic config loading
+- `.github/workflows/build-trip.yml`: Token-based ACR auth + dynamic config loading
+- `.github/workflows/build-web.yml`: Token-based ACR auth + dynamic config loading
+
+**Key Technical Details**:
+- Uses existing `azure/login@v2` OIDC session (no new credentials needed)
+- Token masked in GitHub Actions logs for security
+- ACR login server loaded from `env/staging/infra_config/azure.yaml` alongside ACR name
+- Image tags now use `acr_login_server` variable instead of constructing from `acr_name`
+- Compatible with `docker/build-push-action@v6` (no Docker daemon required in action)
+
+**Authentication Flow**:
+1. Azure OIDC login (federated identity) → establishes Azure session
+2. Get Azure AD token from session → management API scope
+3. Docker login with token → authenticates to ACR
+4. Build and push → uses authenticated Docker credentials
+
+**References**:
+- Microsoft Docs: "Sign container images in GitHub workflows by using Notation and Trusted Signing"
+- Microsoft Docs: "Use an Azure managed identity to authenticate to an Azure container registry"
+- Docker action: `docker/login-action@v3` documentation
+
 ## 2025-11-08 - Simplified CI/CD Workflows with Official Actions
 
 **Context**: Refactored GitHub Actions workflows to use official Azure CLI and Docker build-push actions for better maintainability and readability. Switched from service principal authentication to federated identity (OIDC).
