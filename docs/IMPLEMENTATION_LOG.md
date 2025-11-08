@@ -1,5 +1,226 @@
 # Implementation Log
 
+## 2025-11-08 - Simplified CI/CD Workflows with Official Actions
+
+**Context**: Refactored GitHub Actions workflows to use official Azure CLI and Docker build-push actions for better maintainability and readability. Switched from service principal authentication to federated identity (OIDC).
+
+**Changes**:
+
+1. **Replaced Custom Scripts with Official Actions**:
+   - **Azure CLI Action** (`azure/cli@v2`): Replaced manual `az` command execution with declarative action
+   - **Docker Build-Push Action** (`docker/build-push-action@v6`): Replaced manual docker build/push scripting with specialized action
+   - Removed manual ACR discovery and login scripting
+   - Removed custom build summary step (action provides built-in summaries)
+
+2. **Switched to Federated Identity (OIDC)**:
+   - Removed `AZURE_CREDENTIALS` secret (service principal JSON)
+   - Added three separate secrets: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`
+   - Added `permissions` block for OIDC token: `id-token: write`, `contents: read`
+   - Enables passwordless authentication with short-lived tokens
+
+3. **Simplified Configuration**:
+   - ACR name now hardcoded in `env.ACR_NAME` (placeholder: `crappdemoxxxxxx`)
+   - Removed resource group variable (no longer needed without ACR discovery)
+   - Reduced workflow from ~70 lines to ~45 lines per service
+
+4. **Workflow Structure Changes**:
+   - **Before**: 7 steps (checkout, buildx setup, azure login, get ACR, login ACR, build script, summary)
+   - **After**: 4 steps (checkout, azure login, ACR login via CLI action, build-push action)
+   - Build context properly set: `./src/services` for toy/trip, `./src/web` for web
+   - Tags directly specified in build-push action configuration
+
+**Technical Benefits**:
+
+- **Cleaner workflows**: Declarative configuration vs imperative scripting
+- **Better security**: OIDC federated identity eliminates long-lived secrets
+- **Built-in features**: Docker action provides automatic build summaries, caching support, multi-platform builds
+- **Official support**: Using Azure and Docker official actions ensures compatibility and updates
+- **Reduced complexity**: No custom bash scripts for building/pushing images
+
+**Federated Identity Setup**:
+
+Prerequisites for OIDC authentication:
+1. Create Azure AD app registration
+2. Add federated credentials for GitHub Actions:
+   - Entity: Repository
+   - Subject: `repo:cloud-ai-summit-cz/apps:ref:refs/heads/main`
+3. Grant app registration `AcrPush` role on ACR
+4. Configure GitHub secrets: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`
+
+**Action Features Utilized**:
+
+- **`azure/cli@v2`**: Executes Azure CLI commands in containerized environment with proper auth
+- **`docker/build-push-action@v6`**: 
+  - Automatic Buildx setup (no separate step needed)
+  - Multi-tag support (commit SHA + latest)
+  - Build summaries with downloadable build records
+  - Supports build cache, multi-platform builds, secrets, attestations
+
+**Files Modified**:
+- `.github/workflows/build-toy.yml` - Simplified to 45 lines with official actions
+- `.github/workflows/build-trip.yml` - Simplified to 45 lines with official actions  
+- `.github/workflows/build-web.yml` - Simplified to 43 lines with official actions
+
+**Migration Notes**:
+- ACR_NAME placeholder must be replaced with actual ACR name
+- GitHub secrets need to be updated from `AZURE_CREDENTIALS` to three separate OIDC secrets
+- Federated credential must be configured in Azure AD app registration
+- App registration needs `AcrPush` role on target ACR
+
+## 2025-11-07 - GitHub Actions CI/CD Pipeline with Separate Workflows
+
+**Context**: Implemented automated CI/CD pipeline with separate workflow files per service for better clarity, independent history, and easier debugging.
+
+**Changes**:
+
+1. **Individual Workflow Files**:
+   - **`.github/workflows/build-toy.yml`**: Dedicated toy service build pipeline
+   - **`.github/workflows/build-trip.yml`**: Dedicated trip service build pipeline
+   - **`.github/workflows/build-web.yml`**: Dedicated web frontend build pipeline
+   - Each workflow is self-contained with its own trigger paths, build steps, and summary
+
+2. **Workflow Structure** (per service):
+   - Automatic triggers on push to main for service-specific paths
+   - Manual workflow dispatch for on-demand builds
+   - Azure login and ACR discovery steps
+   - Docker build and push with dual tagging (commit SHA + latest)
+   - Build summary with image tags and status
+
+3. **Smart Trigger Configuration**:
+   - **Toy workflow**: Triggers on `src/services/toy/**` OR `src/shared/**`
+   - **Trip workflow**: Triggers on `src/services/trip/**` OR `src/shared/**`
+   - **Web workflow**: Triggers on `src/web/**`
+   - Changes to `src/shared/**` automatically trigger **both** toy and trip workflows (separate runs)
+
+4. **Build Context**:
+   - **Toy/Trip**: Build context set to `./src/services` (parent dir) to include shared folder
+   - **Web**: Build context set to `./src/web` (self-contained)
+   - Dockerfiles properly copy shared folder: `COPY ../shared /app/shared`
+
+5. **Documentation Updates** (`.github/CI_CD.md`):
+   - Updated to reflect separate workflow architecture
+   - Added workflow status badge examples
+   - Clarified trigger patterns for each workflow
+   - Updated troubleshooting for workflow-specific issues
+   - Enhanced monitoring section with per-workflow guidance
+
+**Technical Decisions**:
+
+- **Separate workflows over single file**: Chose clarity and independence over shared orchestration
+  - **Pro**: Each service has its own build history in GitHub Actions UI
+  - **Pro**: Easier to understand and debug individual service builds
+  - **Pro**: Can modify one workflow without affecting others
+  - **Pro**: Better visibility with separate status badges
+  - **Con**: ~20 lines of code duplication per workflow (acceptable tradeoff)
+  - **Con**: Shared folder changes trigger multiple workflow runs (two separate runs for toy + trip)
+
+- **Service-specific summaries**: Each workflow creates its own build summary with relevant image tags
+- **Dynamic ACR discovery**: Each workflow independently fetches ACR details from Azure (no shared job)
+- **Commit SHA tagging**: Immutable image references maintained across all workflows
+
+**Trigger Logic**:
+
+| File Changed | Workflows Triggered | Builds |
+|-------------|---------------------|--------|
+| `src/services/toy/**` | `build-toy.yml` | toy service only |
+| `src/services/trip/**` | `build-trip.yml` | trip service only |
+| `src/web/**` | `build-web.yml` | web frontend only |
+| `src/shared/**` | `build-toy.yml` + `build-trip.yml` | toy + trip (separate runs) |
+| Manual trigger | Selected workflow | One service |
+
+**Benefits**:
+
+- Clear separation of concerns per service
+- Independent build history and status tracking
+- Easier troubleshooting and debugging
+- Better GitHub Actions UI experience
+- Service-specific badges and monitoring
+- Scalable architecture for adding more services
+
+**Migration Notes**:
+- Removed original `build-and-push.yml` single workflow file
+- All functionality preserved in separate workflow files
+- No changes to build logic or image tagging strategy
+- Same prerequisites (AZURE_CREDENTIALS secret, service principal)
+
+**Files Created**:
+- `.github/workflows/build-toy.yml` - Toy service CI/CD
+- `.github/workflows/build-trip.yml` - Trip service CI/CD
+- `.github/workflows/build-web.yml` - Web frontend CI/CD
+
+**Files Removed**:
+- `.github/workflows/build-and-push.yml` - Replaced by separate workflows
+
+**Files Modified**:
+- `.github/CI_CD.md` - Updated for separate workflow architecture
+- `.github/README.md` - Updated workflow listing and trigger table
+- `src/services/toy/Dockerfile` - Added shared folder copy (from previous iteration)
+- `src/services/trip/Dockerfile` - Added shared folder copy (from previous iteration)
+
+## 2025-11-07 - Docker Compose Configuration and Web Runtime Configuration
+
+**Context**: Implemented comprehensive Docker Compose setup for local development and testing, along with runtime configuration for the web frontend.
+
+**Changes**:
+
+1. **Docker Compose Configuration** (`docker-compose.yml`):
+   - Created multi-service Docker Compose with toy, trip, and web services
+   - Hardcoded all environment variables from service `.env` files (no secrets present)
+   - Configured service networking with `app-network` bridge network
+   - Added health checks for all services with appropriate intervals and start periods
+   - Implemented service dependencies: trip depends on toy health, web depends on both
+   - Inter-service communication: trip calls toy via `http://toy:8001`
+
+2. **Service Dockerfiles**:
+   - **toy/Dockerfile**: Python 3.12-slim base, uv for dependencies, port 8001, health check endpoint
+   - **trip/Dockerfile**: Python 3.12-slim base, uv for dependencies, port 8002, health check endpoint
+   - **web/Dockerfile**: Multi-stage build (Node 20 builder + nginx alpine runtime), custom entrypoint
+
+3. **Web Frontend Runtime Configuration**:
+   - Created `public/env-config.js` with localhost defaults for local development (tracked in git)
+   - Updated `.gitignore` to allow `public/` folder tracking (removed global `public` ignore)
+   - Modified `index.html` to load `env-config.js` before app bundle
+   - Updated `apiConfig.ts` to read from `window.ENV_CONFIG` with fallback chain:
+     - Priority 1: `window.ENV_CONFIG` (runtime, set by Docker entrypoint)
+     - Priority 2: `import.meta.env.VITE_*` (build-time Vite env vars)
+     - Priority 3: Hardcoded localhost defaults
+   - Created `docker-entrypoint.sh` to generate `env-config.js` from environment variables at container startup
+   - Updated `.env.example` with both `VITE_TOY_SERVICE_URL` and `VITE_TRIP_SERVICE_URL` with clear comments
+
+4. **Documentation**:
+   - Created comprehensive `DOCKER.md` with deployment guide, troubleshooting, architecture diagram
+   - Enhanced root `README.md` with quick start options, project structure, and complete documentation links
+
+**Technical Decisions**:
+
+- **Config folder retained**: `config/apiConfig.ts` and `config/authConfig.ts` remain necessary for typed configuration abstraction and MSAL setup
+- **Runtime vs Build-time**: Web frontend supports both local dev (static config) and Docker (dynamic runtime config)
+- **Environment variables**: Docker Compose has hardcoded values for simplicity; no secrets management needed for current setup
+- **Health checks**: Each service includes curl-based health checks to ensure proper startup ordering
+- **Port mapping**: Services exposed on their native ports (8001, 8002, 3000) for consistency
+
+**Benefits**:
+
+- Single command (`docker-compose up`) to run entire stack locally
+- Web frontend works identically in local dev and Docker without code changes
+- Runtime configuration eliminates need to rebuild web container for URL changes
+- Clear documentation for both Docker and local development workflows
+- Proper service orchestration with health checks and dependencies
+
+**Files Modified**:
+- `docker-compose.yml` - Created with all three services
+- `src/services/toy/Dockerfile` - Created
+- `src/services/trip/Dockerfile` - Created
+- `src/web/Dockerfile` - Enhanced with entrypoint
+- `src/web/docker-entrypoint.sh` - Created runtime config generator
+- `src/web/public/env-config.js` - Created with localhost defaults
+- `src/web/index.html` - Added env-config.js script tag
+- `src/web/src/config/apiConfig.ts` - Added window.ENV_CONFIG support with fallbacks
+- `src/web/.env.example` - Added TRIP_SERVICE_URL, clarified usage
+- `.gitignore` - Removed public folder from ignore list
+- `DOCKER.md` - Created comprehensive deployment guide
+- `README.md` - Enhanced with Docker quick start and complete project overview
+
 ## 2025-11-07 - Naming Consistency and Unique String Optimization
 
 **Changes**:

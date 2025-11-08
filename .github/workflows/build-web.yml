@@ -1,0 +1,48 @@
+name: Build and Push Web Frontend
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/web/**'
+      - '.github/workflows/build-web.yml'
+
+env:
+  ACR_NAME: crappdemoeniwvl
+  SERVICE_NAME: web
+
+jobs:
+  build-and-push:
+    name: Build and Push Web Frontend
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      - name: ACR Login
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            az acr login --name ${{ env.ACR_NAME }}
+      
+      - name: Build and Push to ACR
+        uses: docker/build-push-action@v6
+        with:
+          context: ./src/web
+          push: true
+          tags: |
+            ${{ env.ACR_NAME }}.azurecr.io/${{ env.SERVICE_NAME }}:${{ github.sha }}
+            ${{ env.ACR_NAME }}.azurecr.io/${{ env.SERVICE_NAME }}:latest
