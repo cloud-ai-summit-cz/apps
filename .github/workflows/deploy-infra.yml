@@ -1,0 +1,86 @@
+name: Deploy Infrastructure
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'infra/bicep/**'
+      - '.github/workflows/deploy-infra.yml'
+
+permissions:
+  id-token: write   # for OIDC federated auth
+  contents: write   # to commit azure.yaml updates
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      RESOURCE_GROUP: rg-appdemo
+      LOCATION: swedencentral
+      BICEP_FILE: infra/bicep/main.bicep
+      BICEPPARAM_FILE: main.parameters.bicepparam
+      DEPLOYMENT_NAME: infra-main
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Ensure Resource Group
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            az group create --name ${{ env.RESOURCE_GROUP }} --location ${{ env.LOCATION }} --tags managed-by=github-actions || true
+
+      - name: Deploy Bicep
+        id: deployment
+        uses: azure/bicep-deploy@v2
+        with:
+          type: deployment
+          operation: create
+          scope: resourceGroup
+          name: ${{ env.DEPLOYMENT_NAME }}
+          resource-group-name: ${{ env.RESOURCE_GROUP }}
+          template-file: ${{ env.BICEP_FILE }}
+          parameters-file: ${{ env.BICEPPARAM_FILE }}
+
+      - name: Generate timestamp
+        id: timestamp
+        run: echo "value=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_OUTPUT
+
+      - name: Generate azure.yaml using yq
+        run: |
+          mkdir -p env/staging/infra_config
+          yq -n '.resourceGroup = strenv(RESOURCE_GROUP)' | \
+          yq '.acr.name = strenv(ACR_NAME)' | \
+          yq '.acr.loginServer = strenv(ACR_LOGIN_SERVER)' | \
+          yq '.aks.name = strenv(AKS_CLUSTER_NAME)' | \
+          yq '.aks.oidcIssuerUrl = strenv(AKS_OIDC_ISSUER_URL)' | \
+          yq '.storage.accountId = strenv(STORAGE_ACCOUNT_ID)' | \
+          yq '.storage.accountName = strenv(STORAGE_ACCOUNT_NAME)' | \
+          yq '.cosmos.accountId = strenv(COSMOS_ACCOUNT_ID)' | \
+          yq '.cosmos.accountName = strenv(COSMOS_ACCOUNT_NAME)' | \
+          yq '.generatedAt = strenv(TIMESTAMP)' > env/staging/infra_config/azure.yaml
+        env:
+          ACR_NAME: ${{ steps.deployment.outputs.acrName }}
+          ACR_LOGIN_SERVER: ${{ steps.deployment.outputs.acrLoginServer }}
+          AKS_CLUSTER_NAME: ${{ steps.deployment.outputs.aksClusterName }}
+          AKS_OIDC_ISSUER_URL: ${{ steps.deployment.outputs.aksOidcIssuerUrl }}
+          STORAGE_ACCOUNT_ID: ${{ steps.deployment.outputs.storageAccountId }}
+          STORAGE_ACCOUNT_NAME: ${{ steps.deployment.outputs.storageAccountName }}
+          COSMOS_ACCOUNT_ID: ${{ steps.deployment.outputs.cosmosAccountId }}
+          COSMOS_ACCOUNT_NAME: ${{ steps.deployment.outputs.cosmosAccountName }}
+          TIMESTAMP: ${{ steps.timestamp.outputs.value }}
+
+      - name: Commit azure.yaml if changed
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: 'env/staging/infra_config/azure.yaml'
+          message: 'Automation - Infrastructure config'
+          default_author: github_actions

@@ -156,18 +156,63 @@ helm-charts/
   <service-b>/...
 env/
   staging/
+    infra_config/
+      azure.yaml              # infrastructure outputs (ACR, storage, cosmos, aks, resourceGroup)
     apps/
       service-a-values.yaml   # image.tag, resources, replicas, env overrides for staging
       service-b-values.yaml
     bootstrap/
       root-app.yaml           # ArgoCD Application (app of apps) referencing child apps
   production/
+    infra_config/
+      azure.yaml              # (optionally promoted / copied when infra differs per environment)
     apps/
       service-a-values.yaml   # production specific overrides
       service-b-values.yaml
     bootstrap/
       root-app.yaml
 ```
+
+### Infrastructure Outputs Propagation (`azure.yaml`)
+An automated GitHub Actions workflow (`deploy-infra.yml`) deploys the Bicep template to the resource group `rg-appdemo` using OIDC federated credentials, then writes key outputs into `env/staging/infra_config/azure.yaml` with the following schema:
+
+```yaml
+# env/staging/infra_config/azure.yaml
+resourceGroup: rg-appdemo
+acr:
+  name: <acrName>
+  loginServer: <acrLoginServer>
+aks:
+  name: <aksClusterName>
+  oidcIssuerUrl: <aksOidcIssuerUrl>
+storage:
+  accountId: <storageAccountId>
+  accountName: <derived-from-id>
+cosmos:
+  accountId: <cosmosAccountId>
+  accountName: <derived-from-id>
+generatedAt: <ISO8601 timestamp>
+```
+
+Only values that change (e.g., on first deployment or infra drift requiring recreation) result in a commit with message:
+```
+Automation - Infrastructure config
+```
+The workflow intentionally **does not** trigger service image rebuilds (values files are separate) but allows ArgoCD (multi-source or valueFiles) to reference ACR login server or other infra data if needed.
+
+### Using `azure.yaml` in Workflows & ArgoCD
+* **Build Workflows:** Can parse `env/staging/infra_config/azure.yaml` (e.g. with `yq`) to set `ACR_NAME` / `ACR_LOGIN_SERVER` instead of hardcoding.
+* **Helm Charts:** Optionally load selected values (e.g. `acr.loginServer`) via a ConfigMap or inject as environment variables referencing cluster secrets—kept minimal here.
+* **Promotion:** If production uses a distinct infrastructure deployment, a corresponding `env/production/infra_config/azure.yaml` is created by running the infra workflow with `environment: production` (future enhancement). Otherwise, copy or cherry-pick the staging file when promoting.
+
+### Rationale
+Centralizing infra outputs as versioned YAML inside the Git repo ensures:
+1. **Determinism:** Git history reflects infra evolution.
+2. **Single Source of Truth:** Both CI and GitOps CD read identical values.
+3. **Security Boundary:** Only non-secret identifiers are stored (no connection strings/keys). Secrets remain in Azure or sealed secret stores.
+4. **Low Coupling:** Application value files remain focused on deploy-time app settings; infra YAML changes rarely.
+
+> Note: If future outputs (e.g., Key Vault names) are required, extend the Bicep outputs and append new keys to `azure.yaml` without breaking existing consumers (treat additions as backward-compatible).
 
 ### Helm Chart Conventions
 Each microservice has a minimal chart focusing on only the most commonly tuned attributes:
@@ -185,6 +230,7 @@ Non‑critical or rarely changed Kubernetes fields remain static within `templat
 2. GitHub Actions workflow builds each changed microservice image.
 3. Image is tagged with immutable commit SHA (e.g. `toy-service:<git-sha>`).
 4. For staging environment only: workflow updates the corresponding `env/staging/apps/<service>-values.yaml` file, setting `image.tag` to the new commit SHA.
+  - ACR name & login server now sourced dynamically (if desired) from `env/staging/infra_config/azure.yaml` instead of hardcoding.
 5. Workflow commits the change back to the repository (fast‑forward or PR merge strategy—ensure bot account has permission).
 6. ArgoCD detects the changed values file and reconciles, rolling out the new image to staging.
 
