@@ -10,7 +10,6 @@ on:
       - '.github/workflows/build-web.yml'
 
 env:
-  ACR_NAME: crappdemoeniwvl
   SERVICE_NAME: web
 
 jobs:
@@ -24,6 +23,13 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
       
+      - name: Load ACR Name from Config
+        id: config
+        run: |
+          ACR_NAME=$(yq '.acr.name' env/staging/infra_config/azure.yaml)
+          echo "acr_name=$ACR_NAME" >> $GITHUB_OUTPUT
+          echo "Loaded ACR: $ACR_NAME"
+      
       - name: Azure Login
         uses: azure/login@v2
         with:
@@ -36,7 +42,7 @@ jobs:
         with:
           azcliversion: latest
           inlineScript: |
-            az acr login --name ${{ env.ACR_NAME }}
+            az acr login --name ${{ steps.config.outputs.acr_name }}
       
       - name: Build and Push to ACR
         uses: docker/build-push-action@v6
@@ -44,5 +50,5 @@ jobs:
           context: ./src/web
           push: true
           tags: |
-            ${{ env.ACR_NAME }}.azurecr.io/${{ env.SERVICE_NAME }}:${{ github.sha }}
-            ${{ env.ACR_NAME }}.azurecr.io/${{ env.SERVICE_NAME }}:latest
+            ${{ steps.config.outputs.acr_name }}.azurecr.io/${{ env.SERVICE_NAME }}:${{ github.sha }}
+            ${{ steps.config.outputs.acr_name }}.azurecr.io/${{ env.SERVICE_NAME }}:latest
