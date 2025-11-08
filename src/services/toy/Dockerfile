@@ -12,16 +12,16 @@ RUN apt-get update && \
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Copy dependency files
-COPY pyproject.toml ./
+COPY services/toy/pyproject.toml ./
 
 # Install dependencies
 RUN uv pip install --system --no-cache -r pyproject.toml
 
 # Copy shared modules first (required by the service)
-COPY ../shared /app/shared
+COPY shared /app/shared
 
 # Copy application code
-COPY . .
+COPY services/toy/ .
 
 # Expose port
 EXPOSE 8001
