@@ -18,7 +18,7 @@ jobs:
       RESOURCE_GROUP: rg-appdemo
       LOCATION: swedencentral
       BICEP_FILE: infra/bicep/main.bicep
-      BICEPPARAM_FILE: main.parameters.bicepparam
+      BICEPPARAM_FILE: infra/bicep/main.parameters.bicepparam
       DEPLOYMENT_NAME: infra-main
     steps:
       - name: Checkout
