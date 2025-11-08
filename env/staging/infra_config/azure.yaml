@@ -1,2 +1,14 @@
-# Populated automatically by deploy-infra workflow. Do not edit manually.
-# Placeholder until first infrastructure deployment.
+resourceGroup: rg-appdemo
+acr:
+  name: crappdemoeniwvl
+  loginServer: crappdemoeniwvl.azurecr.io
+aks:
+  name: aks-appdemo-eniwvl
+  oidcIssuerUrl: https://swedencentral.oic.prod-aks.azure.com/6ce4f237-667f-43f5-aafd-cbef954adf97/4bce7045-b67d-49d2-8d7e-cb21d1ca9c28/
+storage:
+  accountId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-appdemo/providers/Microsoft.Storage/storageAccounts/stappdemoeniwvl
+  accountName: stappdemoeniwvl
+cosmos:
+  accountId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-appdemo/providers/Microsoft.DocumentDB/databaseAccounts/cosmosappdemoeniwvl
+  accountName: cosmosappdemoeniwvl
+generatedAt: "2025-11-08T15:19:28Z"
