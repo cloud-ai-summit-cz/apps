@@ -149,6 +149,61 @@ def parse_datetime(cls, value):
     return value
 ```
 
+## GitHub Actions / CI/CD Errors
+
+### ACR login fails with Docker daemon error
+```
+DOCKER_COMMAND_ERROR
+Please verify if Docker client is installed and running
+```
+
+**Problem:** Using `az acr login` inside `azure/cli@v2` action fails because the action runs commands in a Docker container that doesn't have access to the Docker daemon on the GitHub runner.
+
+**Wrong Approach (Don't do this):**
+```yaml
+# ❌ BAD: az acr login in azure/cli action (runs in container)
+- name: ACR Login
+  uses: azure/cli@v2
+  with:
+    inlineScript: |
+      az acr login --name myacr
+# This writes credentials to the container's filesystem,
+# but docker/build-push-action runs on the host and can't access them
+```
+
+**Correct Approach (Use this):**
+```yaml
+# ✅ GOOD: az acr login as direct run step (runs on host)
+- name: Azure Login
+  uses: azure/login@v2
+  with:
+    client-id: ${{ secrets.AZURE_CLIENT_ID }}
+    tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+    subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+- name: Log in to Azure Container Registry
+  run: |
+    az acr login --name ${{ steps.config.outputs.acr_name }}
+  # Azure CLI is pre-installed on GitHub runners
+  # This runs directly on the host where Docker daemon is available
+```
+
+**Why this works:**
+- GitHub Ubuntu runners have Azure CLI **pre-installed**
+- `azure/login@v2` authenticates the CLI session on the **runner** (not in a container)
+- `az acr login` as a `run:` step executes on the **runner** with Docker daemon access
+- Credentials are written to `~/.docker/config.json` on the **runner**
+- `docker/build-push-action@v6` runs on the **same runner** and reads the credentials
+
+**Key Difference:**
+- `azure/cli@v2` action = runs in isolated Docker container (no Docker daemon)
+- `run: az acr login` = runs directly on GitHub runner (Docker daemon available)
+
+**When to use each approach:**
+- ✅ Use direct `run:` steps for `az acr login` (needs Docker daemon)
+- ✅ Use `azure/cli@v2` for Azure management operations that don't need Docker
+- ✅ Use `docker/login-action@v3` for non-Azure registries or token-based auth
+
 ## Azure Cosmos DB Errors
 
 ### RBAC permission denied for database creation
