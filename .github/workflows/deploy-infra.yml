@@ -89,21 +89,63 @@ jobs:
       - name: Install ArgoCD namespace and manifests
         run: |
           echo "Installing ArgoCD in namespace 'argocd'..."
-          az aks command invoke \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --name ${{ steps.deployment.outputs.aksClusterName }} \
-            --command-timeout 600 \
-            --command "kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - && \
-                       kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml"
+          
+          # Retry logic for az aks command invoke (handles node autoprovisioning delays)
+          MAX_ATTEMPTS=5
+          ATTEMPT=1
+          DELAY=60
+          
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "Attempt $ATTEMPT of $MAX_ATTEMPTS..."
+            
+            if az aks command invoke \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --name ${{ steps.deployment.outputs.aksClusterName }} \
+              --command "kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - && \
+                         kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml"; then
+              echo "ArgoCD installation successful!"
+              break
+            else
+              if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+                echo "Failed after $MAX_ATTEMPTS attempts"
+                exit 1
+              fi
+              echo "Command failed, waiting ${DELAY}s before retry (node may be provisioning)..."
+              sleep $DELAY
+              DELAY=$((DELAY * 2))  # Exponential backoff
+              ATTEMPT=$((ATTEMPT + 1))
+            fi
+          done
 
       - name: Wait for ArgoCD to be ready
         run: |
           echo "Waiting for ArgoCD server to be ready..."
-          az aks command invoke \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --name ${{ steps.deployment.outputs.aksClusterName }} \
-            --command-timeout 600 \
-            --command "kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s"
+          
+          # Retry logic for az aks command invoke
+          MAX_ATTEMPTS=5
+          ATTEMPT=1
+          DELAY=60
+          
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "Attempt $ATTEMPT of $MAX_ATTEMPTS..."
+            
+            if az aks command invoke \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --name ${{ steps.deployment.outputs.aksClusterName }} \
+              --command "kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s"; then
+              echo "ArgoCD is ready!"
+              break
+            else
+              if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+                echo "Failed after $MAX_ATTEMPTS attempts"
+                exit 1
+              fi
+              echo "Command failed, waiting ${DELAY}s before retry..."
+              sleep $DELAY
+              DELAY=$((DELAY * 2))
+              ATTEMPT=$((ATTEMPT + 1))
+            fi
+          done
 
       - name: Configure ArgoCD repository access
         env:
@@ -127,15 +169,34 @@ jobs:
             password: ${GH_TOKEN}
           EOF
           
-          # Apply the secret using run command with file attachment
-          az aks command invoke \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --name ${{ steps.deployment.outputs.aksClusterName }} \
-            --command-timeout 600 \
-            --file /tmp/repo-secret.yaml \
-            --command "kubectl apply -f repo-secret.yaml"
+          # Retry logic for az aks command invoke
+          MAX_ATTEMPTS=5
+          ATTEMPT=1
+          DELAY=60
           
-          rm -f /tmp/repo-secret.yaml
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "Attempt $ATTEMPT of $MAX_ATTEMPTS..."
+            
+            if az aks command invoke \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --name ${{ steps.deployment.outputs.aksClusterName }} \
+              --file /tmp/repo-secret.yaml \
+              --command "kubectl apply -f repo-secret.yaml"; then
+              echo "Repository secret configured successfully!"
+              rm -f /tmp/repo-secret.yaml
+              break
+            else
+              if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+                echo "Failed after $MAX_ATTEMPTS attempts"
+                rm -f /tmp/repo-secret.yaml
+                exit 1
+              fi
+              echo "Command failed, waiting ${DELAY}s before retry..."
+              sleep $DELAY
+              DELAY=$((DELAY * 2))
+              ATTEMPT=$((ATTEMPT + 1))
+            fi
+          done
 
       - name: Apply ArgoCD root application (app of apps)
         run: |
@@ -144,12 +205,31 @@ jobs:
           # Copy root app manifest to temp location
           cp env/staging/bootstrap/root-app.yaml /tmp/root-app.yaml
           
-          # Apply using run command
-          az aks command invoke \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --name ${{ steps.deployment.outputs.aksClusterName }} \
-            --command-timeout 600 \
-            --file /tmp/root-app.yaml \
-            --command "kubectl apply -f root-app.yaml"
+          # Retry logic for az aks command invoke
+          MAX_ATTEMPTS=5
+          ATTEMPT=1
+          DELAY=60
           
-          rm -f /tmp/root-app.yaml
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "Attempt $ATTEMPT of $MAX_ATTEMPTS..."
+            
+            if az aks command invoke \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --name ${{ steps.deployment.outputs.aksClusterName }} \
+              --file /tmp/root-app.yaml \
+              --command "kubectl apply -f root-app.yaml"; then
+              echo "Root application applied successfully!"
+              rm -f /tmp/root-app.yaml
+              break
+            else
+              if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+                echo "Failed after $MAX_ATTEMPTS attempts"
+                rm -f /tmp/root-app.yaml
+                exit 1
+              fi
+              echo "Command failed, waiting ${DELAY}s before retry..."
+              sleep $DELAY
+              DELAY=$((DELAY * 2))
+              ATTEMPT=$((ATTEMPT + 1))
+            fi
+          done
