@@ -180,6 +180,22 @@ module cosmosRbac 'modules/cosmosRoleAssignments.bicep' = {
   }
 }
 
+// AKS RBAC Cluster Admin role assignment for user
+resource aksClusterAdminRoleDefinition 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
+  scope: subscription()
+  name: 'b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b' // Azure Kubernetes Service RBAC Cluster Admin
+}
+
+resource aksClusterAdminAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: resourceGroup()
+  name: guid(resourceGroup().id, userObjectId, aksClusterAdminRoleDefinition.id, 'aks-cluster-admin')
+  properties: {
+    roleDefinitionId: aksClusterAdminRoleDefinition.id
+    principalId: userObjectId
+    principalType: 'User'
+  }
+}
+
 output vnetId string = networking.outputs.vnetId
 output vnetName string = networking.outputs.vnetName
 output aksClusterId string = aks.outputs.aksClusterId
