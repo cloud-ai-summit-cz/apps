@@ -92,6 +92,7 @@ jobs:
           az aks command invoke \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --name ${{ steps.deployment.outputs.aksClusterName }} \
+            --command-timeout 600 \
             --command "kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - && \
                        kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml"
 
@@ -101,6 +102,7 @@ jobs:
           az aks command invoke \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --name ${{ steps.deployment.outputs.aksClusterName }} \
+            --command-timeout 600 \
             --command "kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s"
 
       - name: Configure ArgoCD repository access
@@ -129,6 +131,7 @@ jobs:
           az aks command invoke \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --name ${{ steps.deployment.outputs.aksClusterName }} \
+            --command-timeout 600 \
             --file /tmp/repo-secret.yaml \
             --command "kubectl apply -f repo-secret.yaml"
           
@@ -145,6 +148,7 @@ jobs:
           az aks command invoke \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --name ${{ steps.deployment.outputs.aksClusterName }} \
+            --command-timeout 600 \
             --file /tmp/root-app.yaml \
             --command "kubectl apply -f root-app.yaml"
           
