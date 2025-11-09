@@ -1,8 +1,8 @@
 # Implementation Log
 
-## 2025-01-08 - AKS App Routing and Automated ArgoCD Bootstrap
+## 2025-01-08 - AKS App Routing and Integrated ArgoCD Bootstrap
 
-**Context**: Enhanced GitOps infrastructure with App Routing Bicep enablement and fully automated ArgoCD bootstrap via GitHub Actions workflow using AKS run command.
+**Context**: Enhanced GitOps infrastructure with App Routing Bicep enablement and fully automated ArgoCD bootstrap integrated directly into infrastructure deployment workflow.
 
 **Architectural Changes**:
 
@@ -22,36 +22,42 @@
      ```
    - Eliminates manual addon enable step; App Routing ready when cluster deploys
 
-2. **Automated ArgoCD Bootstrap** (`.github/workflows/bootstrap-argocd.yml`):
+2. **AKS RBAC Cluster Admin Role** (`infra/bicep/main.bicep`):
+   - Added Azure Kubernetes Service RBAC Cluster Admin role assignment for user
+   - Role ID: `b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b`
+   - Grants full admin access to AKS cluster via Kubernetes RBAC
+
+3. **Integrated ArgoCD Bootstrap** (`.github/workflows/deploy-infra.yml`):
+   - ArgoCD installation now integrated into infrastructure deployment workflow
    - Uses `az aks command invoke` to execute all kubectl operations without kubeconfig distribution
-   - Leverages existing OIDC authentication from deploy-infra workflow (federated identity)
-   - Workflow steps:
-     1. Load cluster details from `env/<environment>/infra_config/azure.yaml`
-     2. Install ArgoCD stable release (apply manifests via run command)
-     3. Configure private repo access using `ARGOCD_REPO_TOKEN` GitHub secret
-     4. Apply root application (`env/staging/bootstrap/root-app.yaml`)
-     5. Verify all ArgoCD components running
+   - Leverages existing OIDC authentication (federated identity)
+   - Single workflow steps:
+     1. Deploy Azure infrastructure (AKS, ACR, Storage, Cosmos DB)
+     2. Generate `azure.yaml` config file
+     3. Install ArgoCD stable release (apply manifests via run command)
+     4. Configure private repo access using `ARGOCD_REPO_TOKEN` GitHub secret
+     5. Apply root application (`env/staging/bootstrap/root-app.yaml`)
    - Idempotent: Uses `--dry-run=client -o yaml | kubectl apply -f -` pattern for safe re-runs
-   - Audit trail: All operations logged in GitHub Actions
+   - Eliminates need for separate bootstrap workflow
 
 **Technical Benefits**:
+- **Unified Deployment**: Single `gh workflow run deploy-infra.yml` deploys everything from infrastructure to GitOps
 - **Security**: No kubeconfig files to distribute or rotate; OIDC handles authentication
-- **Repeatability**: Single command triggers entire bootstrap: `gh workflow run bootstrap-argocd.yml -f environment=staging`
-- **Portability**: Same workflow works across staging/production by passing environment parameter
-- **Maintainability**: ArgoCD manifests and secrets managed as workflow steps, not manual kubectl commands
-
-**Files Created**:
-- `.github/workflows/bootstrap-argocd.yml`: Automated ArgoCD installation and configuration
+- **Simplicity**: Reduces workflow count and complexity; one-command deployment
+- **Maintainability**: ArgoCD setup is declarative and version-controlled as part of infrastructure
 
 **Files Modified**:
 - `infra/bicep/modules/aksAutomatic.bicep`: Added ingressProfile.webAppRouting configuration
-- `docs/DEPLOYMENT.md`: Documented automated bootstrap process as primary approach
-- `env/staging/GITOPS_SETUP.md`: Updated quick start with automated bootstrap instructions
+- `infra/bicep/main.bicep`: Added AKS RBAC Cluster Admin role assignment
+- `.github/workflows/deploy-infra.yml`: Integrated ArgoCD bootstrap steps
+- `docs/DEPLOYMENT.md`: Updated to document integrated deployment flow
+
+**Files Deleted**:
+- `.github/workflows/bootstrap-argocd.yml`: Consolidated into deploy-infra.yml
 
 **Deployment Flow**:
-1. Deploy infrastructure: `gh workflow run deploy-infra.yml` (includes App Routing now)
-2. Bootstrap ArgoCD: `gh workflow run bootstrap-argocd.yml -f environment=staging`
-3. CI builds commit image tags: ArgoCD auto-syncs new versions
+1. Run `gh workflow run deploy-infra.yml` - deploys infrastructure AND bootstraps ArgoCD
+2. CI builds commit image tags: ArgoCD auto-syncs new versions
 
 ---
 

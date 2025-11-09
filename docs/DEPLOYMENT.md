@@ -173,38 +173,40 @@ kubectl get ingressclass
 kubectl get service -n app-routing-system nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}"
 ```
 
-### Bootstrap ArgoCD (Automated via GitHub Actions)
+### Bootstrap ArgoCD (Automated with Infrastructure)
 
-ArgoCD installation and configuration is automated through GitHub Actions using AKS run command. This approach:
-- Eliminates the need to distribute kubeconfig files
-- Uses existing OIDC authentication from GitHub Actions
-- Runs kubectl commands directly against the AKS control plane
-- Idempotent and safe to re-run
+ArgoCD installation and configuration is fully integrated into the infrastructure deployment workflow. The `deploy-infra.yml` workflow:
+- Deploys all Azure resources (AKS, ACR, Storage, Cosmos DB)
+- Installs and configures ArgoCD automatically using AKS run command
+- Applies the root application to bootstrap all services
+- Eliminates the need for manual bootstrapping or separate workflows
 
 **Prerequisites:**
-1. Infrastructure deployed (AKS cluster exists)
-2. `env/<environment>/infra_config/azure.yaml` populated by deploy-infra workflow
-3. GitHub secret `ARGOCD_REPO_TOKEN` configured with PAT having `repo` scope
+1. GitHub secret `ARGOCD_REPO_TOKEN` configured with PAT having `repo` scope
 
-**Automated Bootstrap Steps:**
+**Deployment:**
 
-Trigger the bootstrap workflow manually from GitHub Actions:
+Simply run the infrastructure deployment workflow:
 
 ```bash
 # Via GitHub CLI
-gh workflow run bootstrap-argocd.yml -f environment=staging
+gh workflow run deploy-infra.yml
 
 # Or via GitHub UI:
-# Actions → Bootstrap ArgoCD on AKS → Run workflow → Select environment
+# Actions → Deploy Infrastructure → Run workflow
+
+# Or automatically on push to infra/bicep/**
+git push
 ```
 
-The workflow performs:
-1. **Install ArgoCD**: Creates namespace and applies manifests using `az aks command invoke`
-2. **Configure Repository Access**: Creates secret with GitHub PAT for private repo access
-3. **Apply Root Application**: Deploys the app-of-apps manifest to bootstrap all services
-4. **Verify Deployment**: Checks application status and retrieves admin password
+The workflow automatically performs:
+1. **Deploy Infrastructure**: Creates/updates all Azure resources via Bicep
+2. **Generate Config**: Writes `env/staging/infra_config/azure.yaml` with deployment outputs
+3. **Install ArgoCD**: Creates namespace and applies manifests using `az aks command invoke`
+4. **Configure Repository Access**: Creates secret with GitHub PAT for private repo access
+5. **Apply Root Application**: Deploys the app-of-apps manifest to bootstrap all services
 
-**What the workflow does behind the scenes:**
+**What happens behind the scenes:**
 
 ```bash
 # 1. Install ArgoCD
