@@ -112,6 +112,17 @@ resource aks 'Microsoft.ContainerService/managedClusters@2024-09-02-preview' = {
         }
       }
     }
+    // Ingress profile for managed NGINX (App Routing add-on)
+    ingressProfile: {
+      webAppRouting: {
+        enabled: true
+        nginx: {
+          // AnnotationControlled: creates default controller with external LB, allows customization via annotations
+          // Other options: None (no default), Internal (internal LB only), External (external LB, no customization)
+          defaultIngressControllerType: 'AnnotationControlled'
+        }
+      }
+    }
   }
 }
 

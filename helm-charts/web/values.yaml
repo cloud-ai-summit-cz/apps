@@ -1,0 +1,66 @@
+# Default values for web service
+# This file provides sensible defaults that can be overridden by environment-specific values
+
+replicaCount: 1
+
+image:
+  repository: "" # Override with ACR login server + image name
+  pullPolicy: IfNotPresent
+  tag: "latest" # Override with commit SHA in env-specific values
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 80
+
+ingress:
+  enabled: true
+  className: "webapprouting.kubernetes.azure.com"
+  annotations: {}
+  hosts:
+    - host: "" # Override with actual hostname
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+livenessProbe:
+  enabled: true
+  httpGet:
+    path: /
+    port: 80
+  initialDelaySeconds: 10
+  periodSeconds: 10
+
+readinessProbe:
+  enabled: true
+  httpGet:
+    path: /
+    port: 80
+  initialDelaySeconds: 5
+  periodSeconds: 5
+
+# Environment variables (override in env-specific values)
+# Web service is static files served by nginx, so env vars are typically build-time
+env: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

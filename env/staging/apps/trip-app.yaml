@@ -1,0 +1,44 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: trip-service
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  # Multi-source configuration
+  sources:
+    # Source 1: Helm chart from repo
+    - repoURL: https://github.com/cloud-ai-summit-cz/apps.git
+      targetRevision: main
+      path: helm-charts/trip
+      helm:
+        valueFiles:
+          # Reference values from other sources using $-prefixed variables
+          - $values/env/staging/apps/trip-values.yaml
+    
+    # Source 2: Values repository (staging service values)
+    - repoURL: https://github.com/cloud-ai-summit-cz/apps.git
+      targetRevision: main
+      ref: values
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: toytrip-staging
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

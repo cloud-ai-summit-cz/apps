@@ -1,0 +1,80 @@
+# Default values for toy service
+# This file provides sensible defaults that can be overridden by environment-specific values
+
+replicaCount: 1
+
+image:
+  repository: "" # Override with ACR login server + image name
+  pullPolicy: IfNotPresent
+  tag: "latest" # Override with commit SHA in env-specific values
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8001
+
+ingress:
+  enabled: true
+  className: "webapprouting.kubernetes.azure.com"
+  annotations: {}
+  hosts:
+    - host: "" # Override with actual hostname
+      paths:
+        - path: /api/toys
+          pathType: Prefix
+  tls: []
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+livenessProbe:
+  enabled: true
+  httpGet:
+    path: /health
+    port: 8001
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+readinessProbe:
+  enabled: true
+  httpGet:
+    path: /health
+    port: 8001
+  initialDelaySeconds: 10
+  periodSeconds: 5
+
+# Environment variables (override in env-specific values)
+env:
+  AZURE_TENANT_ID: ""
+  APP_ID_URI: ""
+  COSMOS_ENDPOINT: ""
+  COSMOS_DATABASE_NAME: "toytripdb"
+  COSMOS_CONTAINER_NAME: "toys"
+  STORAGE_ACCOUNT_URL: ""
+  BLOB_CONTAINER_AVATARS: "avatars"
+  API_HOST: "0.0.0.0"
+  API_PORT: "8001"
+  LOG_LEVEL: "INFO"
+
+# Azure Workload Identity
+workloadIdentity:
+  enabled: false
+  clientId: ""
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

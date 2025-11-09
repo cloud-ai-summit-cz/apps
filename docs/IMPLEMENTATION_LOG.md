@@ -1,5 +1,131 @@
 # Implementation Log
 
+## 2025-01-08 - AKS App Routing and Automated ArgoCD Bootstrap
+
+**Context**: Enhanced GitOps infrastructure with App Routing Bicep enablement and fully automated ArgoCD bootstrap via GitHub Actions workflow using AKS run command.
+
+**Architectural Changes**:
+
+1. **AKS App Routing via Bicep** (`infra/bicep/modules/aksAutomatic.bicep`):
+   - Added `ingressProfile.webAppRouting` configuration to AKS Automatic cluster
+   - Enables managed NGINX ingress controller declaratively at cluster creation
+   - Configuration:
+     ```bicep
+     ingressProfile: {
+       webAppRouting: {
+         enabled: true
+         nginx: {
+           defaultIngressControllerType: 'AnnotationControlled'
+         }
+       }
+     }
+     ```
+   - Eliminates manual addon enable step; App Routing ready when cluster deploys
+
+2. **Automated ArgoCD Bootstrap** (`.github/workflows/bootstrap-argocd.yml`):
+   - Uses `az aks command invoke` to execute all kubectl operations without kubeconfig distribution
+   - Leverages existing OIDC authentication from deploy-infra workflow (federated identity)
+   - Workflow steps:
+     1. Load cluster details from `env/<environment>/infra_config/azure.yaml`
+     2. Install ArgoCD stable release (apply manifests via run command)
+     3. Configure private repo access using `ARGOCD_REPO_TOKEN` GitHub secret
+     4. Apply root application (`env/staging/bootstrap/root-app.yaml`)
+     5. Verify all ArgoCD components running
+   - Idempotent: Uses `--dry-run=client -o yaml | kubectl apply -f -` pattern for safe re-runs
+   - Audit trail: All operations logged in GitHub Actions
+
+**Technical Benefits**:
+- **Security**: No kubeconfig files to distribute or rotate; OIDC handles authentication
+- **Repeatability**: Single command triggers entire bootstrap: `gh workflow run bootstrap-argocd.yml -f environment=staging`
+- **Portability**: Same workflow works across staging/production by passing environment parameter
+- **Maintainability**: ArgoCD manifests and secrets managed as workflow steps, not manual kubectl commands
+
+**Files Created**:
+- `.github/workflows/bootstrap-argocd.yml`: Automated ArgoCD installation and configuration
+
+**Files Modified**:
+- `infra/bicep/modules/aksAutomatic.bicep`: Added ingressProfile.webAppRouting configuration
+- `docs/DEPLOYMENT.md`: Documented automated bootstrap process as primary approach
+- `env/staging/GITOPS_SETUP.md`: Updated quick start with automated bootstrap instructions
+
+**Deployment Flow**:
+1. Deploy infrastructure: `gh workflow run deploy-infra.yml` (includes App Routing now)
+2. Bootstrap ArgoCD: `gh workflow run bootstrap-argocd.yml -f environment=staging`
+3. CI builds commit image tags: ArgoCD auto-syncs new versions
+
+---
+
+## 2025-01-08 - GitOps Infrastructure with Helm and ArgoCD
+
+**Context**: Implemented complete GitOps deployment infrastructure using Helm charts, ArgoCD multi-source applications, and AKS App Routing for ingress management.
+
+**Architecture**:
+
+1. **Helm Charts** (`helm-charts/`):
+   - Created three charts: `toy`, `trip`, `web`
+   - Each chart includes: Deployment, Service, Ingress, ServiceAccount
+   - Minimal configuration surface: image, replicas, resources, env vars, probes
+   - All ingresses use `ingressClassName: webapprouting.kubernetes.azure.com` for AKS App Routing (managed NGINX)
+
+2. **Staging Environment Structure** (`env/staging/`):
+   - `apps/<service>-values.yaml`: Service-specific Helm values (image tag, replicas, env vars)
+   - `apps/<service>-app.yaml`: ArgoCD Application manifests using multi-source pattern
+   - `bootstrap/root-app.yaml`: Root ArgoCD Application (app of apps) that discovers child apps
+   - `infra_config/azure.yaml`: Infrastructure outputs from Bicep deployment (existing)
+
+3. **ArgoCD Multi-Source Pattern**:
+   - Source 1: Helm chart from `helm-charts/<service>/`
+   - Source 2: Values file from `env/staging/apps/<service>-values.yaml` (referenced via `$values`)
+   - Enables separation of chart templates from environment-specific configuration
+   - All services deploy to `toytrip-staging` namespace with automated sync, prune, and self-heal
+
+4. **AKS App Routing Integration**:
+   - Managed NGINX ingress controller (no manual helm installation needed)
+   - IngressClass: `webapprouting.kubernetes.azure.com`
+   - Ingress paths:
+     - `/` → web frontend
+     - `/api/toys` → toy service
+     - `/api/trips` → trip service
+
+**CI/CD Image Update Flow**:
+1. Build workflow creates image tagged with commit SHA
+2. Workflow updates `env/staging/apps/<service>-values.yaml` with new image tag
+3. Workflow commits change with message: `Automation - Update <service> image to <sha>`
+4. ArgoCD detects Git change and syncs deployment automatically
+5. Immutable image tags enable instant rollback via Git revert
+
+**Files Created**:
+- `helm-charts/toy/`: Chart.yaml, values.yaml, templates/ (deployment, service, ingress, serviceaccount, _helpers.tpl)
+- `helm-charts/trip/`: Chart.yaml, values.yaml, templates/ (deployment, service, ingress, serviceaccount, _helpers.tpl)
+- `helm-charts/web/`: Chart.yaml, values.yaml, templates/ (deployment, service, ingress, serviceaccount, _helpers.tpl)
+- `helm-charts/README.md`: Chart documentation and usage guide
+- `env/staging/apps/toy-values.yaml`: Toy service staging values
+- `env/staging/apps/trip-values.yaml`: Trip service staging values
+- `env/staging/apps/web-values.yaml`: Web frontend staging values
+- `env/staging/apps/toy-app.yaml`: Toy service ArgoCD Application
+- `env/staging/apps/trip-app.yaml`: Trip service ArgoCD Application
+- `env/staging/apps/web-app.yaml`: Web frontend ArgoCD Application
+- `env/staging/bootstrap/root-app.yaml`: Root ArgoCD Application (app of apps)
+
+**Documentation Updates**:
+- `docs/DEPLOYMENT.md`: Added sections on AKS App Routing setup, ArgoCD installation, bootstrap process, CI/CD image update workflow, and concrete implementation details
+
+**Next Steps**:
+- Update build workflows (`.github/workflows/build-*.yml`) to update values files and commit changes
+- Enable AKS App Routing on the cluster: `az aks approuting enable`
+- Install ArgoCD in the cluster
+- Bootstrap GitOps: `kubectl apply -f env/staging/bootstrap/root-app.yaml`
+- Configure actual hostnames in ingress configuration
+- Set up Azure Workload Identity for pod authentication to Azure services
+
+**Benefits**:
+- Declarative infrastructure: Git is single source of truth
+- Automated staging deployments with change visibility
+- Controlled production promotions via PR process
+- Fast rollback via Git revert
+- Separation of chart templates from environment config
+- Minimal CI/CD complexity (just update values file)
+
 ## 2025-01-08 - Token-Based ACR Authentication in Build Workflows
 
 **Context**: Implemented Azure AD token-based authentication for ACR in all build workflows to avoid Docker daemon dependency and comply with disabled admin credentials.

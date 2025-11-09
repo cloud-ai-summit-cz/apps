@@ -1,0 +1,40 @@
+# Toy Service - Staging Environment Values
+# This file is automatically updated by CI/CD pipeline with image tags
+
+image:
+  repository: "" # Set by CI: <acr-login-server>/toy-service
+  tag: "latest" # Set by CI: commit SHA
+
+replicaCount: 2
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+ingress:
+  enabled: true
+  hosts:
+    - host: "" # Set to actual staging domain
+      paths:
+        - path: /api/toys
+          pathType: Prefix
+
+env:
+  AZURE_TENANT_ID: "" # Set from azure.yaml or secret
+  APP_ID_URI: "" # Set from App Registration
+  COSMOS_ENDPOINT: "" # Set from azure.yaml
+  COSMOS_DATABASE_NAME: "toytripdb"
+  COSMOS_CONTAINER_NAME: "toys"
+  STORAGE_ACCOUNT_URL: "" # Set from azure.yaml
+  BLOB_CONTAINER_AVATARS: "avatars"
+  API_HOST: "0.0.0.0"
+  API_PORT: "8001"
+  LOG_LEVEL: "INFO"
+
+workloadIdentity:
+  enabled: false
+  clientId: "" # Set when workload identity is configured

@@ -143,6 +143,143 @@ docker build -t <acr-name>.azurecr.io/toy-service:latest ./src/services/toy
 docker push <acr-name>.azurecr.io/toy-service:latest
 ```
 
+### AKS App Routing (Automated)
+
+The AKS App Routing add-on is **automatically enabled** during infrastructure deployment via Bicep:
+
+```bicep
+// In infra/bicep/modules/aksAutomatic.bicep
+ingressProfile: {
+  webAppRouting: {
+    enabled: true
+    nginx: {
+      defaultIngressControllerType: 'AnnotationControlled'
+    }
+  }
+}
+```
+
+After deployment, verify the ingress controller:
+
+```bash
+# Get cluster credentials
+az aks get-credentials --resource-group $RESOURCE_GROUP --name <aks-cluster-name>
+
+# Verify ingress class
+kubectl get ingressclass
+# Should see: webapprouting.kubernetes.azure.com
+
+# Get the ingress controller IP
+kubectl get service -n app-routing-system nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}"
+```
+
+### Bootstrap ArgoCD (Automated via GitHub Actions)
+
+ArgoCD installation and configuration is automated through GitHub Actions using AKS run command. This approach:
+- Eliminates the need to distribute kubeconfig files
+- Uses existing OIDC authentication from GitHub Actions
+- Runs kubectl commands directly against the AKS control plane
+- Idempotent and safe to re-run
+
+**Prerequisites:**
+1. Infrastructure deployed (AKS cluster exists)
+2. `env/<environment>/infra_config/azure.yaml` populated by deploy-infra workflow
+3. GitHub secret `ARGOCD_REPO_TOKEN` configured with PAT having `repo` scope
+
+**Automated Bootstrap Steps:**
+
+Trigger the bootstrap workflow manually from GitHub Actions:
+
+```bash
+# Via GitHub CLI
+gh workflow run bootstrap-argocd.yml -f environment=staging
+
+# Or via GitHub UI:
+# Actions → Bootstrap ArgoCD on AKS → Run workflow → Select environment
+```
+
+The workflow performs:
+1. **Install ArgoCD**: Creates namespace and applies manifests using `az aks command invoke`
+2. **Configure Repository Access**: Creates secret with GitHub PAT for private repo access
+3. **Apply Root Application**: Deploys the app-of-apps manifest to bootstrap all services
+4. **Verify Deployment**: Checks application status and retrieves admin password
+
+**What the workflow does behind the scenes:**
+
+```bash
+# 1. Install ArgoCD
+az aks command invoke \
+  --resource-group $RG \
+  --name $AKS_CLUSTER \
+  --command "kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - && \
+             kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml"
+
+# 2. Configure repo access (using secret from GitHub)
+az aks command invoke \
+  --resource-group $RG \
+  --name $AKS_CLUSTER \
+  --file repo-secret.yaml \
+  --command "kubectl apply -f repo-secret.yaml"
+
+# 3. Apply root app
+az aks command invoke \
+  --resource-group $RG \
+  --name $AKS_CLUSTER \
+  --file env/staging/bootstrap/root-app.yaml \
+  --command "kubectl apply -f root-app.yaml"
+```
+
+**Access ArgoCD UI:**
+
+After bootstrap completes:
+
+```bash
+# Get cluster credentials
+az aks get-credentials --resource-group $RESOURCE_GROUP --name <aks-cluster-name>
+
+# Port-forward to access UI
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+
+# Access at https://localhost:8080
+# Username: admin
+# Password: (displayed in workflow output)
+```
+
+**Manual Bootstrap (Alternative):**
+
+If you need to bootstrap manually without the workflow:
+
+```bash
+# 1. Get cluster credentials
+az aks get-credentials --resource-group $RESOURCE_GROUP --name <aks-cluster-name>
+
+# 2. Install ArgoCD
+kubectl create namespace argocd
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+# 3. Configure repository access
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: repo-apps
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+stringData:
+  type: git
+  url: https://github.com/cloud-ai-summit-cz/apps.git
+  username: git
+  password: <github-token>
+EOF
+
+# 4. Apply root app
+kubectl apply -f env/staging/bootstrap/root-app.yaml
+
+# 5. Watch applications sync
+kubectl get applications -n argocd -w
+```
+
 ## ArgoCD GitOps Strategy
 
 ### Overview
@@ -225,6 +362,26 @@ Each microservice has a minimal chart focusing on only the most commonly tuned a
 
 Non‑critical or rarely changed Kubernetes fields remain static within `templates/` to reduce maintenance overhead and cognitive load.
 
+#### Implemented Charts
+Three Helm charts are provided in `helm-charts/`:
+
+1. **toy** (`helm-charts/toy/`)
+   - FastAPI service on port 8001
+   - Ingress path: `/api/toys`
+   - Environment: Cosmos DB (toys container), Blob Storage (avatars)
+
+2. **trip** (`helm-charts/trip/`)
+   - FastAPI service on port 8002
+   - Ingress path: `/api/trips`
+   - Environment: Cosmos DB (trips container), Blob Storage (gallery), inter-service call to toy service
+
+3. **web** (`helm-charts/web/`)
+   - Nginx static frontend on port 80
+   - Ingress path: `/` (root)
+   - No runtime environment variables (build-time configuration)
+
+All charts use `ingressClassName: webapprouting.kubernetes.azure.com` for AKS App Routing with managed NGINX ingress.
+
 ### Image Tagging & Build Workflow
 1. Developer merges or pushes to main (or feature branch for preview if extended later).
 2. GitHub Actions workflow builds each changed microservice image.
@@ -238,6 +395,19 @@ Production values are updated via an intentional promotion step (manual PR) to e
 
 ### App of Apps Bootstrap
 `env/<environment>/bootstrap/root-app.yaml` defines an ArgoCD Application that points at the `env/<environment>/apps` directory. Each microservice ArgoCD Application is defined either as child manifests within that folder or via an optional ApplicationSet (future enhancement) to reduce repetition.
+
+#### Bootstrap Process
+1. Install ArgoCD in the AKS cluster (standard installation)
+2. Apply the root application manifest: `kubectl apply -f env/staging/bootstrap/root-app.yaml`
+3. ArgoCD discovers child applications in `env/staging/apps/`:
+   - `toy-app.yaml` → Deploys toy service
+   - `trip-app.yaml` → Deploys trip service
+   - `web-app.yaml` → Deploys web frontend
+4. Each child application uses multi-source pattern:
+   - Source 1: Helm chart from `helm-charts/<service>/`
+   - Source 2: Service-specific values from `env/staging/apps/<service>-values.yaml`
+
+All services deploy to `toytrip-staging` namespace (auto-created).
 
 ### Promotion Flow
 * Staging soak verification (integration tests, manual checks)
@@ -260,7 +430,52 @@ Rollback is a Git revert of the values file changes to a prior commit SHA; ArgoC
 ### Operational Notes
 * Ensure ArgoCD has read access (deploy key / PAT) to the repository.
 * Consider enabling notifications (Slack / Teams) for sync & health events.
-* Namespace strategy: either one shared `services` namespace or per‑service namespaces—document chosen convention in future update if diverging.
+* Namespace strategy: Using single `toytrip-staging` namespace for all staging services.
+
+### CI/CD Image Update Workflow
+When service code changes are merged to main:
+
+1. **Build & Push**: GitHub Actions builds container image tagged with commit SHA
+   - Parse `env/staging/infra_config/azure.yaml` to get ACR login server
+   - Build: `docker build -t <acr>.azurecr.io/<service>:<sha>`
+   - Push to ACR
+
+2. **Update Values**: Same workflow updates `env/staging/apps/<service>-values.yaml`:
+   ```yaml
+   image:
+     repository: <acr>.azurecr.io/<service>
+     tag: <commit-sha>
+   ```
+
+3. **Commit Back**: Workflow commits change with message:
+   ```
+   Automation - Update <service> image to <sha>
+   ```
+
+4. **ArgoCD Sync**: ArgoCD detects Git change and reconciles deployment (automated for staging)
+
+5. **Verification**: Check sync status: `kubectl get application -n argocd`
+
+**Example workflow additions** (add to `.github/workflows/<service>-build.yml`):
+```yaml
+- name: Get ACR details
+  run: |
+    ACR_LOGIN_SERVER=$(yq '.acr.loginServer' env/staging/infra_config/azure.yaml)
+    echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> $GITHUB_ENV
+
+- name: Update staging values
+  run: |
+    yq -i ".image.repository = \"$ACR_LOGIN_SERVER/$SERVICE_NAME\"" env/staging/apps/$SERVICE_NAME-values.yaml
+    yq -i ".image.tag = \"$GITHUB_SHA\"" env/staging/apps/$SERVICE_NAME-values.yaml
+
+- name: Commit values update
+  run: |
+    git config user.name "github-actions[bot]"
+    git config user.email "github-actions[bot]@users.noreply.github.com"
+    git add env/staging/apps/$SERVICE_NAME-values.yaml
+    git commit -m "Automation - Update $SERVICE_NAME image to $GITHUB_SHA"
+    git push
+```
 
 ## Future Enhancements
 - Application Gateway Ingress Controller

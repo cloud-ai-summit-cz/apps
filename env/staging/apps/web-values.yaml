@@ -1,0 +1,27 @@
+# Web Service - Staging Environment Values
+# This file is automatically updated by CI/CD pipeline with image tags
+
+image:
+  repository: "" # Set by CI: <acr-login-server>/web
+  tag: "latest" # Set by CI: commit SHA
+
+replicaCount: 2
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+ingress:
+  enabled: true
+  hosts:
+    - host: "" # Set to actual staging domain
+      paths:
+        - path: /
+          pathType: Prefix
+
+# Web service is static, no runtime env vars needed
+env: {}
