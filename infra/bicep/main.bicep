@@ -160,7 +160,15 @@ var allRbacAssignments = [
 ]
 
 // Filter out null entries (from optional assignments)
-var rbacAssignments = filter(allRbacAssignments, assignment => assignment != null)
+var filteredAssignments = filter(allRbacAssignments, assignment => assignment != null)
+
+// Prevent duplicate: if user and GitHub workflow have same OID, remove duplicate admin role
+// Check if both identities exist and are the same
+var sameIdentity = !empty(userObjectId) && !empty(gitHubWorkflowIdentityObjectId) && userObjectId == gitHubWorkflowIdentityObjectId
+
+// If same identity, keep only 4 assignments (remove duplicate AKS admin role)
+// Otherwise keep all filtered assignments
+var rbacAssignments = sameIdentity ? filter(filteredAssignments, (assignment, index) => index < 4) : filteredAssignments
 
 // Deploy all RBAC assignments via module
 module rbac 'modules/rbacAssignments.bicep' = {

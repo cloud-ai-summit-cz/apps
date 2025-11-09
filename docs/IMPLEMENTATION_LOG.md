@@ -1,5 +1,55 @@
 # Implementation Log
 
+## 2025-01-08 - Fixed RBAC Duplicate Assignment Issue
+
+**Problem**: GitHub workflow deployment failed with "The resource 'Microsoft.Authorization/roleAssignments/c665d675...' is defined multiple times in a template." Local deployment worked fine with parameters file.
+
+**Root Cause**: When both `userObjectId` and `gitHubWorkflowIdentityObjectId` GitHub secrets contained the **same value** (or one was missing and fell back to same default), the RBAC flat list created two assignments with:
+- Same `principalId` (both user and workflow identity were same person)
+- Same `roleDefinitionId` (both got AKS RBAC Cluster Admin role)
+
+This caused duplicate GUID generation: `guid(resourceGroup().id, principalId, roleDefinitionId)` → same GUID twice → deployment validation failure.
+
+**Solutions Implemented**:
+
+1. **Added Index to GUID Generation** (`modules/rbacAssignments.bicep`):
+   - Changed from: `guid(resourceGroup().id, assignment.principalId, assignment.roleDefinitionId)`
+   - Changed to: `guid(resourceGroup().id, assignment.principalId, assignment.roleDefinitionId, string(index))`
+   - This ensures unique GUIDs even if duplicate assignments slip through
+   - Makes all role assignments have new GUIDs (not idempotent with previous version, but correct going forward)
+
+2. **Added Deduplication Logic** (`main.bicep`):
+   - Detects when `userObjectId == gitHubWorkflowIdentityObjectId` (same identity)
+   - When same: filters out duplicate assignment (keeps first 4, drops 5th)
+   - When different: keeps all 5 assignments as intended
+   - Prevents invalid templates from being generated
+
+**Code Changes**:
+
+```bicep
+// main.bicep - deduplication
+var sameIdentity = !empty(userObjectId) && !empty(gitHubWorkflowIdentityObjectId) && userObjectId == gitHubWorkflowIdentityObjectId
+var rbacAssignments = sameIdentity ? filter(filteredAssignments, (assignment, index) => index < 4) : filteredAssignments
+
+// rbacAssignments.bicep - unique GUIDs
+resource roleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for (assignment, index) in assignments: {
+  name: guid(resourceGroup().id, assignment.principalId, assignment.roleDefinitionId, string(index))
+  // ...
+}]
+```
+
+**Impact**:
+- ✅ Handles case where both GitHub secrets point to same identity
+- ✅ Prevents duplicate role assignment validation errors
+- ✅ Works correctly when identities are different (normal case)
+- ⚠️ New GUID generation means re-deployment will recreate assignments (delete old + create new with new GUIDs)
+
+**Testing**: What-if deployment shows 3 new role assignments to create (as expected with new GUID logic).
+
+**Next Step**: Deploy via GitHub workflow to verify fix works in CI/CD environment.
+
+---
+
 ## 2025-01-08 - Centralized RBAC Management with Flat List Pattern
 
 **Context**: Refactored infrastructure RBAC management from scattered role assignment resources across main.bicep and modules to a centralized flat list pattern for improved maintainability, clarity, and scalability.
