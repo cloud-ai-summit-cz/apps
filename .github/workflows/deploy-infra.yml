@@ -50,7 +50,7 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           template-file: ${{ env.BICEP_FILE }}
           parameters-file: ${{ env.BICEPPARAM_FILE }}
-          parameters: userObjectId=${{ secrets.AZURE_DEVELOPER_OBJECT_ID || '' }} gitHubWorkflowIdentityObjectId=${{ secrets.AZURE_OBJECT_ID || '' }}
+          parameters: '{"userObjectId": "${{ secrets.AZURE_DEVELOPER_OBJECT_ID || '' }}", "gitHubWorkflowIdentityObjectId": "${{ secrets.AZURE_OBJECT_ID || '' }}"}'
 
       - name: Generate timestamp
         id: timestamp
