@@ -1,8 +1,11 @@
 @description('Prefix used for naming resources.')
 param prefix string
 
-@description('Object ID of the user (or managed identity later) that should have data-plane contributor access.')
-param userObjectId string
+@description('Object ID of the user that should have data-plane access (eg. developer for testing - not for production)')
+param userObjectId string = ''
+
+@description('Object ID of managed identity that Bicep runs on so it can access AKS to bootstrap ArgoCD')
+param gitHubWorkflowIdentityObjectId string = ''
 
 @description('Location for all resources.')
 param location string = resourceGroup().location
@@ -156,7 +159,7 @@ var storageRbacAssignments = [
   }
 ]
 
-module storageRbac 'modules/roleAssignments.bicep' = {
+module storageRbac 'modules/roleAssignments.bicep' = if (!empty(userObjectId)) {
   name: 'storageRbacDeploy'
   params: {
     assignments: storageRbacAssignments
@@ -172,7 +175,7 @@ var cosmosRbacAssignments = [
   }
 ]
 
-module cosmosRbac 'modules/cosmosRoleAssignments.bicep' = {
+module cosmosRbac 'modules/cosmosRoleAssignments.bicep' = if (!empty(userObjectId)) {
   name: 'cosmosRbacDeploy'
   params: {
     cosmosAccountName: cosmos.outputs.cosmosAccountName
@@ -186,13 +189,24 @@ resource aksClusterAdminRoleDefinition 'Microsoft.Authorization/roleDefinitions@
   name: 'b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b' // Azure Kubernetes Service RBAC Cluster Admin
 }
 
-resource aksClusterAdminAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource aksUserClusterAdminAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(userObjectId)) {
   scope: resourceGroup()
-  name: guid(resourceGroup().id, userObjectId, aksClusterAdminRoleDefinition.id, 'aks-cluster-admin')
+  name: guid(resourceGroup().id, userObjectId, aksClusterAdminRoleDefinition.id, 'aks-user-cluster-admin')
   properties: {
     roleDefinitionId: aksClusterAdminRoleDefinition.id
     principalId: userObjectId
     principalType: 'User'
+  }
+}
+
+// AKS RBAC Cluster Admin role assignment for GitHub Workflow identity
+resource aksWorkflowClusterAdminAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(gitHubWorkflowIdentityObjectId)) {
+  scope: resourceGroup()
+  name: guid(resourceGroup().id, gitHubWorkflowIdentityObjectId, aksClusterAdminRoleDefinition.id, 'aks-workflow-cluster-admin')
+  properties: {
+    roleDefinitionId: aksClusterAdminRoleDefinition.id
+    principalId: gitHubWorkflowIdentityObjectId
+    principalType: 'ServicePrincipal'
   }
 }
 
