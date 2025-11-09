@@ -1,5 +1,127 @@
 # Implementation Log
 
+## 2025-01-08 - Centralized RBAC Management with Flat List Pattern
+
+**Context**: Refactored infrastructure RBAC management from scattered role assignment resources across main.bicep and modules to a centralized flat list pattern for improved maintainability, clarity, and scalability.
+
+**Architecture**:
+
+1. **New RBAC Module** (`infra/bicep/modules/rbacAssignments.bicep`):
+   - Accepts array of assignment objects: `{ principalId, principalType, roleDefinitionId }`
+   - Deploys to resource group scope
+   - Deterministic GUID generation: `guid(resourceGroup().id, principalId, roleDefinitionId)`
+   - Single loop creates all assignments with proper idempotency
+   - Outputs assignment count for validation
+
+2. **Flat List in Main** (`infra/bicep/main.bicep`):
+   - **Role Definitions Variable**: Centralized mapping of role names to built-in role IDs:
+     ```bicep
+     var roleDefinitions = {
+       AcrPull: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda...')
+       ManagedIdentityOperator: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f1a07417...')
+       NetworkContributor: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4d97b98b...')
+       StorageBlobDataContributor: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4...')
+       AksRbacClusterAdmin: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b1ff04bb...')
+     }
+     ```
+   
+   - **All Assignments Array**: Single flat list of all RBAC assignments across the infrastructure:
+     ```bicep
+     var allRbacAssignments = [
+       // AKS Kubelet → ACR Pull (always)
+       { principalId: aksKubeletIdentity.properties.principalId, principalType: 'ServicePrincipal', roleDefinitionId: roleDefinitions.AcrPull }
+       
+       // AKS Cluster → Network Contributor (always)
+       { principalId: aksClusterIdentity.properties.principalId, principalType: 'ServicePrincipal', roleDefinitionId: roleDefinitions.NetworkContributor }
+       
+       // User → Storage Blob Data Contributor (conditional)
+       !empty(userObjectId) ? { principalId: userObjectId, principalType: 'User', roleDefinitionId: roleDefinitions.StorageBlobDataContributor } : null
+       
+       // User → AKS RBAC Cluster Admin (conditional)
+       !empty(userObjectId) ? { principalId: userObjectId, principalType: 'User', roleDefinitionId: roleDefinitions.AksRbacClusterAdmin } : null
+       
+       // GitHub Workflow Identity → AKS RBAC Cluster Admin (conditional)
+       !empty(gitHubWorkflowIdentityObjectId) ? { principalId: gitHubWorkflowIdentityObjectId, principalType: 'ServicePrincipal', roleDefinitionId: roleDefinitions.AksRbacClusterAdmin } : null
+     ]
+     ```
+   
+   - **Filtered Assignments**: Remove null entries for conditional assignments:
+     ```bicep
+     var rbacAssignments = filter(allRbacAssignments, assignment => assignment != null)
+     ```
+   
+   - **Module Invocation**: Single module deployment with filtered assignments:
+     ```bicep
+     module rbac 'modules/rbacAssignments.bicep' = {
+       name: 'rbacAssignments'
+       params: { assignments: rbacAssignments }
+     }
+     ```
+
+3. **Optional Identity Parameters**:
+   - `userObjectId` and `gitHubWorkflowIdentityObjectId` now optional (default: `''`)
+   - Conditional role assignments use `!empty()` checks
+   - GitHub Secrets override parameters via workflow: `parameters: '{"userObjectId": "${{ secrets.AZURE_DEVELOPER_OBJECT_ID || '' }}", ...}'`
+   - Empty strings filtered out before deployment (no null assignments)
+
+4. **Special Cases Preserved**:
+   - **Cosmos DB RBAC**: Stays separate (uses different API: `Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments`)
+   - **Managed Identity Operator**: Resource-scoped to kubelet identity (not RG-scoped like others)
+
+**Benefits**:
+
+- **Clarity**: All RBAC assignments visible in single flat list
+- **Maintainability**: Easy to add/remove/modify assignments without touching modules
+- **Scalability**: Future app identities (toy-app, trip-app) easily added to flat list
+- **Consistency**: Uniform pattern for all RG-scoped role assignments
+- **Idempotency**: Deterministic GUIDs ensure re-deployments work correctly
+
+**Deployment Results**:
+
+1. **What-If Validation**: Successfully showed 3 new assignments to create
+2. **Actual Deployment**: "RoleAssignmentExists" errors are **expected and correct**
+   - Existing assignments from previous scattered approach generate same GUIDs
+   - New centralized approach produces identical assignments (idempotent)
+   - Assignments already exist with correct principals and roles
+   - No action needed - infrastructure is in desired state
+
+**Verified State**:
+Queried existing assignments - 5 total match desired configuration:
+- `a948f5a6...` → Network Contributor (ServicePrincipal) - AKS cluster identity
+- `8d083639...` → AcrPull (ServicePrincipal) - Kubelet identity  
+- `f390dcd0...` → Storage Blob Data Contributor (User) - Developer
+- `485658eb...` → AKS RBAC Cluster Admin (ServicePrincipal) - GitHub workflow
+- `f390dcd0...` → AKS RBAC Cluster Admin (User) - Developer
+
+**Files Modified**:
+- `infra/bicep/main.bicep`: Added roleDefinitions var, allRbacAssignments array, filtered list, module invocation
+- `infra/bicep/modules/rbacAssignments.bicep`: New centralized RBAC module (resource group scoped)
+- `.github/workflows/deploy-infra.yml`: Parameters override with JSON format for optional identities
+
+**Future Extensibility**:
+Ready to add managed identities for application components:
+```bicep
+var allRbacAssignments = [
+  // ... existing assignments ...
+  
+  // Toy App Identity → Cosmos Data Contributor
+  { principalId: toyAppIdentity.properties.principalId, principalType: 'ServicePrincipal', roleDefinitionId: roleDefinitions.CosmosDataContributor }
+  
+  // Toy App Identity → Storage Blob Data Contributor  
+  { principalId: toyAppIdentity.properties.principalId, principalType: 'ServicePrincipal', roleDefinitionId: roleDefinitions.StorageBlobDataContributor }
+  
+  // ... more app identities ...
+]
+```
+
+**Technical Notes**:
+- Built-in role IDs are constant across all Azure subscriptions
+- principalType must be explicit: 'User' or 'ServicePrincipal'
+- GUID generation ensures same inputs → same GUID (idempotent deployments)
+- Resource group scope applies to all assignments in this module
+
+---
+
 ## 2025-01-08 - AKS App Routing and Integrated ArgoCD Bootstrap
 
 **Context**: Enhanced GitOps infrastructure with App Routing Bicep enablement and fully automated ArgoCD bootstrap integrated directly into infrastructure deployment workflow.

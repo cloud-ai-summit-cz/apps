@@ -56,49 +56,21 @@ module acr 'modules/acr.bicep' = {
   }
 }
 
-// Grant AcrPull to kubelet identity
-resource acrPullRoleDefinition 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
-  scope: subscription()
-  name: '7f951dda-4ed3-4680-a7ca-43fe172d538d' // AcrPull
+// Built-in role definition IDs
+var roleDefinitions = {
+  AcrPull: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
+  ManagedIdentityOperator: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f1a07417-d97a-45cb-824c-7a7467783830')
+  NetworkContributor: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4d97b98b-1d4f-4787-a291-c67834d212e7')
+  StorageBlobDataContributor: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+  AksRbacClusterAdmin: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b')
 }
 
-resource acrPullAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: resourceGroup()
-  name: guid(resourceGroup().id, aksKubeletIdentity.id, acrPullRoleDefinition.id)
-  properties: {
-    roleDefinitionId: acrPullRoleDefinition.id
-    principalId: aksKubeletIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-// Grant Managed Identity Operator to cluster identity on kubelet identity
-resource managedIdentityOperatorRoleDefinition 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
-  scope: subscription()
-  name: 'f1a07417-d97a-45cb-824c-7a7467783830' // Managed Identity Operator
-}
-
+// Special: Managed Identity Operator needs to be scoped to the kubelet identity resource
 resource managedIdentityOperatorAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: aksKubeletIdentity
-  name: guid(aksKubeletIdentity.id, aksClusterIdentity.id, managedIdentityOperatorRoleDefinition.id)
+  name: guid(aksKubeletIdentity.id, aksClusterIdentity.id, roleDefinitions.ManagedIdentityOperator)
   properties: {
-    roleDefinitionId: managedIdentityOperatorRoleDefinition.id
-    principalId: aksClusterIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-// Grant Network Contributor to cluster identity on resource group (for VNet access)
-resource networkContributorRoleDefinition 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
-  scope: subscription()
-  name: '4d97b98b-1d4f-4787-a291-c67834d212e7' // Network Contributor
-}
-
-resource networkContributorAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: resourceGroup()
-  name: guid(resourceGroup().id, aksClusterIdentity.id, networkContributorRoleDefinition.id, 'network')
-  properties: {
-    roleDefinitionId: networkContributorRoleDefinition.id
+    roleDefinitionId: roleDefinitions.ManagedIdentityOperator
     principalId: aksClusterIdentity.properties.principalId
     principalType: 'ServicePrincipal'
   }
@@ -118,9 +90,7 @@ module aks 'modules/aksAutomatic.bicep' = {
     kubeletIdentityPrincipalId: aksKubeletIdentity.properties.principalId
   }
   dependsOn: [
-    acrPullAssignment
     managedIdentityOperatorAssignment
-    networkContributorAssignment
   ]
 }
 
@@ -150,28 +120,67 @@ module cosmos 'modules/cosmosSqlServerless.bicep' = {
   }
 }
 
-// Storage RBAC assignments (standard Azure RBAC via Microsoft.Authorization)
-var storageRbacAssignments = [
+// =============================================================================
+// RBAC Assignments - Flat List Approach
+// All Azure RBAC role assignments in one place for easy management
+// =============================================================================
+
+// Build flat list of all RBAC assignments
+var allRbacAssignments = [
+  // AKS Kubelet Identity -> ACR Pull (for pulling container images)
   {
-    principalObjectId: userObjectId
-    roleName: 'Storage Blob Data Contributor'
-    storageAccountName: storage.outputs.storageAccountName
+    principalId: aksKubeletIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: roleDefinitions.AcrPull
   }
+  // AKS Cluster Identity -> Network Contributor (for VNet integration)
+  {
+    principalId: aksClusterIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: roleDefinitions.NetworkContributor
+  }
+  // Human User -> Storage Blob Data Contributor (optional)
+  !empty(userObjectId) ? {
+    principalId: userObjectId
+    principalType: 'User'
+    roleDefinitionId: roleDefinitions.StorageBlobDataContributor
+  } : null
+  // Human User -> AKS RBAC Cluster Admin (optional)
+  !empty(userObjectId) ? {
+    principalId: userObjectId
+    principalType: 'User'
+    roleDefinitionId: roleDefinitions.AksRbacClusterAdmin
+  } : null
+  // GitHub Workflow Identity -> AKS RBAC Cluster Admin (optional)
+  !empty(gitHubWorkflowIdentityObjectId) ? {
+    principalId: gitHubWorkflowIdentityObjectId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: roleDefinitions.AksRbacClusterAdmin
+  } : null
 ]
 
-module storageRbac 'modules/roleAssignments.bicep' = if (!empty(userObjectId)) {
-  name: 'storageRbacDeploy'
+// Filter out null entries (from optional assignments)
+var rbacAssignments = filter(allRbacAssignments, assignment => assignment != null)
+
+// Deploy all RBAC assignments via module
+module rbac 'modules/rbacAssignments.bicep' = {
+  name: 'rbacDeploy'
   params: {
-    assignments: storageRbacAssignments
+    assignments: rbacAssignments
   }
+  dependsOn: [
+    managedIdentityOperatorAssignment
+  ]
 }
 
-// Cosmos DB data-plane RBAC assignments (Cosmos-specific via Microsoft.DocumentDB)
+// =============================================================================
+// Cosmos DB RBAC (separate - uses different API)
+// =============================================================================
+
 var cosmosRbacAssignments = [
   {
     principalObjectId: userObjectId
     roleName: 'Cosmos DB Built-in Data Contributor'
-    // scope defaults to account level inside module
   }
 ]
 
@@ -180,33 +189,6 @@ module cosmosRbac 'modules/cosmosRoleAssignments.bicep' = if (!empty(userObjectI
   params: {
     cosmosAccountName: cosmos.outputs.cosmosAccountName
     assignments: cosmosRbacAssignments
-  }
-}
-
-// AKS RBAC Cluster Admin role assignment for user
-resource aksClusterAdminRoleDefinition 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
-  scope: subscription()
-  name: 'b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b' // Azure Kubernetes Service RBAC Cluster Admin
-}
-
-resource aksUserClusterAdminAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(userObjectId)) {
-  scope: resourceGroup()
-  name: guid(resourceGroup().id, userObjectId, aksClusterAdminRoleDefinition.id, 'aks-user-cluster-admin')
-  properties: {
-    roleDefinitionId: aksClusterAdminRoleDefinition.id
-    principalId: userObjectId
-    principalType: 'User'
-  }
-}
-
-// AKS RBAC Cluster Admin role assignment for GitHub Workflow identity
-resource aksWorkflowClusterAdminAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(gitHubWorkflowIdentityObjectId)) {
-  scope: resourceGroup()
-  name: guid(resourceGroup().id, gitHubWorkflowIdentityObjectId, aksClusterAdminRoleDefinition.id, 'aks-workflow-cluster-admin')
-  properties: {
-    roleDefinitionId: aksClusterAdminRoleDefinition.id
-    principalId: gitHubWorkflowIdentityObjectId
-    principalType: 'ServicePrincipal'
   }
 }
 
