@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
-      contents: read
+      contents: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -53,3 +53,17 @@ jobs:
           tags: |
             ${{ steps.config.outputs.acr_login_server }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
             ${{ steps.config.outputs.acr_login_server }}/${{ env.SERVICE_NAME }}:latest
+      
+      - name: Update Staging Values File
+        run: |
+          VALUES_FILE="env/staging/apps/${{ env.SERVICE_NAME }}-values.yaml"
+          yq -i '.image.repository = "${{ steps.config.outputs.acr_login_server }}/${{ env.SERVICE_NAME }}"' $VALUES_FILE
+          yq -i '.image.tag = "${{ github.sha }}"' $VALUES_FILE
+          echo "Updated $VALUES_FILE with new image tag"
+      
+      - name: Commit Updated Values File
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: 'env/staging/apps/${{ env.SERVICE_NAME }}-values.yaml'
+          message: 'Automation - Update ${{ env.SERVICE_NAME }} image to ${{ github.sha }}'
+          default_author: github_actions
