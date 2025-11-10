@@ -37,12 +37,17 @@ resource aks 'Microsoft.ContainerService/managedClusters@2024-09-02-preview' = {
     }
   }
   properties: {
-    // AKS Automatic - node provisioning handled automatically (no enableAutoScaling needed)
     agentPoolProfiles: [
       {
         name: 'systempool'
         mode: 'System'
-        count: 3 // Initial count
+        count: 2
+        vnetSubnetID: clusterSubnetId
+      }
+      {
+        name: 'userpool'
+        mode: 'User'
+        count: 1 
         vnetSubnetID: clusterSubnetId
       }
     ]
