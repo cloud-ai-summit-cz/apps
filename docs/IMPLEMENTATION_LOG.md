@@ -1,5 +1,24 @@
 # Implementation Log
 
+## 2025-11-10 - Fixed Docker Image Build: Auth Module Path
+
+**Problem**: Toy and trip services were failing to start in Kubernetes with `ModuleNotFoundError: No module named 'auth'`. The services import `from auth.dependencies` but the Docker build was copying `shared` to `/app/shared`, resulting in the auth module being at `/app/shared/auth` instead of `/app/auth`.
+
+**Root Cause**: Mismatch between:
+- Import statements: `from auth.dependencies import ...`
+- Docker COPY: `COPY shared /app/shared` → auth module at `/app/shared/auth`
+- Expected location: `/app/auth`
+
+**Solution**: Updated both Dockerfiles to copy the auth module directly to the expected location:
+- Changed: `COPY shared /app/shared` 
+- To: `COPY shared/auth /app/auth`
+
+**Files Modified**:
+- `src/services/toy/Dockerfile`
+- `src/services/trip/Dockerfile`
+
+**Build Context**: Both workflows use `context: ./src`, so `COPY shared/auth` correctly resolves to `./src/shared/auth`.
+
 ## 2025-11-10 - Migrated ArgoCD Installation to Helm Chart
 
 **Problem**: ArgoCD installation via raw Kubernetes manifests failed on AKS Automatic due to Deployment Safeguards policies requiring resource limits on init containers:
