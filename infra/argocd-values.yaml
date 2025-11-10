@@ -1,10 +1,11 @@
 # ArgoCD Helm Chart Values
 # Configured for AKS Automatic with Deployment Safeguards
 
-# Global settings
-global:
-  # Add resource limits to all init containers to satisfy AKS policies
-  initContainers:
+# Dex Server - handles authentication  
+dex:
+  enabled: true
+  # Set resources for the copyutil init container
+  initImage:
     resources:
       limits:
         cpu: 100m
@@ -12,44 +13,38 @@ global:
       requests:
         cpu: 50m
         memory: 64Mi
-
-# Dex Server - handles authentication
-dex:
-  enabled: true
-  initContainers:
-    - name: copyutil
-      resources:
-        limits:
-          cpu: 100m
-          memory: 128Mi
-        requests:
-          cpu: 50m
-          memory: 64Mi
+  # Main container resources
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
 
 # Redis - used for caching
 redis:
   enabled: true
-  initContainers:
-    - name: secret-init
-      resources:
-        limits:
-          cpu: 100m
-          memory: 128Mi
-        requests:
-          cpu: 50m
-          memory: 64Mi
+  # Main container resources
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
 
 # Repo Server - responsible for cloning Git repos
 repoServer:
-  initContainers:
-    - name: copyutil
-      resources:
-        limits:
-          cpu: 100m
-          memory: 128Mi
-        requests:
-          cpu: 50m
-          memory: 64Mi
+  # Set resources for the copyutil init container
+  copyutil:
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
   # Main container resources
   resources:
     limits:
