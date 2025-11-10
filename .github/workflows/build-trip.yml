@@ -67,3 +67,4 @@ jobs:
           add: 'env/staging/apps/${{ env.SERVICE_NAME }}-values.yaml'
           message: 'Automation - Update ${{ env.SERVICE_NAME }} image to ${{ github.sha }}'
           default_author: github_actions
+          pull: '--rebase --autostash'
