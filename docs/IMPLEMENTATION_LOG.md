@@ -1,5 +1,25 @@
 # Implementation Log
 
+## 2025-11-10 - Fixed Web Frontend: Missing nginx Configuration
+
+**Problem**: Web frontend pod failing health probes with "connection refused" on port 80. Logs showed nginx starting successfully, but probes couldn't connect.
+
+**Root Cause**: `src/web/nginx.conf` file was empty. The Dockerfile copies this to `/etc/nginx/conf.d/default.conf`, but with no server configuration, nginx had no listener on port 80.
+
+**Solution**: Created complete nginx configuration with:
+- Server listening on port 80
+- SPA routing (try_files with fallback to index.html)
+- Static asset caching with 1-year expiry
+- No caching for index.html and env-config.js (dynamic runtime config)
+- Gzip compression for text assets
+- Security headers (X-Frame-Options, X-Content-Type-Options, X-XSS-Protection)
+- `/health` endpoint for probes (returns 200 without logging)
+
+**Files Modified**:
+- `src/web/nginx.conf` - Created complete nginx server configuration
+
+**Next Step**: Rebuild and redeploy web image for configuration to take effect.
+
 ## 2025-11-10 - Fixed Docker Image Build: Auth Module Path
 
 **Problem**: Toy and trip services were failing to start in Kubernetes with `ModuleNotFoundError: No module named 'auth'`. The services import `from auth.dependencies` but the Docker build was copying `shared` to `/app/shared`, resulting in the auth module being at `/app/shared/auth` instead of `/app/auth`.
