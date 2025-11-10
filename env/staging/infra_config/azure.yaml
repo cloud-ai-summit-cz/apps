@@ -4,11 +4,11 @@ acr:
   loginServer: crappdemoeniwvl.azurecr.io
 aks:
   name: aks-appdemo-eniwvl
-  oidcIssuerUrl: https://swedencentral.oic.prod-aks.azure.com/6ce4f237-667f-43f5-aafd-cbef954adf97/9cdffc10-4f31-4ebc-8cd6-5d6c191d173d/
+  oidcIssuerUrl: https://swedencentral.oic.prod-aks.azure.com/6ce4f237-667f-43f5-aafd-cbef954adf97/852891d4-5b22-4600-87f1-11f9aabdb0d6/
 storage:
   accountId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-appdemo/providers/Microsoft.Storage/storageAccounts/stappdemoeniwvl
   accountName: stappdemoeniwvl
 cosmos:
   accountId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-appdemo/providers/Microsoft.DocumentDB/databaseAccounts/cosmosappdemoeniwvl
   accountName: cosmosappdemoeniwvl
-generatedAt: "2025-11-10T07:35:18Z"
+generatedAt: "2025-11-10T08:02:01Z"
