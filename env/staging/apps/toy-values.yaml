@@ -2,11 +2,9 @@
 # This file is automatically updated by CI/CD pipeline with image tags
 
 image:
-  repository: "" # Set by CI: <acr-login-server>/toy-service
-  tag: "latest" # Set by CI: commit SHA
-
+  repository: "crappdemoeniwvl.azurecr.io/toy" # Set by CI: <acr-login-server>/toy-service
+  tag: "203a240a1a871102d1c794df92df4857d1ddce53" # Set by CI: commit SHA
 replicaCount: 2
-
 resources:
   limits:
     cpu: 500m
@@ -14,7 +12,6 @@ resources:
   requests:
     cpu: 250m
     memory: 256Mi
-
 ingress:
   enabled: true
   hosts:
@@ -22,7 +19,6 @@ ingress:
       paths:
         - path: /api/toys
           pathType: Prefix
-
 env:
   AZURE_TENANT_ID: "" # Set from azure.yaml or secret
   APP_ID_URI: "" # Set from App Registration
@@ -34,7 +30,6 @@ env:
   API_HOST: "0.0.0.0"
   API_PORT: "8001"
   LOG_LEVEL: "INFO"
-
 workloadIdentity:
   enabled: false
   clientId: "" # Set when workload identity is configured
