@@ -1,5 +1,78 @@
 # Implementation Log
 
+## 2025-11-10 - Configured Kubernetes Environment Variables and Ingress Routing
+
+**Problem**: Services deployed to Kubernetes were missing critical environment variables (Cosmos DB endpoint, Storage account URL, authentication config) and the ingress routing was incorrect for the API path structure.
+
+**Root Cause Analysis**:
+1. **Missing Environment Variables**: `COSMOS_ENDPOINT`, `STORAGE_ACCOUNT_URL`, `AZURE_TENANT_ID`, and `APP_ID_URI` were defined in `.env` files but not configured in Kubernetes values files
+2. **Infrastructure vs Application Config**: Azure infrastructure values (from `azure.yaml`) were not being injected into service deployments
+3. **Ingress Path Mismatch**: 
+   - Ingress configured with `/api/toys` and `/api/trips`
+   - FastAPI apps listen on `/toy` and `/trip` prefixes
+   - No URL rewriting → 404 errors
+4. **Web Frontend Config**: Missing backend service URLs for the SPA to call APIs
+
+**Solution Implemented**:
+
+1. **Created Infrastructure Values File** (`env/staging/infra_config/azure-values.yaml`):
+   - Extracted Cosmos DB endpoint from azure.yaml
+   - Extracted Storage account URL from azure.yaml
+   - Added authentication config (tenant ID and App ID URI)
+   - Added ingress IP address for web service backend URLs
+
+2. **Updated ArgoCD Applications** (toy-app.yaml, trip-app.yaml, web-app.yaml):
+   - Added multi-source values file loading
+   - Order: `azure-values.yaml` first (infrastructure), then `{service}-values.yaml` (overrides)
+   - Enables infrastructure values to be shared across all services
+
+3. **Enhanced Helm Chart Values**:
+   - **Toy/Trip charts**: Added Helm template expressions to reference infrastructure values
+   - Used `{{ .Values.auth.tenantId }}` pattern for runtime value injection
+   - Updated deployment templates with `tpl` function to evaluate nested templates
+
+4. **Fixed Ingress Routing** (toy/trip values.yaml):
+   - Added nginx rewrite annotation: `nginx.ingress.kubernetes.io/rewrite-target: /toy$1$2`
+   - Changed path pattern from `/api/toys` to `/api/toys(/|$)(.*)`
+   - Changed pathType from `Prefix` to `ImplementationSpecific`
+   - Result: `/api/toys/123` → `/toy/123` (app endpoint)
+
+5. **Configured Web Frontend**:
+   - Added environment variables for backend service URLs
+   - URLs point to ingress IP with rewritten paths
+   - Values: `TOY_SERVICE_URL: http://135.116.244.172/api/toys`
+   - Docker entrypoint generates `env-config.js` at container startup
+
+**Path Rewriting Details**:
+```
+External Request: GET /api/toys/abc-123/avatar
+                      ↓ (ingress rewrite)
+Internal Request: GET /toy/abc-123/avatar
+                      ↓ (FastAPI router prefix="/toy")
+Route Handler:    GET /abc-123/avatar
+```
+
+**Files Modified**:
+- `env/staging/infra_config/azure-values.yaml` - Created (infrastructure values)
+- `env/staging/apps/toy-app.yaml` - Multi-source values
+- `env/staging/apps/trip-app.yaml` - Multi-source values
+- `env/staging/apps/web-app.yaml` - Multi-source values
+- `env/staging/apps/toy-values.yaml` - Simplified (removed infra placeholders)
+- `env/staging/apps/trip-values.yaml` - Simplified (removed infra placeholders)
+- `env/staging/apps/web-values.yaml` - Added backend service URLs
+- `helm-charts/toy/values.yaml` - Template expressions, ingress rewrite
+- `helm-charts/trip/values.yaml` - Template expressions, ingress rewrite
+- `helm-charts/web/values.yaml` - Backend service URL templates
+- `helm-charts/toy/templates/deployment.yaml` - Added `tpl` function
+- `helm-charts/trip/templates/deployment.yaml` - Added `tpl` function
+- `helm-charts/web/templates/deployment.yaml` - Added `tpl` function
+
+**Next Steps**: 
+- Commit and push changes to trigger ArgoCD sync
+- Verify services can connect to Cosmos DB and Storage
+- Test API endpoints through ingress
+- Verify web frontend can call backend services
+
 ## 2025-11-10 - Fixed Web Frontend: Missing nginx Configuration
 
 **Problem**: Web frontend pod failing health probes with "connection refused" on port 80. Logs showed nginx starting successfully, but probes couldn't connect.

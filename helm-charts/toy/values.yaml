@@ -23,12 +23,13 @@ service:
 ingress:
   enabled: true
   className: "webapprouting.kubernetes.azure.com"
-  annotations: {}
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /toy$1$2
   hosts:
     - host: "" # Override with actual hostname
       paths:
-        - path: /api/toys
-          pathType: Prefix
+        - path: /api/toys(/|$)(.*)
+          pathType: ImplementationSpecific
   tls: []
 
 resources:
@@ -57,12 +58,12 @@ readinessProbe:
 
 # Environment variables (override in env-specific values)
 env:
-  AZURE_TENANT_ID: ""
-  APP_ID_URI: ""
-  COSMOS_ENDPOINT: ""
-  COSMOS_DATABASE_NAME: "toytripdb"
+  AZURE_TENANT_ID: "{{ .Values.auth.tenantId }}"
+  APP_ID_URI: "{{ .Values.auth.appIdUri }}"
+  COSMOS_ENDPOINT: "{{ .Values.cosmos.endpoint }}"
+  COSMOS_DATABASE_NAME: "{{ .Values.cosmos.databaseName }}"
   COSMOS_CONTAINER_NAME: "toys"
-  STORAGE_ACCOUNT_URL: ""
+  STORAGE_ACCOUNT_URL: "{{ .Values.storage.accountUrl }}"
   BLOB_CONTAINER_AVATARS: "avatars"
   API_HOST: "0.0.0.0"
   API_PORT: "8001"

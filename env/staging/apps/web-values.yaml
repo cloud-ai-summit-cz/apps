@@ -19,5 +19,8 @@ ingress:
       paths:
         - path: /
           pathType: Prefix
-# Web service is static, no runtime env vars needed
-env: {}
+# Web service runtime configuration
+# Backend service URLs are set via ingress.ipAddress from azure-values.yaml
+# These URLs are injected at container startup via docker-entrypoint.sh
+env:
+  # TOY_SERVICE_URL and TRIP_SERVICE_URL come from azure-values.yaml via helm template

@@ -20,12 +20,8 @@ ingress:
         - path: /api/toys
           pathType: Prefix
 env:
-  AZURE_TENANT_ID: "" # Set from azure.yaml or secret
-  APP_ID_URI: "" # Set from App Registration
-  COSMOS_ENDPOINT: "" # Set from azure.yaml
-  COSMOS_DATABASE_NAME: "toytripdb"
+  # Auth and infrastructure values come from azure-values.yaml
   COSMOS_CONTAINER_NAME: "toys"
-  STORAGE_ACCOUNT_URL: "" # Set from azure.yaml
   BLOB_CONTAINER_AVATARS: "avatars"
   API_HOST: "0.0.0.0"
   API_PORT: "8001"

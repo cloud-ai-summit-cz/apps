@@ -56,8 +56,10 @@ readinessProbe:
   periodSeconds: 5
 
 # Environment variables (override in env-specific values)
-# Web service is static files served by nginx, so env vars are typically build-time
-env: {}
+# Web service is static files served by nginx, but uses docker-entrypoint.sh to generate env-config.js at runtime
+env:
+  TOY_SERVICE_URL: "http://{{ .Values.ingress.ipAddress }}/api/toys"
+  TRIP_SERVICE_URL: "http://{{ .Values.ingress.ipAddress }}/api/trips"
 
 nodeSelector: {}
 

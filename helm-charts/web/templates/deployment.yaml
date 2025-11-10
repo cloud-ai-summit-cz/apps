@@ -31,7 +31,7 @@ spec:
         env:
         {{- range $key, $value := .Values.env }}
         - name: {{ $key }}
-          value: {{ $value | quote }}
+          value: {{ tpl ($value | toString) $ | quote }}
         {{- end }}
         {{- end }}
         {{- if .Values.livenessProbe.enabled }}

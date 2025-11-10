@@ -17,6 +17,7 @@ spec:
       helm:
         valueFiles:
           # Reference values from other sources using $-prefixed variables
+          - $values/env/staging/infra_config/azure-values.yaml
           - $values/env/staging/apps/web-values.yaml
     
     # Source 2: Values repository (staging service values)
