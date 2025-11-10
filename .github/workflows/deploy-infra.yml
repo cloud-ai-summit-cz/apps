@@ -68,8 +68,13 @@ jobs:
           yq '.aks.oidcIssuerUrl = strenv(AKS_OIDC_ISSUER_URL)' | \
           yq '.storage.accountId = strenv(STORAGE_ACCOUNT_ID)' | \
           yq '.storage.accountName = strenv(STORAGE_ACCOUNT_NAME)' | \
+          yq '.storage.accountUrl = strenv(STORAGE_ACCOUNT_URL)' | \
           yq '.cosmos.accountId = strenv(COSMOS_ACCOUNT_ID)' | \
           yq '.cosmos.accountName = strenv(COSMOS_ACCOUNT_NAME)' | \
+          yq '.cosmos.endpoint = strenv(COSMOS_ENDPOINT)' | \
+          yq '.cosmos.databaseName = "toytripdb"' | \
+          yq '.auth.tenantId = strenv(AZURE_TENANT_ID)' | \
+          yq '.auth.appIdUri = strenv(APP_ID_URI)' | \
           yq '.generatedAt = strenv(TIMESTAMP)' > env/staging/infra_config/azure.yaml
         env:
           ACR_NAME: ${{ steps.deployment.outputs.acrName }}
@@ -78,8 +83,12 @@ jobs:
           AKS_OIDC_ISSUER_URL: ${{ steps.deployment.outputs.aksOidcIssuerUrl }}
           STORAGE_ACCOUNT_ID: ${{ steps.deployment.outputs.storageAccountId }}
           STORAGE_ACCOUNT_NAME: ${{ steps.deployment.outputs.storageAccountName }}
+          STORAGE_ACCOUNT_URL: https://${{ steps.deployment.outputs.storageAccountName }}.blob.core.windows.net/
           COSMOS_ACCOUNT_ID: ${{ steps.deployment.outputs.cosmosAccountId }}
           COSMOS_ACCOUNT_NAME: ${{ steps.deployment.outputs.cosmosAccountName }}
+          COSMOS_ENDPOINT: https://${{ steps.deployment.outputs.cosmosAccountName }}.documents.azure.com:443/
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          APP_ID_URI: ${{ secrets.APP_ID_URI }}
           TIMESTAMP: ${{ steps.timestamp.outputs.value }}
 
       - name: Commit azure.yaml if changed

@@ -8,7 +8,13 @@ aks:
 storage:
   accountId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-appdemo/providers/Microsoft.Storage/storageAccounts/stappdemoeniwvl
   accountName: stappdemoeniwvl
+  accountUrl: https://stappdemoeniwvl.blob.core.windows.net/
 cosmos:
   accountId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-appdemo/providers/Microsoft.DocumentDB/databaseAccounts/cosmosappdemoeniwvl
   accountName: cosmosappdemoeniwvl
+  endpoint: https://cosmosappdemoeniwvl.documents.azure.com:443/
+  databaseName: toytripdb
+auth:
+  tenantId: "6ce4f237-667f-43f5-aafd-cbef954adf97"
+  appIdUri: "api://5163cc2b-3d50-4278-8fbc-c13f3f0de588"
 generatedAt: "2025-11-10T08:47:20Z"

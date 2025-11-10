@@ -20,7 +20,7 @@ ingress:
         - path: /
           pathType: Prefix
 # Web service runtime configuration
-# Backend service URLs are set via ingress.ipAddress from azure-values.yaml
 # These URLs are injected at container startup via docker-entrypoint.sh
 env:
-  # TOY_SERVICE_URL and TRIP_SERVICE_URL come from azure-values.yaml via helm template
+  TOY_SERVICE_URL: "http://135.116.244.172/api/toys"
+  TRIP_SERVICE_URL: "http://135.116.244.172/api/trips"

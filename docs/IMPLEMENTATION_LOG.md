@@ -15,16 +15,18 @@
 
 **Solution Implemented**:
 
-1. **Created Infrastructure Values File** (`env/staging/infra_config/azure-values.yaml`):
-   - Extracted Cosmos DB endpoint from azure.yaml
-   - Extracted Storage account URL from azure.yaml
-   - Added authentication config (tenant ID and App ID URI)
-   - Added ingress IP address for web service backend URLs
+1. **Enhanced Infrastructure Config** (`env/staging/infra_config/azure.yaml`):
+   - Extended pipeline-generated `azure.yaml` to include derived URLs
+   - Added `storage.accountUrl` (constructed from account name)
+   - Added `cosmos.endpoint` (constructed from account name)
+   - Added `cosmos.databaseName` (toytripdb)
+   - Added `auth.tenantId` and `auth.appIdUri` from GitHub secrets
+   - Updated pipeline workflow to generate complete structure
 
 2. **Updated ArgoCD Applications** (toy-app.yaml, trip-app.yaml, web-app.yaml):
    - Added multi-source values file loading
-   - Order: `azure-values.yaml` first (infrastructure), then `{service}-values.yaml` (overrides)
-   - Enables infrastructure values to be shared across all services
+   - Order: `azure.yaml` first (infrastructure), then `{service}-values.yaml` (overrides)
+   - Enables pipeline-generated infrastructure values to be shared across all services
 
 3. **Enhanced Helm Chart Values**:
    - **Toy/Trip charts**: Added Helm template expressions to reference infrastructure values
@@ -38,9 +40,9 @@
    - Result: `/api/toys/123` → `/toy/123` (app endpoint)
 
 5. **Configured Web Frontend**:
-   - Added environment variables for backend service URLs
-   - URLs point to ingress IP with rewritten paths
-   - Values: `TOY_SERVICE_URL: http://135.116.244.172/api/toys`
+   - Added environment variables for backend service URLs in staging values
+   - Direct URLs: `TOY_SERVICE_URL: http://135.116.244.172/api/toys`
+   - Direct URLs: `TRIP_SERVICE_URL: http://135.116.244.172/api/trips`
    - Docker entrypoint generates `env-config.js` at container startup
 
 **Path Rewriting Details**:
@@ -53,24 +55,31 @@ Route Handler:    GET /abc-123/avatar
 ```
 
 **Files Modified**:
-- `env/staging/infra_config/azure-values.yaml` - Created (infrastructure values)
-- `env/staging/apps/toy-app.yaml` - Multi-source values
-- `env/staging/apps/trip-app.yaml` - Multi-source values
-- `env/staging/apps/web-app.yaml` - Multi-source values
+- `.github/workflows/deploy-infra.yml` - Enhanced azure.yaml generation with URLs and auth
+- `env/staging/infra_config/azure.yaml` - Extended structure (pipeline-generated)
+- `env/staging/apps/toy-app.yaml` - Multi-source values (azure.yaml)
+- `env/staging/apps/trip-app.yaml` - Multi-source values (azure.yaml)
+- `env/staging/apps/web-app.yaml` - Multi-source values (azure.yaml)
 - `env/staging/apps/toy-values.yaml` - Simplified (removed infra placeholders)
 - `env/staging/apps/trip-values.yaml` - Simplified (removed infra placeholders)
-- `env/staging/apps/web-values.yaml` - Added backend service URLs
+- `env/staging/apps/web-values.yaml` - Direct backend service URLs
 - `helm-charts/toy/values.yaml` - Template expressions, ingress rewrite
 - `helm-charts/trip/values.yaml` - Template expressions, ingress rewrite
-- `helm-charts/web/values.yaml` - Backend service URL templates
+- `helm-charts/web/values.yaml` - Localhost defaults for local dev
 - `helm-charts/toy/templates/deployment.yaml` - Added `tpl` function
 - `helm-charts/trip/templates/deployment.yaml` - Added `tpl` function
 - `helm-charts/web/templates/deployment.yaml` - Added `tpl` function
 
+**Pipeline Secrets Required**:
+- `AZURE_TENANT_ID` - Azure AD tenant ID
+- `APP_ID_URI` - Application ID URI for API authentication
+
 **Next Steps**: 
+- Add required secrets to GitHub repository settings
+- Run deploy-infra workflow to regenerate azure.yaml with complete structure
 - Commit and push changes to trigger ArgoCD sync
 - Verify services can connect to Cosmos DB and Storage
-- Test API endpoints through ingress
+- Test API endpoints through ingress with URL rewriting
 - Verify web frontend can call backend services
 
 ## 2025-11-10 - Fixed Web Frontend: Missing nginx Configuration
