@@ -12,7 +12,7 @@ permissions:
   contents: write   # to commit azure.yaml updates
 
 jobs:
-  deploy:
+  deploy-infrastructure:
     runs-on: ubuntu-latest
     env:
       RESOURCE_GROUP: rg-appdemo
@@ -20,6 +20,8 @@ jobs:
       BICEP_FILE: infra/bicep/main.bicep
       BICEPPARAM_FILE: infra/bicep/main.parameters.bicepparam
       DEPLOYMENT_NAME: infra-main
+    outputs:
+      aks-cluster-name: ${{ steps.deployment.outputs.aksClusterName }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -87,6 +89,22 @@ jobs:
           message: 'Automation - Infrastructure config'
           default_author: github_actions
 
+  bootstrap-argocd:
+    needs: deploy-infrastructure
+    runs-on: ubuntu-latest
+    env:
+      RESOURCE_GROUP: rg-appdemo
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
       - name: Install ArgoCD namespace and manifests
         run: |
           echo "Installing ArgoCD in namespace 'argocd'..."
@@ -101,7 +119,7 @@ jobs:
             
             if az aks command invoke \
               --resource-group ${{ env.RESOURCE_GROUP }} \
-              --name ${{ steps.deployment.outputs.aksClusterName }} \
+              --name ${{ needs.deploy-infrastructure.outputs.aks-cluster-name }} \
               --command "kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - && \
                          kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml"; then
               echo "ArgoCD installation successful!"
@@ -132,7 +150,7 @@ jobs:
             
             if az aks command invoke \
               --resource-group ${{ env.RESOURCE_GROUP }} \
-              --name ${{ steps.deployment.outputs.aksClusterName }} \
+              --name ${{ needs.deploy-infrastructure.outputs.aks-cluster-name }} \
               --command "kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s"; then
               echo "ArgoCD is ready!"
               break
@@ -180,7 +198,7 @@ jobs:
             
             if az aks command invoke \
               --resource-group ${{ env.RESOURCE_GROUP }} \
-              --name ${{ steps.deployment.outputs.aksClusterName }} \
+              --name ${{ needs.deploy-infrastructure.outputs.aks-cluster-name }} \
               --file /tmp/repo-secret.yaml \
               --command "kubectl apply -f repo-secret.yaml"; then
               echo "Repository secret configured successfully!"
@@ -216,7 +234,7 @@ jobs:
             
             if az aks command invoke \
               --resource-group ${{ env.RESOURCE_GROUP }} \
-              --name ${{ steps.deployment.outputs.aksClusterName }} \
+              --name ${{ needs.deploy-infrastructure.outputs.aks-cluster-name }} \
               --file /tmp/root-app.yaml \
               --command "kubectl apply -f root-app.yaml"; then
               echo "Root application applied successfully!"
