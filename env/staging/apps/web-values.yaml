@@ -2,11 +2,9 @@
 # This file is automatically updated by CI/CD pipeline with image tags
 
 image:
-  repository: "" # Set by CI: <acr-login-server>/web
-  tag: "latest" # Set by CI: commit SHA
-
+  repository: "crappdemoeniwvl.azurecr.io/web" # Set by CI: <acr-login-server>/web
+  tag: "b186a0e3bf456b843aa7a5a8ddce14f12ecfcd44" # Set by CI: commit SHA
 replicaCount: 2
-
 resources:
   limits:
     cpu: 200m
@@ -14,7 +12,6 @@ resources:
   requests:
     cpu: 100m
     memory: 128Mi
-
 ingress:
   enabled: true
   hosts:
@@ -22,6 +19,5 @@ ingress:
       paths:
         - path: /
           pathType: Prefix
-
 # Web service is static, no runtime env vars needed
 env: {}
