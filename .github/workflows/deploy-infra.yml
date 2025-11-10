@@ -105,66 +105,25 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Install ArgoCD namespace and manifests
+      - name: Install ArgoCD via Helm
         run: |
-          echo "Installing ArgoCD in namespace 'argocd'..."
+          echo "Installing ArgoCD via Helm in namespace 'argocd'..."
           
-          # Retry logic for az aks command invoke (handles node autoprovisioning delays)
-          MAX_ATTEMPTS=5
-          ATTEMPT=1
-          DELAY=60
+          az aks command invoke \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name ${{ needs.deploy-infrastructure.outputs.aks-cluster-name }} \
+            --file infra/argocd-values.yaml \
+            --command "kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - && \
+                       helm repo add argo https://argoproj.github.io/argo-helm && \
+                       helm repo update && \
+                       helm install argocd argo/argo-cd \
+                         --namespace argocd \
+                         --version 7.7.11 \
+                         --values argocd-values.yaml \
+                         --wait \
+                         --timeout 10m"
           
-          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
-            echo "Attempt $ATTEMPT of $MAX_ATTEMPTS..."
-            
-            if az aks command invoke \
-              --resource-group ${{ env.RESOURCE_GROUP }} \
-              --name ${{ needs.deploy-infrastructure.outputs.aks-cluster-name }} \
-              --command "kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - && \
-                         kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml"; then
-              echo "ArgoCD installation successful!"
-              break
-            else
-              if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-                echo "Failed after $MAX_ATTEMPTS attempts"
-                exit 1
-              fi
-              echo "Command failed, waiting ${DELAY}s before retry (node may be provisioning)..."
-              sleep $DELAY
-              DELAY=$((DELAY * 2))  # Exponential backoff
-              ATTEMPT=$((ATTEMPT + 1))
-            fi
-          done
-
-      - name: Wait for ArgoCD to be ready
-        run: |
-          echo "Waiting for ArgoCD server to be ready..."
-          
-          # Retry logic for az aks command invoke
-          MAX_ATTEMPTS=5
-          ATTEMPT=1
-          DELAY=60
-          
-          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
-            echo "Attempt $ATTEMPT of $MAX_ATTEMPTS..."
-            
-            if az aks command invoke \
-              --resource-group ${{ env.RESOURCE_GROUP }} \
-              --name ${{ needs.deploy-infrastructure.outputs.aks-cluster-name }} \
-              --command "kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s"; then
-              echo "ArgoCD is ready!"
-              break
-            else
-              if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-                echo "Failed after $MAX_ATTEMPTS attempts"
-                exit 1
-              fi
-              echo "Command failed, waiting ${DELAY}s before retry..."
-              sleep $DELAY
-              DELAY=$((DELAY * 2))
-              ATTEMPT=$((ATTEMPT + 1))
-            fi
-          done
+          echo "ArgoCD installation successful!"
 
       - name: Configure ArgoCD repository access
         env:
@@ -172,8 +131,8 @@ jobs:
         run: |
           echo "Configuring private repository access for ArgoCD..."
           
-          # Create repo secret manifest
-          cat <<EOF > /tmp/repo-secret.yaml
+          # Create repo secret manifest in working directory
+          cat <<EOF > repo-secret.yaml
           apiVersion: v1
           kind: Secret
           metadata:
@@ -188,67 +147,23 @@ jobs:
             password: ${GH_TOKEN}
           EOF
           
-          # Retry logic for az aks command invoke
-          MAX_ATTEMPTS=5
-          ATTEMPT=1
-          DELAY=60
+          az aks command invoke \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name ${{ needs.deploy-infrastructure.outputs.aks-cluster-name }} \
+            --file repo-secret.yaml \
+            --command "kubectl apply -f repo-secret.yaml"
           
-          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
-            echo "Attempt $ATTEMPT of $MAX_ATTEMPTS..."
-            
-            if az aks command invoke \
-              --resource-group ${{ env.RESOURCE_GROUP }} \
-              --name ${{ needs.deploy-infrastructure.outputs.aks-cluster-name }} \
-              --file /tmp/repo-secret.yaml \
-              --command "kubectl apply -f repo-secret.yaml"; then
-              echo "Repository secret configured successfully!"
-              rm -f /tmp/repo-secret.yaml
-              break
-            else
-              if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-                echo "Failed after $MAX_ATTEMPTS attempts"
-                rm -f /tmp/repo-secret.yaml
-                exit 1
-              fi
-              echo "Command failed, waiting ${DELAY}s before retry..."
-              sleep $DELAY
-              DELAY=$((DELAY * 2))
-              ATTEMPT=$((ATTEMPT + 1))
-            fi
-          done
+          rm -f repo-secret.yaml
+          echo "Repository secret configured successfully!"
 
       - name: Apply ArgoCD root application (app of apps)
         run: |
           echo "Applying root application for staging..."
           
-          # Copy root app manifest to temp location
-          cp env/staging/bootstrap/root-app.yaml /tmp/root-app.yaml
+          az aks command invoke \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name ${{ needs.deploy-infrastructure.outputs.aks-cluster-name }} \
+            --file env/staging/bootstrap/root-app.yaml \
+            --command "kubectl apply -f root-app.yaml"
           
-          # Retry logic for az aks command invoke
-          MAX_ATTEMPTS=5
-          ATTEMPT=1
-          DELAY=60
-          
-          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
-            echo "Attempt $ATTEMPT of $MAX_ATTEMPTS..."
-            
-            if az aks command invoke \
-              --resource-group ${{ env.RESOURCE_GROUP }} \
-              --name ${{ needs.deploy-infrastructure.outputs.aks-cluster-name }} \
-              --file /tmp/root-app.yaml \
-              --command "kubectl apply -f root-app.yaml"; then
-              echo "Root application applied successfully!"
-              rm -f /tmp/root-app.yaml
-              break
-            else
-              if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-                echo "Failed after $MAX_ATTEMPTS attempts"
-                rm -f /tmp/root-app.yaml
-                exit 1
-              fi
-              echo "Command failed, waiting ${DELAY}s before retry..."
-              sleep $DELAY
-              DELAY=$((DELAY * 2))
-              ATTEMPT=$((ATTEMPT + 1))
-            fi
-          done
+          echo "Root application applied successfully!"

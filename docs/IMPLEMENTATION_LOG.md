@@ -1,5 +1,63 @@
 # Implementation Log
 
+## 2025-11-10 - Migrated ArgoCD Installation to Helm Chart
+
+**Problem**: ArgoCD installation via raw Kubernetes manifests failed on AKS Automatic due to Deployment Safeguards policies requiring resource limits on init containers:
+```
+Error from server (Forbidden): admission webhook "validation.gatekeeper.sh" denied the request: 
+[azurepolicy-k8sazurev3containerlimits-...] container <copyutil> has no resource limits
+[azurepolicy-k8sazurev3containerlimits-...] container <secret-init> has no resource limits
+```
+
+**Root Cause**: AKS Automatic enables [Deployment Safeguards](https://learn.microsoft.com/en-us/azure/aks/deployment-safeguards) by default, which enforce resource limits on all containers and init containers. The standard ArgoCD manifest doesn't include these limits.
+
+**Solution Implemented**: 
+
+1. **Switched from Raw Manifest to Helm Chart**:
+   - Changed from: Direct `kubectl apply` of upstream manifest
+   - Changed to: Helm chart installation with custom values
+   - Benefits: Clean configuration management, easier upgrades, version control
+
+2. **Created `infra/argocd-values.yaml`**:
+   - Configured resource limits for all init containers:
+     - `dex.initContainers[copyutil]`
+     - `redis.initContainers[secret-init]`
+     - `repoServer.initContainers[copyutil]`
+   - Set limits: CPU 100m, Memory 128Mi
+   - Set requests: CPU 50m, Memory 64Mi
+   - Also configured main container resources for all components
+
+3. **Updated `.github/workflows/deploy-infra.yml`**:
+   - Removed: yq-based manifest patching approach
+   - Removed: Separate "Wait for ArgoCD to be ready" step
+   - Added: Helm installation with `--wait` flag
+   - Simplified: Single retry loop for installation
+
+4. **Created `infra/README.md`**:
+   - Documented ArgoCD Helm installation
+   - Explained AKS Automatic compliance requirements
+   - Provided manual installation/upgrade procedures
+   - Added troubleshooting guidance
+
+**Technical Details**:
+
+Helm installation command:
+```bash
+helm install argocd argo/argo-cd \
+  --namespace argocd \
+  --version 7.7.11 \
+  --values argocd-values.yaml \
+  --wait \
+  --timeout 10m
+```
+
+**Alternatives Considered**:
+- **Kustomize patches**: More elegant than yq but still adds complexity
+- **Namespace exclusion**: Excludes argocd namespace from policies (trades governance for simplicity)
+- **Disable policies via Bicep**: Not supported for AKS Automatic (policies are always enabled)
+
+**Outcome**: Clean, maintainable solution that complies with AKS Automatic policies while using the official ArgoCD Helm chart.
+
 ## 2025-01-08 - Fixed RBAC Duplicate Assignment Issue
 
 **Problem**: GitHub workflow deployment failed with "The resource 'Microsoft.Authorization/roleAssignments/c665d675...' is defined multiple times in a template." Local deployment worked fine with parameters file.
