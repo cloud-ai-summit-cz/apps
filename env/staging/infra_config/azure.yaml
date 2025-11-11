@@ -17,4 +17,9 @@ cosmos:
 auth:
   tenantId: 6ce4f237-667f-43f5-aafd-cbef954adf97
   appIdUri: api://5163cc2b-3d50-4278-8fbc-c13f3f0de588
-generatedAt: "2025-11-11T06:07:50Z"
+ingress:
+  publicIpName: pip-appdemo-eniwvl-ingress
+  publicIpAddress: 4.165.0.65
+  publicIpFqdn: appdemo-eniwvl.swedencentral.cloudapp.azure.com
+  resourceGroup: rg-appdemo
+generatedAt: "2025-11-11T07:07:40Z"
