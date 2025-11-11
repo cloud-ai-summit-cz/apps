@@ -1,5 +1,31 @@
 # Implementation Log
 
+## 2025-11-11 - NSG on AKS Nodes Subnet with Azure Load Balancer Health Probe Configuration
+
+**Context**: Added Network Security Group to AKS nodes subnet to control inbound traffic (ports 80, 443 from Internet). However, NSGs on AKS subnets require special consideration for Azure Load Balancer health probes to function correctly with the App Routing addon's NGINX ingress controller.
+
+**Issue Discovered**: When NSG is applied to the AKS nodes subnet, health probes from Azure Load Balancer must be explicitly allowed, and the NGINX ingress controller service must specify the health probe path (`/healthz`).
+
+**Solution**: 
+1. Added NSG to AKS nodes subnet with three rules:
+   - **Priority 100**: Allow Azure Load Balancer (service tag: `AzureLoadBalancer`) - **Critical for health probes**
+   - **Priority 110**: Allow HTTP (port 80) from Internet
+   - **Priority 120**: Allow HTTPS (port 443) from Internet
+
+2. Added health probe annotation to NGINX ingress controller:
+   - `service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: "/healthz"`
+   - This tells Azure Load Balancer where to send health checks
+
+**Technical Details**:
+- Azure Load Balancer health probes must reach the `/healthz` endpoint on the ingress controller
+- Without the `AzureLoadBalancer` service tag rule in NSG, health probes fail and the load balancer marks backends as unhealthy
+- The health probe annotation is **required** when using NSGs with AKS app routing addon
+- Reference: [Azure AKS App Routing NGINX Configuration - Health Probe Path Update](https://learn.microsoft.com/en-us/azure/aks/app-routing-nginx-configuration#nginx-health-probe-path-update)
+
+**Files Modified**:
+- `infra/bicep/modules/networking.bicep`: Added NSG resource and associated with AKS nodes subnet
+- `helm-charts/platform-ingress/templates/nginx-ingress-controller.yaml`: Added health probe annotation to loadBalancerAnnotations
+
 ## 2025-11-11 - Platform Components via ArgoCD: Ingress Controller & cert-manager (Helm Charts)
 
 **Context**: AKS App Routing provides a managed NGINX ingress controller, but requires post-deployment configuration for static public IP and HTTPS redirect. Additionally, automatic TLS certificate management via Let's Encrypt should be available for all services. Initial implementation used raw manifests; refactored to Helm charts for better environment flexibility and maintainability.

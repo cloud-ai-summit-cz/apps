@@ -73,6 +73,20 @@ resource aksNodesNsg 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
   properties: {
     securityRules: [
       {
+        name: 'AllowAzureLoadBalancerInbound'
+        properties: {
+          description: 'Allow Azure Load Balancer health probes - required for ingress controller'
+          protocol: '*'
+          sourcePortRange: '*'
+          destinationPortRange: '*'
+          sourceAddressPrefix: 'AzureLoadBalancer'
+          destinationAddressPrefix: '*'
+          access: 'Allow'
+          priority: 100
+          direction: 'Inbound'
+        }
+      }
+      {
         name: 'AllowHttpInbound'
         properties: {
           description: 'Allow HTTP traffic from Internet'
@@ -82,7 +96,7 @@ resource aksNodesNsg 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
           sourceAddressPrefix: 'Internet'
           destinationAddressPrefix: '*'
           access: 'Allow'
-          priority: 100
+          priority: 110
           direction: 'Inbound'
         }
       }
@@ -96,7 +110,7 @@ resource aksNodesNsg 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
           sourceAddressPrefix: 'Internet'
           destinationAddressPrefix: '*'
           access: 'Allow'
-          priority: 110
+          priority: 120
           direction: 'Inbound'
         }
       }

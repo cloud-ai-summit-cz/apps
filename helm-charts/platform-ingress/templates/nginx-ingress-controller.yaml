@@ -8,6 +8,7 @@ spec:
   loadBalancerAnnotations: 
     service.beta.kubernetes.io/azure-pip-name: "{{ .Values.ingress.publicIpName }}"
     service.beta.kubernetes.io/azure-load-balancer-resource-group: "{{ .Values.ingress.resourceGroup }}"
+    service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: "/healthz"
   {{- if .Values.ingress.forceSSLRedirect }}
   defaultSSLCertificate:
     forceSSLRedirect: true
