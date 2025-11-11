@@ -66,6 +66,44 @@ resource natGateway 'Microsoft.Network/natGateways@2024-01-01' = {
   }
 }
 
+// Network Security Group for AKS nodes subnet
+resource aksNodesNsg 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
+  name: 'nsg-${baseNameDash}-aks-nodes'
+  location: location
+  properties: {
+    securityRules: [
+      {
+        name: 'AllowHttpInbound'
+        properties: {
+          description: 'Allow HTTP traffic from Internet'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '80'
+          sourceAddressPrefix: 'Internet'
+          destinationAddressPrefix: '*'
+          access: 'Allow'
+          priority: 100
+          direction: 'Inbound'
+        }
+      }
+      {
+        name: 'AllowHttpsInbound'
+        properties: {
+          description: 'Allow HTTPS traffic from Internet'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '443'
+          sourceAddressPrefix: 'Internet'
+          destinationAddressPrefix: '*'
+          access: 'Allow'
+          priority: 110
+          direction: 'Inbound'
+        }
+      }
+    ]
+  }
+}
+
 // Virtual Network
 resource vnet 'Microsoft.Network/virtualNetworks@2024-01-01' = {
   name: 'vnet-${baseNameDash}'
@@ -81,6 +119,9 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-01-01' = {
           addressPrefix: aksNodesSubnetPrefix
           natGateway: {
             id: natGateway.id
+          }
+          networkSecurityGroup: {
+            id: aksNodesNsg.id
           }
           privateEndpointNetworkPolicies: 'Disabled'
           privateLinkServiceNetworkPolicies: 'Enabled'
