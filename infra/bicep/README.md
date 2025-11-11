@@ -44,6 +44,15 @@ az aks get-credentials --resource-group $rg --name aks-toytrip-<suffix>
 kubectl get nodes
 ```
 
+**Platform Configuration (Automated via ArgoCD):**
+
+The ingress controller and cert-manager are automatically configured by ArgoCD after bootstrap:
+- NGINX ingress configured with static public IP and HTTPS redirect
+- cert-manager installed with Let's Encrypt ClusterIssuers
+- Platform apps deploy from `env/staging/platform/` via ArgoCD
+
+See `docs/DEPLOYMENT.md` for ArgoCD bootstrap instructions.
+
 **Login to ACR:**
 ```pwsh
 $acrName = az deployment group show -g $rg -n main --query properties.outputs.acrName.value -o tsv
@@ -74,7 +83,8 @@ az deployment group show -g $rg -n main --query properties.outputs
   - `aks-nodes` subnet: 10.240.0.0/20 (4096 IPs) - delegated to AKS
   - `aks-api` subnet: 10.240.16.0/28 (16 IPs) - delegated to Microsoft.ContainerService/managedClusters
   - `private-endpoints` subnet: 10.240.16.16/28 (16 IPs)
-- **NAT Gateway**: Zone-redundant with 2 public IPs across zones 1, 2, 3
+- **NAT Gateway**: Zone-redundant with public IP across zones 1, 2, 3
+- **Ingress Public IP**: Zone-redundant Standard SKU with DNS label for AKS ingress controller
 - **Private DNS Zones**: Cosmos DB, Blob Storage, ACR (with VNet links)
 
 ### AKS Automatic Configuration
@@ -84,6 +94,7 @@ az deployment group show -g $rg -n main --query properties.outputs
 - **Endpoint**: Public with VNET integration (aks-api subnet)
 - **Security**: Workload identity enabled, Azure RBAC, no local accounts
 - **Identities**: Separate UAMIs for cluster control plane and kubelet (with AcrPull)
+- **App Routing**: NGINX ingress controller with preconfigured public IP and DNS, HTTPS redirect enabled
 
 ### Container Registry
 - **SKU**: Premium with zone redundancy
@@ -104,12 +115,12 @@ az group delete -n $rg -y
 
 | Module | Purpose |
 |--------|---------|
-| `networking.bicep` | VNet, NAT Gateway, subnets, private DNS zones |
-| `aksAutomatic.bicep` | AKS Automatic cluster with CNI Overlay + Cilium + ACNS |
+| `networking.bicep` | VNet, NAT Gateway, public IPs (NAT + ingress), subnets, private DNS zones |
+| `aksAutomatic.bicep` | AKS Automatic cluster with CNI Overlay + Cilium + ACNS + App Routing |
 | `acr.bicep` | Azure Container Registry (Premium, zone-redundant) |
 | `cosmosSqlServerless.bicep` | Cosmos DB SQL API (serverless) with optional PE |
 | `storageAccount.bicep` | Zone-redundant blob storage with optional PE |
-| `roleAssignments.bicep` | Storage Blob Data Contributor role assignment |
+| `rbacAssignments.bicep` | Azure RBAC role assignments (ACR Pull, Network Contributor, etc.) |
 | `cosmosRoleAssignments.bicep` | Cosmos DB Built-in Data Contributor role assignment |
 
 ## Notes

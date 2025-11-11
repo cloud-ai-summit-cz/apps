@@ -14,11 +14,17 @@ resources:
     memory: 256Mi
 ingress:
   enabled: true
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging  # Switch to letsencrypt-prod when ready
   hosts:
-    - host: "" # Set to actual staging domain
+    - host: "appdemo-eniwvl.swedencentral.cloudapp.azure.com"
       paths:
         - path: /api/trips
           pathType: Prefix
+  tls:
+    - hosts:
+        - "appdemo-eniwvl.swedencentral.cloudapp.azure.com"
+      secretName: toytrip-tls  # cert-manager creates this automatically
 env:
   # Auth and infrastructure values come from azure-values.yaml
   COSMOS_CONTAINER_NAME: "trips"

@@ -1,5 +1,136 @@
 # Implementation Log
 
+## 2025-11-11 - Platform Components via ArgoCD: Ingress Controller & cert-manager (Helm Charts)
+
+**Context**: AKS App Routing provides a managed NGINX ingress controller, but requires post-deployment configuration for static public IP and HTTPS redirect. Additionally, automatic TLS certificate management via Let's Encrypt should be available for all services. Initial implementation used raw manifests; refactored to Helm charts for better environment flexibility and maintainability.
+
+**Solution**: Created Helm charts for platform components with environment-specific values, deployed via ArgoCD app-of-apps pattern with separate platform bootstrap.
+
+**Implementation**:
+
+1. **Created Public IP in Networking Module** (`infra/bicep/modules/networking.bicep`):
+   - Added `pip-<basename>-ingress` resource: Standard SKU, zone-redundant (zones 1,2,3)
+   - DNS label using `baseNameDash` creates FQDN: `<basename>.<region>.cloudapp.azure.com`
+   - Outputs: `ingressPublicIpName`, `ingressPublicIpAddress`, `ingressPublicIpFqdn`
+
+2. **Enhanced Infrastructure Outputs** (`infra/bicep/main.bicep` + `.github/workflows/deploy-infra.yml`):
+   - Added `ingress.*` section to `azure.yaml` with public IP details
+   - Workflow automatically writes ingress outputs after Bicep deployment
+   - Removed unused parameters from AKS module (configuration is via K8s CRD, not Bicep)
+
+3. **Created Helm Charts for Platform Components** (`helm-charts/platform-*/`):
+   
+   **platform-ingress** (helm-charts/platform-ingress/):
+   - Chart for NginxIngressController CRD configuration
+   - Values: `ingress.publicIpName`, `ingress.resourceGroup`, `forceSSLRedirect`
+   - Template: Renders CRD with load balancer annotations
+   - Values injected from `azure.yaml` via ArgoCD multi-source
+
+   **platform-cert-manager** (helm-charts/platform-cert-manager/):
+   - Chart with cert-manager Helm dependency (v1.16.2 from Jetstack)
+   - Values: `environment` (staging/production), `letsencrypt.email`
+   - Template: Conditional ClusterIssuer rendering based on environment
+   - Staging always deployed, production only when `environment: production`
+
+4. **Reorganized Folder Structure**:
+   ```
+   env/staging/
+     platform/                     # Platform ArgoCD app definitions
+       ingress-controller-app.yaml
+       cert-manager-app.yaml
+     apps/                         # Service ArgoCD app definitions
+       toy-app.yaml
+       trip-app.yaml
+       web-app.yaml
+     bootstrap/
+       platform-app.yaml           # App of apps for platform (NEW)
+       root-app.yaml               # App of apps for services
+   helm-charts/
+     platform-ingress/             # Platform Helm charts
+     platform-cert-manager/
+     toy/                          # Service Helm charts
+     trip/
+     web/
+   ```
+
+5. **ArgoCD Bootstrap Pattern**:
+   
+   **bootstrap/platform-app.yaml** (NEW):
+   - App-of-apps pointing to `env/staging/platform/`
+   - Auto-discovers `*-app.yaml` files
+   - Deployed FIRST via `deploy-infra.yml` workflow
+   
+   **bootstrap/root-app.yaml**:
+   - App-of-apps pointing to `env/staging/apps/`
+   - Deployed SECOND after platform is ready
+   
+   **Workflow Integration** (`.github/workflows/deploy-infra.yml`):
+   - Step 1: Apply `platform-app.yaml` (ingress + cert-manager)
+   - Step 2: Apply `root-app.yaml` (services)
+   - Ensures platform components available before services deploy
+
+6. **Documentation Updates**:
+   - Updated `docs/DEPLOYMENT.md` with two-stage bootstrap process
+   - Updated repository layout diagram with platform Helm charts
+   - Added platform folder structure to GitOps directories section
+   - Removed obsolete manual configuration references
+
+**Using TLS Certificates**:
+
+Services can now automatically obtain Let's Encrypt certificates by adding annotations to Ingress resources:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-app
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod  # or letsencrypt-staging
+spec:
+  tls:
+  - hosts:
+    - myapp.example.com
+    secretName: myapp-tls-secret  # cert-manager creates this automatically
+  rules:
+  - host: myapp.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: my-app
+            port:
+              number: 80
+```
+
+**Design Decisions**:
+
+- **Helm Charts for Platform**: Standard packaging format enables environment-specific values, better templating, and version control
+
+- **Separate Bootstrap**: Platform components deploy first (separate app-of-apps) ensuring infrastructure ready before services
+
+- **Folder Organization**: Platform ArgoCD apps in `platform/`, service apps in `apps/`, Helm charts in `helm-charts/`—clear separation
+
+- **Value Injection**: ArgoCD multi-source injects `azure.yaml` values into Helm charts for infrastructure outputs
+
+- **Environment Flexibility**: Single Helm chart supports staging/production via values (e.g., Let's Encrypt server URL)
+
+- **Conditional Rendering**: Production ClusterIssuer only created when `environment: production` to avoid unnecessary resources
+
+**Benefits**:
+
+- **Zero Manual Steps**: Platform configuration applied automatically via workflow bootstrap
+- **Version Controlled**: All platform config in Git (charts + values), auditability and reproducibility
+- **Environment Parity**: Same charts for staging/production with different values
+- **Scalability**: Easy to add more platform components (monitoring, policies, etc.) following same pattern
+- **Standard Tooling**: Helm provides familiar interface for operations teams
+- **Automatic TLS**: Services can request certificates by adding annotations, no manual cert management
+
+**References**:
+- [cert-manager with Let's Encrypt](https://cert-manager.io/docs/tutorials/getting-started-aks-letsencrypt/)
+- [AKS App Routing configuration](https://learn.microsoft.com/en-us/azure/aks/app-routing-nginx-configuration)
+
 ## 2025-11-10 - Configured Kubernetes Environment Variables and Ingress Routing
 
 **Problem**: Services deployed to Kubernetes were missing critical environment variables (Cosmos DB endpoint, Storage account URL, authentication config) and the ingress routing was incorrect for the API path structure.

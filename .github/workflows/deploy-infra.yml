@@ -75,6 +75,10 @@ jobs:
           yq '.cosmos.databaseName = "toytripdb"' | \
           yq '.auth.tenantId = strenv(AZURE_TENANT_ID)' | \
           yq '.auth.appIdUri = strenv(APP_ID_URI)' | \
+          yq '.ingress.publicIpName = strenv(INGRESS_PUBLIC_IP_NAME)' | \
+          yq '.ingress.publicIpAddress = strenv(INGRESS_PUBLIC_IP_ADDRESS)' | \
+          yq '.ingress.publicIpFqdn = strenv(INGRESS_PUBLIC_IP_FQDN)' | \
+          yq '.ingress.resourceGroup = strenv(INGRESS_RESOURCE_GROUP)' | \
           yq '.generatedAt = strenv(TIMESTAMP)' > env/staging/infra_config/azure.yaml
         env:
           ACR_NAME: ${{ steps.deployment.outputs.acrName }}
@@ -89,6 +93,10 @@ jobs:
           COSMOS_ENDPOINT: https://${{ steps.deployment.outputs.cosmosAccountName }}.documents.azure.com:443/
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           APP_ID_URI: ${{ secrets.APP_ID_URI }}
+          INGRESS_PUBLIC_IP_NAME: ${{ steps.deployment.outputs.ingressPublicIpName }}
+          INGRESS_PUBLIC_IP_ADDRESS: ${{ steps.deployment.outputs.ingressPublicIpAddress }}
+          INGRESS_PUBLIC_IP_FQDN: ${{ steps.deployment.outputs.ingressPublicIpFqdn }}
+          INGRESS_RESOURCE_GROUP: ${{ steps.deployment.outputs.ingressPublicIpResourceGroup }}
           TIMESTAMP: ${{ steps.timestamp.outputs.value }}
 
       - name: Commit azure.yaml if changed
@@ -165,7 +173,19 @@ jobs:
           rm -f repo-secret.yaml
           echo "Repository secret configured successfully!"
 
-      - name: Apply ArgoCD root application (app of apps)
+      - name: Apply ArgoCD platform application (app of apps for platform)
+        run: |
+          echo "Applying platform application for staging..."
+          
+          az aks command invoke \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name ${{ needs.deploy-infrastructure.outputs.aks-cluster-name }} \
+            --file env/staging/bootstrap/platform-app.yaml \
+            --command "kubectl apply -f platform-app.yaml"
+          
+          echo "Platform application applied successfully!"
+
+      - name: Apply ArgoCD root application (app of apps for services)
         run: |
           echo "Applying root application for staging..."
           

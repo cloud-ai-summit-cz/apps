@@ -32,6 +32,25 @@ resource natPublicIp 'Microsoft.Network/publicIPAddresses@2024-01-01' = {
   }
 }
 
+// Public IP address for AKS Ingress Controller (App Routing) - Standard SKU with DNS label
+resource ingressPublicIp 'Microsoft.Network/publicIPAddresses@2024-01-01' = {
+  name: 'pip-${baseNameDash}-ingress'
+  location: location
+  sku: {
+    name: 'Standard'
+    tier: 'Regional'
+  }
+  zones: ['1', '2', '3']
+  properties: {
+    publicIPAllocationMethod: 'Static'
+    publicIPAddressVersion: 'IPv4'
+    idleTimeoutInMinutes: 4
+    dnsSettings: {
+      domainNameLabel: baseNameDash
+    }
+  }
+}
+
 // NAT Gateway 
 resource natGateway 'Microsoft.Network/natGateways@2024-01-01' = {
   name: 'ng-${baseNameDash}'
@@ -154,3 +173,8 @@ output blobDnsZoneId string = blobDnsZone.id
 output acrDnsZoneId string = acrDnsZone.id
 
 output natGatewayId string = natGateway.id
+
+output ingressPublicIpName string = ingressPublicIp.name
+output ingressPublicIpAddress string = ingressPublicIp.properties.ipAddress
+output ingressPublicIpFqdn string = ingressPublicIp.properties.dnsSettings.fqdn
+output ingressPublicIpResourceGroup string = resourceGroup().name

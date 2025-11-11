@@ -14,11 +14,17 @@ resources:
     memory: 128Mi
 ingress:
   enabled: true
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging  # Switch to letsencrypt-prod when ready
   hosts:
-    - host: "" # Set to actual staging domain
+    - host: "appdemo-eniwvl.swedencentral.cloudapp.azure.com"
       paths:
         - path: /
           pathType: Prefix
+  tls:
+    - hosts:
+        - "appdemo-eniwvl.swedencentral.cloudapp.azure.com"
+      secretName: toytrip-tls  # cert-manager creates this automatically
 # Web service runtime configuration
 # These URLs are injected at container startup via docker-entrypoint.sh
 env:

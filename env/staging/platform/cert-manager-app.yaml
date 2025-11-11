@@ -1,0 +1,36 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-cert-manager
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  source:
+    repoURL: https://github.com/cloud-ai-summit-cz/apps.git
+    targetRevision: main
+    path: helm-charts/platform-cert-manager
+    helm:
+      values: |
+        environment: staging
+        letsencrypt:
+          email: "your-email@example.com"
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

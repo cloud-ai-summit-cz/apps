@@ -4,7 +4,40 @@ This directory contains Helm charts for all ToyTrip microservices. Each chart fo
 
 ## Available Charts
 
-### toy
+### Platform Components
+
+#### platform-ingress
+**Path**: `helm-charts/platform-ingress/`  
+**Purpose**: AKS App Routing NGINX ingress controller configuration  
+**Resources**: NginxIngressController CRD
+
+Configures the managed NGINX ingress with:
+- Static public IP from infrastructure outputs
+- HTTPS redirect enabled
+- Load balancer annotations for Azure integration
+
+Values (injected from `azure.yaml`):
+- `ingress.publicIpName`: Public IP resource name
+- `ingress.resourceGroup`: Resource group containing the IP
+- `ingress.forceSSLRedirect`: Enable HTTPS redirect
+
+#### platform-cert-manager
+**Path**: `helm-charts/platform-cert-manager/`  
+**Purpose**: cert-manager installation with Let's Encrypt configuration  
+**Resources**: cert-manager Helm chart + ClusterIssuer CRDs
+
+Provides automatic TLS certificate management:
+- Installs cert-manager v1.16.2 from Jetstack
+- Creates Let's Encrypt ClusterIssuers (staging + production)
+- HTTP-01 challenge via AKS App Routing ingress
+
+Values:
+- `environment`: "staging" or "production" (determines issuer deployment)
+- `letsencrypt.email`: Email for Let's Encrypt notifications
+
+### Application Services
+
+#### toy
 **Path**: `helm-charts/toy/`  
 **Service**: Toy Service (FastAPI)  
 **Port**: 8001  

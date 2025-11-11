@@ -143,35 +143,18 @@ docker build -t <acr-name>.azurecr.io/toy-service:latest ./src/services/toy
 docker push <acr-name>.azurecr.io/toy-service:latest
 ```
 
-### AKS App Routing (Automated)
+### AKS App Routing & TLS Certificates (Automated via ArgoCD)
 
-The AKS App Routing add-on is **automatically enabled** during infrastructure deployment via Bicep:
+The infrastructure deployment configures:
+- AKS App Routing add-on enabled with NGINX ingress
+- Preconfigured public IP with DNS label (`<basename>.<region>.cloudapp.azure.com`)
+- IP details exported to `env/staging/infra_config/azure.yaml`
 
-```bicep
-// In infra/bicep/modules/aksAutomatic.bicep
-ingressProfile: {
-  webAppRouting: {
-    enabled: true
-    nginx: {
-      defaultIngressControllerType: 'AnnotationControlled'
-    }
-  }
-}
-```
+ArgoCD automatically deploys platform components via `bootstrap/platform-app.yaml`:
+- **NGINX Ingress Controller**: Helm chart with static public IP and HTTPS redirect (values from azure.yaml)
+- **cert-manager**: Helm chart with Let's Encrypt ClusterIssuers (staging + production)
 
-After deployment, verify the ingress controller:
-
-```bash
-# Get cluster credentials
-az aks get-credentials --resource-group $RESOURCE_GROUP --name <aks-cluster-name>
-
-# Verify ingress class
-kubectl get ingressclass
-# Should see: webapprouting.kubernetes.azure.com
-
-# Get the ingress controller IP
-kubectl get service -n app-routing-system nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}"
-```
+Platform components deploy before service apps, enabling automatic TLS certificate provisioning for ingress resources.
 
 ### Bootstrap ArgoCD (Automated with Infrastructure)
 
@@ -204,7 +187,8 @@ The workflow automatically performs:
 2. **Generate Config**: Writes `env/staging/infra_config/azure.yaml` with deployment outputs
 3. **Install ArgoCD**: Creates namespace and applies manifests using `az aks command invoke`
 4. **Configure Repository Access**: Creates secret with GitHub PAT for private repo access
-5. **Apply Root Application**: Deploys the app-of-apps manifest to bootstrap all services
+5. **Apply Platform Application**: Deploys platform components (ingress, cert-manager)
+6. **Apply Root Application**: Deploys the app-of-apps manifest to bootstrap all services
 
 **What happens behind the scenes:**
 
@@ -290,26 +274,33 @@ We use ArgoCD with an "app of apps" pattern to declaratively manage all microser
 ### Repository Layout (GitOps Directories)
 ```
 helm-charts/
-  <service-a>/Chart.yaml
-  <service-a>/templates/*.yaml
-  <service-b>/...
+  <service>/                  # Application services
+    Chart.yaml
+    templates/*.yaml
+  platform-ingress/           # Platform Helm charts
+    Chart.yaml
+    values.yaml
+    templates/nginx-ingress-controller.yaml
+  platform-cert-manager/
+    Chart.yaml
+    values.yaml
+    templates/cluster-issuer.yaml
 env/
   staging/
     infra_config/
-      azure.yaml              # infrastructure outputs (ACR, storage, cosmos, aks, resourceGroup)
+      azure.yaml              # infrastructure outputs (ACR, storage, cosmos, aks, ingress IP, resourceGroup)
     apps/
-      service-a-values.yaml   # image.tag, resources, replicas, env overrides for staging
-      service-b-values.yaml
+      toy-app.yaml            # ArgoCD apps for services
+      trip-app.yaml
+      web-app.yaml
+    platform/
+      ingress-controller-app.yaml  # ArgoCD apps for platform components
+      cert-manager-app.yaml
     bootstrap/
-      root-app.yaml           # ArgoCD Application (app of apps) referencing child apps
+      platform-app.yaml       # App of apps for platform (deployed first)
+      root-app.yaml           # App of apps for services
   production/
-    infra_config/
-      azure.yaml              # (optionally promoted / copied when infra differs per environment)
-    apps/
-      service-a-values.yaml   # production specific overrides
-      service-b-values.yaml
-    bootstrap/
-      root-app.yaml
+    (same structure)
 ```
 
 ### Infrastructure Outputs Propagation (`azure.yaml`)
@@ -330,6 +321,11 @@ storage:
 cosmos:
   accountId: <cosmosAccountId>
   accountName: <derived-from-id>
+ingress:
+  publicIpName: <pip-name>
+  publicIpAddress: <ip-address>
+  publicIpFqdn: <fqdn>
+  resourceGroup: <rg-name>
 generatedAt: <ISO8601 timestamp>
 ```
 
@@ -396,20 +392,32 @@ All charts use `ingressClassName: webapprouting.kubernetes.azure.com` for AKS Ap
 Production values are updated via an intentional promotion step (manual PR) to ensure controlled releases.
 
 ### App of Apps Bootstrap
-`env/<environment>/bootstrap/root-app.yaml` defines an ArgoCD Application that points at the `env/<environment>/apps` directory. Each microservice ArgoCD Application is defined either as child manifests within that folder or via an optional ApplicationSet (future enhancement) to reduce repetition.
+
+Two ArgoCD root applications manage the deployment:
+
+1. **Platform Application** (`bootstrap/platform-app.yaml`):
+   - Points to `env/<environment>/platform/`
+   - Deploys infrastructure components (ingress controller, cert-manager)
+   - Deploys first to establish platform capabilities
+
+2. **Services Application** (`bootstrap/root-app.yaml`):
+   - Points to `env/<environment>/apps/`
+   - Deploys application services (toy, trip, web)
+   - Relies on platform components being available
 
 #### Bootstrap Process
-1. Install ArgoCD in the AKS cluster (standard installation)
-2. Apply the root application manifest: `kubectl apply -f env/staging/bootstrap/root-app.yaml`
-3. ArgoCD discovers child applications in `env/staging/apps/`:
+1. Install ArgoCD in the AKS cluster (automated via deploy-infra.yml)
+2. Apply platform application: `kubectl apply -f env/staging/bootstrap/platform-app.yaml`
+3. ArgoCD deploys platform components:
+   - `ingress-controller-app.yaml` → Configures NGINX with static IP
+   - `cert-manager-app.yaml` → Installs cert-manager + Let's Encrypt issuers
+4. Apply root application: `kubectl apply -f env/staging/bootstrap/root-app.yaml`
+5. ArgoCD deploys services:
    - `toy-app.yaml` → Deploys toy service
    - `trip-app.yaml` → Deploys trip service
    - `web-app.yaml` → Deploys web frontend
-4. Each child application uses multi-source pattern:
-   - Source 1: Helm chart from `helm-charts/<service>/`
-   - Source 2: Service-specific values from `env/staging/apps/<service>-values.yaml`
 
-All services deploy to `toytrip-staging` namespace (auto-created).
+Services deploy to `toytrip-staging` namespace (auto-created).
 
 ### Promotion Flow
 * Staging soak verification (integration tests, manual checks)

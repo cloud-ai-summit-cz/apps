@@ -1,0 +1,40 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-ingress-controller
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  sources:
+    # Infrastructure config repository reference for value injection
+    - repoURL: https://github.com/cloud-ai-summit-cz/apps.git
+      targetRevision: main
+      ref: infraconfig
+    
+    # Helm chart for ingress controller configuration
+    - repoURL: https://github.com/cloud-ai-summit-cz/apps.git
+      targetRevision: main
+      path: helm-charts/platform-ingress
+      helm:
+        valueFiles:
+          - $infraconfig/infra_config/azure.yaml
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

@@ -215,3 +215,8 @@ output cosmosAccountId string = cosmos.outputs.cosmosAccountId
 output cosmosAccountName string = cosmos.outputs.cosmosAccountName
 output baseNameDash string = baseNameDash
 output baseNameNoDash string = baseNameNoDash
+// Ingress public IP details for platform configuration
+output ingressPublicIpName string = networking.outputs.ingressPublicIpName
+output ingressPublicIpAddress string = networking.outputs.ingressPublicIpAddress
+output ingressPublicIpFqdn string = networking.outputs.ingressPublicIpFqdn
+output ingressPublicIpResourceGroup string = resourceGroup().name

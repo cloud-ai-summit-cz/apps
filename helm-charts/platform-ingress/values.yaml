@@ -1,0 +1,12 @@
+# Default values for platform-ingress
+# These can be overridden via ArgoCD multi-source pattern injecting azure.yaml
+
+ingress:
+  # Public IP configuration (injected from infrastructure outputs)
+  publicIpName: ""
+  publicIpAddress: ""
+  publicIpFqdn: ""
+  resourceGroup: ""
+  
+  # NGINX configuration
+  forceSSLRedirect: true
