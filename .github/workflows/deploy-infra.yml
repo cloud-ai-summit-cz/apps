@@ -79,6 +79,9 @@ jobs:
           yq '.ingress.publicIpAddress = strenv(INGRESS_PUBLIC_IP_ADDRESS)' | \
           yq '.ingress.publicIpFqdn = strenv(INGRESS_PUBLIC_IP_FQDN)' | \
           yq '.ingress.resourceGroup = strenv(INGRESS_RESOURCE_GROUP)' | \
+          yq '.["ingress-nginx"].controller.service.annotations."service.beta.kubernetes.io/azure-pip-name" = strenv(INGRESS_PUBLIC_IP_NAME)' | \
+          yq '.["ingress-nginx"].controller.service.annotations."service.beta.kubernetes.io/azure-load-balancer-resource-group" = strenv(INGRESS_RESOURCE_GROUP)' | \
+          yq '.["ingress-nginx"].controller.service.annotations."service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path" = "/healthz"' | \
           yq '.generatedAt = strenv(TIMESTAMP)' > env/staging/infra_config/azure.yaml
         env:
           ACR_NAME: ${{ steps.deployment.outputs.acrName }}

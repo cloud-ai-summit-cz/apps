@@ -32,7 +32,7 @@ resource natPublicIp 'Microsoft.Network/publicIPAddresses@2024-01-01' = {
   }
 }
 
-// Public IP address for AKS Ingress Controller (App Routing) - Standard SKU with DNS label
+// Public IP address for NGINX Ingress Controller - Standard SKU with DNS label
 resource ingressPublicIp 'Microsoft.Network/publicIPAddresses@2024-01-01' = {
   name: 'pip-${baseNameDash}-ingress'
   location: location

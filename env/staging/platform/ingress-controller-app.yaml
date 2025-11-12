@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: platform-ingress-controller
+  name: platform-nginx-ingress
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
@@ -14,17 +14,17 @@ spec:
       targetRevision: main
       ref: infraconfig
     
-    # Helm chart for ingress controller configuration
+    # Helm chart wrapper for nginx-ingress controller
     - repoURL: https://github.com/cloud-ai-summit-cz/apps.git
       targetRevision: main
-      path: helm-charts/platform-ingress
+      path: helm-charts/platform-nginx-ingress
       helm:
         valueFiles:
-          - $infraconfig/infra_config/azure.yaml
+          - $infraconfig/env/staging/infra_config/azure.yaml
   
   destination:
     server: https://kubernetes.default.svc
-    namespace: kube-system
+    namespace: ingress-nginx
   
   syncPolicy:
     automated:

@@ -1,5 +1,67 @@
 # Implementation Log
 
+## 2025-11-12 - Migration from AKS App Routing to Plain NGINX Ingress Controller
+
+**Context**: Replaced the built-in AKS App Routing add-on with the standard Kubernetes NGINX Ingress Controller for better control, portability, and alignment with standard Kubernetes practices.
+
+**Motivation**:
+- Remove dependency on Azure-specific App Routing add-on (`webAppRouting`)
+- Use standard nginx-ingress Helm chart for better community support and flexibility
+- Maintain existing static public IP and Azure Load Balancer integration
+- Enable standard ingress class naming (`nginx` instead of `webapprouting.kubernetes.azure.com`)
+
+**Implementation**:
+
+1. **Removed App Routing from AKS** (`infra/bicep/modules/aksAutomatic.bicep`):
+   - Deleted `ingressProfile.webAppRouting` configuration from AKS cluster properties
+   - No longer using AKS managed NginxIngressController CRD
+
+2. **Updated Networking Comments** (`infra/bicep/modules/networking.bicep`):
+   - Changed comment from "AKS Ingress Controller (App Routing)" to "NGINX Ingress Controller"
+   - Public IP resource remains unchanged (still used by new nginx-ingress)
+
+3. **Created NGINX Ingress Helm Wrapper Chart** (`helm-charts/platform-nginx-ingress/`):
+   - **Chart.yaml**: Wrapper chart with dependency on official `ingress-nginx` v4.14.0 (controller v1.14.0)
+   - **values.yaml**: Configured for Azure with:
+     - `replicaCount: 2` for high availability
+     - `ingressClassResource.default: true` - makes `nginx` the default ingress class
+     - `service.type: LoadBalancer` with `externalTrafficPolicy: Local`
+     - Azure annotations configured via multi-source values injection:
+       - `service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: "/healthz"`
+       - `service.beta.kubernetes.io/azure-pip-name` (injected from infrastructure)
+       - `service.beta.kubernetes.io/azure-load-balancer-resource-group` (injected from infrastructure)
+   - **README.md**: Documentation for chart usage and configuration
+
+4. **Updated ArgoCD Platform Application** (`env/staging/platform/ingress-controller-app.yaml`):
+   - Renamed from `platform-ingress-controller` to `platform-nginx-ingress`
+   - Changed path from `helm-charts/platform-ingress` to `helm-charts/platform-nginx-ingress`
+   - Updated namespace from `kube-system` to `ingress-nginx` (standard for nginx-ingress)
+   - Maintained multi-source pattern for infrastructure value injection
+
+5. **Updated Infrastructure Configuration** (`env/staging/infra_config/azure.yaml`):
+   - Added `ingress-nginx.controller.service.annotations` section with Azure-specific annotations
+   - These annotations tell the nginx-ingress service which public IP and resource group to use
+
+6. **Removed Old Platform-Ingress Chart**:
+   - Deleted `helm-charts/platform-ingress/` directory (was using App Routing CRD)
+
+**Key Benefits**:
+- **Standard Kubernetes**: Uses official nginx-ingress chart, not Azure-specific add-on
+- **Better Control**: Full control over nginx configuration via standard Helm values
+- **Portability**: Same ingress controller works on any Kubernetes cluster
+- **Community Support**: Leverage extensive nginx-ingress documentation and examples
+- **Proper Health Probes**: Azure Load Balancer health probes configured via service annotations
+
+**Azure Integration**:
+- Service annotations ensure nginx-ingress LoadBalancer uses the pre-created static public IP
+- Health probe path (`/healthz`) ensures Azure Load Balancer can health-check the ingress pods
+- Resource group annotation allows cross-RG public IP assignment if needed
+
+**Migration Notes**:
+- Existing ingress resources work without changes (both support `ingressClassName: nginx`)
+- Static public IP remains the same (no DNS changes required)
+- App Routing add-on is disabled at the AKS cluster level
+
 ## 2025-11-11 - NSG on AKS Nodes Subnet with Azure Load Balancer Health Probe Configuration
 
 **Context**: Added Network Security Group to AKS nodes subnet to control inbound traffic (ports 80, 443 from Internet). However, NSGs on AKS subnets require special consideration for Azure Load Balancer health probes to function correctly with the App Routing addon's NGINX ingress controller.

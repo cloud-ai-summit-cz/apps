@@ -1,0 +1,21 @@
+{{/*
+This template patches the ingress-nginx service with Azure-specific annotations.
+The values are injected from infrastructure outputs via ArgoCD.
+*/}}
+{{- $annotations := dict -}}
+{{- $_ := set $annotations "service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path" "/healthz" -}}
+
+{{- if .Values.ingress.publicIpName -}}
+{{- $_ := set $annotations "service.beta.kubernetes.io/azure-pip-name" .Values.ingress.publicIpName -}}
+{{- end -}}
+
+{{- if .Values.ingress.resourceGroup -}}
+{{- $_ := set $annotations "service.beta.kubernetes.io/azure-load-balancer-resource-group" .Values.ingress.resourceGroup -}}
+{{- end -}}
+
+{{- if gt (len $annotations) 0 -}}
+---
+# This configures the service annotations for the ingress-nginx controller
+# by merging them into the values that will be passed to the subchart
+{{- $_ := set .Values "ingress-nginx" (merge (default dict (index .Values "ingress-nginx")) (dict "controller" (dict "service" (dict "annotations" $annotations)))) -}}
+{{- end -}}
