@@ -12,11 +12,10 @@ letsencrypt:
   staging: "https://acme-staging-v02.api.letsencrypt.org/directory"
   production: "https://acme-v02.api.letsencrypt.org/directory"
   
-  # HTTP-01 challenge uses AKS App Routing ingress class
-  ingressClassName: "webapprouting.kubernetes.azure.com"
+  # HTTP-01 challenge uses nginx ingress class
+  ingressClassName: "nginx"
 
 # cert-manager Helm chart values
 cert-manager:
   crds:
     enabled: true
-  installCRDs: true

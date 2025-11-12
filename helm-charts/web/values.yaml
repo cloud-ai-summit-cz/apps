@@ -22,7 +22,7 @@ service:
 
 ingress:
   enabled: true
-  className: "webapprouting.kubernetes.azure.com"
+  className: "nginx"
   annotations: {}
   hosts:
     - host: "" # Override with actual hostname

@@ -22,7 +22,7 @@ service:
 
 ingress:
   enabled: true
-  className: "webapprouting.kubernetes.azure.com"
+  className: "nginx"
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /toy$1$2
   hosts:
