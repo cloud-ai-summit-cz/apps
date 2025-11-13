@@ -82,6 +82,7 @@ jobs:
           yq '.["ingress-nginx"].controller.service.annotations."service.beta.kubernetes.io/azure-pip-name" = strenv(INGRESS_PUBLIC_IP_NAME)' | \
           yq '.["ingress-nginx"].controller.service.annotations."service.beta.kubernetes.io/azure-load-balancer-resource-group" = strenv(INGRESS_RESOURCE_GROUP)' | \
           yq '.["ingress-nginx"].controller.service.annotations."service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path" = "/healthz"' | \
+          yq '.letsencrypt.email = strenv(LETSENCRYPT_EMAIL)' | \
           yq '.generatedAt = strenv(TIMESTAMP)' > env/staging/infra_config/azure.yaml
         env:
           ACR_NAME: ${{ steps.deployment.outputs.acrName }}
@@ -100,6 +101,7 @@ jobs:
           INGRESS_PUBLIC_IP_ADDRESS: ${{ steps.deployment.outputs.ingressPublicIpAddress }}
           INGRESS_PUBLIC_IP_FQDN: ${{ steps.deployment.outputs.ingressPublicIpFqdn }}
           INGRESS_RESOURCE_GROUP: ${{ steps.deployment.outputs.ingressPublicIpResourceGroup }}
+          LETSENCRYPT_EMAIL: ${{ secrets.LETS_ENCRYPT_EMAIL }}
           TIMESTAMP: ${{ steps.timestamp.outputs.value }}
 
       - name: Commit azure.yaml if changed

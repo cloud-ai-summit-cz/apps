@@ -6,7 +6,7 @@ environment: staging
 
 # Let's Encrypt configuration
 letsencrypt:
-  email: "your-email@example.com"  # TODO: Update with actual email
+  email: "your-email@example.com" 
   
   # ACME server URLs
   staging: "https://acme-staging-v02.api.letsencrypt.org/directory"
