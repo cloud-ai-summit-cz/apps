@@ -4,7 +4,7 @@ acr:
   loginServer: crappdemoeniwvl.azurecr.io
 aks:
   name: aks-appdemo-eniwvl
-  oidcIssuerUrl: https://swedencentral.oic.prod-aks.azure.com/6ce4f237-667f-43f5-aafd-cbef954adf97/852891d4-5b22-4600-87f1-11f9aabdb0d6/
+  oidcIssuerUrl: https://swedencentral.oic.prod-aks.azure.com/6ce4f237-667f-43f5-aafd-cbef954adf97/9783b8bb-2d80-4bb6-bd5d-6d239e8588d5/
 storage:
   accountId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-appdemo/providers/Microsoft.Storage/storageAccounts/stappdemoeniwvl
   accountName: stappdemoeniwvl
@@ -31,4 +31,4 @@ ingress-nginx:
         service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: /healthz
 letsencrypt:
   email: tkubica12@gmail.com
-generatedAt: "2025-11-13T13:41:50Z"
+generatedAt: "2025-11-14T18:00:43Z"
