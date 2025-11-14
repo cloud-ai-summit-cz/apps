@@ -1,5 +1,36 @@
 # Implementation Log
 
+## 2025-11-14 - Fixed ArgoCD Hang on NGINX Ingress Admission Webhook Hooks
+
+**Context**: ArgoCD deployment of `platform-nginx-ingress` was consistently stuck in "Running" state with message "waiting for completion of hook batch/Job/platform-nginx-ingress-ingress-nginx-admission-create". The admission webhook job completed successfully but ArgoCD never progressed past the hook phase.
+
+**Root Cause Analysis**:
+- This is a **known issue** with ingress-nginx Helm chart v4.12.3+ (including v4.14.0) when deployed via ArgoCD
+- GitHub Issue: https://github.com/kubernetes/ingress-nginx/issues/13515
+- The admission webhook jobs (`-admission-create` and `-admission-patch`) are Helm hooks (`helm.sh/hook: pre-install,pre-upgrade`)
+- These jobs have `ttlSecondsAfterFinished` configured, causing them to be auto-deleted after completion
+- **ArgoCD doesn't recognize that a deleted job has completed successfully**
+- ArgoCD remains stuck in "Running" state forever, blocking the entire sync operation
+- Affects AKS, EKS, and other Kubernetes environments consistently
+
+**Investigation Process**:
+1. Checked pod/job status in `ingress-nginx` namespace - found jobs were already deleted
+2. Reviewed ArgoCD application events - saw job completed but sync never progressed
+3. Searched for similar issues in ingress-nginx and ArgoCD repositories
+4. Found exact match: GitHub issue #13515 describing identical behavior
+5. Identified ArgoCD sync option `SkipDryRunOnMissingResource=true` as the proper fix
+
+**Solution**:
+- Added `SkipDryRunOnMissingResource=true` to `syncOptions` in `env/staging/platform/ingress-controller-app.yaml`
+- This tells ArgoCD to gracefully handle resources that get deleted (like completed hook jobs with TTL)
+- ArgoCD will now recognize the hook as complete even after the job resource is removed
+
+**Alternative Solutions (not used)**:
+- Disable admission webhooks entirely: `controller.admissionWebhooks.enabled: false` (not recommended for production)
+- Wait for upstream fix in ingress-nginx chart (unknown timeline)
+
+**Result**: ArgoCD can now complete the sync operation successfully. The admission webhook jobs complete, get cleaned up by TTL, and ArgoCD progresses to deploy the main ingress controller resources.
+
 ## 2025-11-14 - Allow NGINX Admission Hooks on Critical Nodes
 
 **Context**: ArgoCD syncs for the `platform-nginx-ingress` chart were stalling because the Helm hook jobs (`admission-create` / `admission-patch`) could not tolerate the `CriticalAddonsOnly` taint applied to AKS system nodes. When user nodes were busy, the hook pods never scheduled, blocking ingress deployment.
