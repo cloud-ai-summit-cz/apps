@@ -14,11 +14,47 @@ spec:
       targetRevision: main
       ref: infraconfig
     
-    # Helm chart wrapper for nginx-ingress controller
-    - repoURL: https://github.com/cloud-ai-summit-cz/apps.git
-      targetRevision: main
-      path: helm-charts/platform-nginx-ingress
+    # Official NGINX Ingress Controller Helm chart
+    - repoURL: https://kubernetes.github.io/ingress-nginx
+      targetRevision: 4.14.0
+      chart: ingress-nginx
       helm:
+        values: |
+          controller:
+            replicaCount: 2
+            nodeSelector:
+              kubernetes.io/os: linux
+            ingressClassResource:
+              name: nginx
+              enabled: true
+              default: true
+            service:
+              type: LoadBalancer
+              externalTrafficPolicy: Local
+            metrics:
+              enabled: true
+              serviceMonitor:
+                enabled: false
+            resources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                cpu: 1000m
+                memory: 512Mi
+            allowSnippetAnnotations: false
+            admissionWebhooks:
+              patch:
+                nodeSelector:
+                  kubernetes.io/os: linux
+                tolerations:
+                  - key: CriticalAddonsOnly
+                    operator: Exists
+                    effect: NoSchedule
+          defaultBackend:
+            enabled: true
+            nodeSelector:
+              kubernetes.io/os: linux
         valueFiles:
           - $infraconfig/env/staging/infra_config/azure.yaml
   
