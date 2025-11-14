@@ -50,6 +50,10 @@ ingress-nginx:
       patch:
         nodeSelector:
           kubernetes.io/os: linux
+        tolerations:
+          - key: CriticalAddonsOnly
+            operator: Exists
+            effect: NoSchedule
   
   # Default backend configuration
   defaultBackend:

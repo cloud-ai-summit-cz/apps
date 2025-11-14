@@ -54,7 +54,7 @@ resource aks 'Microsoft.ContainerService/managedClusters@2024-09-02-preview' = {
     // API Server with VNET integration (public endpoint + private network)
     apiServerAccessProfile: {
       subnetId: apiServerSubnetId
-      enablePrivateCluster: false // Public endpoint with VNET integration
+      enablePrivateCluster: false 
     }
     // Network profile with Azure CNI Overlay and Cilium
     networkProfile: {
@@ -63,7 +63,7 @@ resource aks 'Microsoft.ContainerService/managedClusters@2024-09-02-preview' = {
       networkPolicy: 'cilium'
       networkDataplane: 'cilium'
       loadBalancerSku: 'standard'
-      outboundType: 'userAssignedNATGateway' // Uses our NAT Gateway
+      outboundType: 'userAssignedNATGateway' 
       serviceCidr: '10.250.0.0/16'
       dnsServiceIP: '10.250.0.10'
       // Advanced Container Networking Services (observability)

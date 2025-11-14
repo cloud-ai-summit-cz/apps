@@ -1,5 +1,14 @@
 # Implementation Log
 
+## 2025-11-14 - Allow NGINX Admission Hooks on Critical Nodes
+
+**Context**: ArgoCD syncs for the `platform-nginx-ingress` chart were stalling because the Helm hook jobs (`admission-create` / `admission-patch`) could not tolerate the `CriticalAddonsOnly` taint applied to AKS system nodes. When user nodes were busy, the hook pods never scheduled, blocking ingress deployment.
+
+**Change**:
+- Updated `helm-charts/platform-nginx-ingress/values.yaml` to add a toleration under `ingress-nginx.controller.admissionWebhooks.patch` for the `CriticalAddonsOnly` taint with `NoSchedule` effect.
+
+**Result**: The admission webhook jobs can now run on tainted system nodes whenever user nodes lack capacity, preventing ArgoCD hooks from hanging and ensuring the ingress controller deploys reliably.
+
 ## 2025-11-12 - Migration from AKS App Routing to Plain NGINX Ingress Controller
 
 **Context**: Replaced the built-in AKS App Routing add-on with the standard Kubernetes NGINX Ingress Controller for better control, portability, and alignment with standard Kubernetes practices.
