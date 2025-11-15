@@ -137,10 +137,10 @@ The `platform-gateway` chart manages the actual `Gateway` resource and TLS secre
 
 ## Usage in ArgoCD
 
-Charts are deployed via ArgoCD using multi-source pattern:
+Charts are deployed via ArgoCD using a two-source pattern that clones the repo once and reuses it for both the chart and environment overrides:
 
-1. **Chart source**: `helm-charts/<service>/`
-2. **Values source**: `env/<environment>/apps/<service>-values.yaml`
+1. **Repo reference**: `ref: repo` pulls `main` exactly once.
+2. **Chart source**: references `ref: repo`, sets `path: helm-charts/<service>/`, and points `helm.valueFiles` at `env/<environment>/apps/<service>-values.yaml` (also under the same ref).
 
 Example Application manifest:
 ```yaml

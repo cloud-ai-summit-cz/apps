@@ -12,7 +12,8 @@ spec:
     - repoURL: https://github.com/cloud-ai-summit-cz/apps.git
       targetRevision: main
       ref: repo
-    - ref: repo
+    - repoURL: https://github.com/cloud-ai-summit-cz/apps.git
+      targetRevision: main
       path: helm-charts/platform-cert-manager
       helm:
         valueFiles:

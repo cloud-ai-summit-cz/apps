@@ -31,3 +31,4 @@ httpRoute:
 env:
   TOY_SERVICE_URL: "http://135.116.244.172/api/toys"
   TRIP_SERVICE_URL: "http://135.116.244.172/api/trips"
+  MSAL_REDIRECT_URI: "{{- if .Values.ingress.publicIpFqdn -}}https://{{ .Values.ingress.publicIpFqdn }}{{- else -}}https://{{ .Values.ingress.publicIpAddress }}{{- end -}}"

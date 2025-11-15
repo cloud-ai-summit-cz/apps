@@ -58,6 +58,7 @@ readinessProbe:
 env:
   TOY_SERVICE_URL: "http://localhost:8001"
   TRIP_SERVICE_URL: "http://localhost:8002"
+  MSAL_REDIRECT_URI: "http://localhost:3000"
 
 nodeSelector: {}
 

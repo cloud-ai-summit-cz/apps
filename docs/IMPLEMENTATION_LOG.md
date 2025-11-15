@@ -1,5 +1,16 @@
 # Implementation Log
 
+## 2025-11-15 - Runtime MSAL Redirect Configuration
+
+**Context**: MSAL still redirected to `http://localhost:3000`, so users hitting the staging hostname were bounced back to localhost after authenticating. The redirect URI must follow the Gateway DNS which is already emitted to `azure.yaml`.
+
+**Implementation**:
+- Added `MSAL_REDIRECT_URI` to the SPA runtime config (`public/env-config.js`, `.env.example`, Docker entrypoint) and exposed it inside `window.ENV_CONFIG` plus the Helm chart’s env map.
+- Taught the MSAL setup (`authConfig.ts`) to read the redirect dynamically with fallbacks to `import.meta` or `window.location.origin`, and updated the type augmentation in `apiConfig.ts`.
+- Updated the staging Helm values to template the redirect off `ingress.publicIpFqdn` (falling back to the IP) so ArgoCD automatically injects the correct hostname from `azure.yaml`.
+
+**Result**: Frontend pods now emit `MSAL_REDIRECT_URI` based on the Gateway DNS, MSAL reuses that value for login/logout redirects, and switching environments no longer requires hardcoded localhost edits.
+
 ## 2025-11-15 - Argo Ignore Rules for Gateway & Routes
 
 **Context**: ArgoCD kept reporting perpetual drift for the Gateway API resources, cert-manager webhooks, and HTTPRoutes even when nothing changed in Git; the compare step was fighting controller-managed fields and Cilium’s dynamic identities.
@@ -10,6 +21,17 @@
 - Updated the toy/trip/web application manifests to ignore the `status` subresource on their HTTPRoutes, preventing self-heal churn.
 
 **Result**: ArgoCD no longer loops through redundant syncs whenever Istio, cert-manager, or Cilium mutate their managed resources, so OutOfSync alerts now surface only when repo changes actually matter.
+
+## 2025-11-15 - Single-Clone Multi-Source Apps
+
+**Context**: Multi-source Applications referenced the same Git repo twice (`helm-charts/...` plus `$values/...`) which let ArgoCD resolve different commits for each source whenever `main` moved mid-sync, triggering the noisy `cannot reference a different revision of the same repository` errors.
+
+**Implementation**:
+- Reworked every multi-source Application (platform cert-manager/gateway and toy/trip/web services) to declare a single `ref: repo` source that fetches `main` once.
+- Pointed the chart-rendering source at `ref: repo` so both Helm templates and env-specific value files share the exact commit payload.
+- Updated `helm-charts/README.md` to document the new pattern.
+
+**Result**: ArgoCD now templates charts and reads env overrides from the same Git revision, eliminating race conditions without requiring manual pinning or extra workflow steps.
 
 ## 2025-11-15 - Automated Gateway Solver Config & Renamed Gateway
 
