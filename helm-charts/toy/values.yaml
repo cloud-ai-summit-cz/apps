@@ -28,6 +28,10 @@ httpRoute:
       paths:
         - path: /api/toys
           pathType: PathPrefix
+          # rewrite:
+          #   path:
+          #     type: ReplacePrefixMatch
+          #     replacePrefixMatch: /
 
 resources:
   limits:

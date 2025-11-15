@@ -1,3 +1,10 @@
+## 2025-11-15 - Gateway path rewrites for toy/trip
+
+- Added optional `rewrite` configuration to `helm-charts/toy` and `helm-charts/trip` HTTPRoute templates so Gateway API can emit `URLRewrite` filters without custom overlays.
+- Updated staging values (`env/staging/apps/*-values.yaml`) to strip the `/api/toys` and `/api/trips` prefixes before forwarding to the FastAPI services that listen on `/toy` and `/trip`.
+- Later adjusted toy staging rewrite to use `/` as the replacement prefix, effectively removing `/api/toys` entirely so downstream services receive whatever path segments follow the public prefix.
+- Documented the new chart knobs in default `values.yaml` to keep future environments consistent.
+
 # Implementation Log
 
 ## 2025-11-15 - Web API Hostnames & Gateway Listener Defaults

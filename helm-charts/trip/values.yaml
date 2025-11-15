@@ -28,6 +28,10 @@ httpRoute:
       paths:
         - path: /api/trips
           pathType: PathPrefix
+          rewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /trip
 
 resources:
   limits:

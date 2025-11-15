@@ -25,6 +25,10 @@ httpRoute:
       paths:
         - path: /api/toys
           pathType: PathPrefix
+          rewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
 env:
   # Auth and infrastructure values come from azure-values.yaml
   COSMOS_CONTAINER_NAME: "toys"

@@ -27,6 +27,24 @@ spec:
           name: {{ $fullName }}
           port: {{ $.Values.service.port }}
           weight: 1
+      {{- if .rewrite }}
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            {{- if .rewrite.hostname }}
+            hostname: {{ .rewrite.hostname | quote }}
+            {{- end }}
+            {{- if .rewrite.path }}
+            path:
+              type: {{ .rewrite.path.type | default "ReplacePrefixMatch" | quote }}
+              {{- if .rewrite.path.replacePrefixMatch }}
+              replacePrefixMatch: {{ .rewrite.path.replacePrefixMatch | quote }}
+              {{- end }}
+              {{- if .rewrite.path.replaceFullPath }}
+              replaceFullPath: {{ .rewrite.path.replaceFullPath | quote }}
+              {{- end }}
+            {{- end }}
+      {{- end }}
     {{- end }}
 ---
 {{- end }}
