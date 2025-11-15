@@ -1,3 +1,8 @@
+## 2025-11-15 - Workload identity plumbing for toy/trip
+
+- Extended `.github/workflows/deploy-infra.yml` so the Bicep deployment outputs are parsed, `env/staging/infra_config/azure.yaml` gains a `workloadIdentities` map (resource/client/principal IDs plus service account metadata), and the staging toy/trip Helm values get their `workloadIdentity` blocks flipped on with the correct client IDs.
+- Updated the toy/trip Helm charts to automatically emit Azure workload identity annotations on their service accounts, label pods for the admission webhook, and surface `AZURE_CLIENT_ID`/`AZURE_TOKEN_CREDENTIALS` in the env map so DefaultAzureCredential always picks the intended managed identity.
+
 ## 2025-11-15 - Gateway path rewrites for toy/trip
 
 - Added optional `rewrite` configuration to `helm-charts/toy` and `helm-charts/trip` HTTPRoute templates so Gateway API can emit `URLRewrite` filters without custom overlays.

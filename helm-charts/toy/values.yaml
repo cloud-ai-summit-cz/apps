@@ -69,6 +69,8 @@ env:
   API_HOST: "0.0.0.0"
   API_PORT: "8001"
   LOG_LEVEL: "INFO"
+  AZURE_CLIENT_ID: "{{ .Values.workloadIdentity.clientId }}"
+  AZURE_TOKEN_CREDENTIALS: "WorkloadIdentityCredential"
 
 # Azure Workload Identity
 workloadIdentity:
