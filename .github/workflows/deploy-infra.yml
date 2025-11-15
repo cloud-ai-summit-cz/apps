@@ -80,6 +80,9 @@ jobs:
           yq '.ingress.publicIpFqdn = strenv(INGRESS_PUBLIC_IP_FQDN)' | \
           yq '.ingress.resourceGroup = strenv(INGRESS_RESOURCE_GROUP)' | \
           yq '.letsencrypt.email = strenv(LETSENCRYPT_EMAIL)' | \
+          yq '.letsencrypt.solver.type = "gateway"' | \
+          yq '.letsencrypt.solver.gateway.parentRefs = [{"name": strenv(GATEWAY_NAME), "namespace": strenv(GATEWAY_NAMESPACE), "sectionName": "http"}]' | \
+          yq '.letsencrypt.solver.gateway.labels."acme.cert-manager.io/http01-solver" = "true"' | \
           yq '.generatedAt = strenv(TIMESTAMP)' > env/staging/infra_config/azure.yaml
         env:
           ACR_NAME: ${{ steps.deployment.outputs.acrName }}
@@ -99,6 +102,8 @@ jobs:
           INGRESS_PUBLIC_IP_FQDN: ${{ steps.deployment.outputs.ingressPublicIpFqdn }}
           INGRESS_RESOURCE_GROUP: ${{ steps.deployment.outputs.ingressPublicIpResourceGroup }}
           LETSENCRYPT_EMAIL: ${{ secrets.LETS_ENCRYPT_EMAIL }}
+          GATEWAY_NAME: toytrip-gateway
+          GATEWAY_NAMESPACE: toytrip-staging
           TIMESTAMP: ${{ steps.timestamp.outputs.value }}
 
       - name: Commit azure.yaml if changed

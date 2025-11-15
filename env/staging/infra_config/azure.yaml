@@ -28,7 +28,7 @@ letsencrypt:
     type: gateway
     gateway:
       parentRefs:
-        - name: web-frontend-gateway
+        - name: toytrip-gateway
           namespace: toytrip-staging
           sectionName: http
       labels:

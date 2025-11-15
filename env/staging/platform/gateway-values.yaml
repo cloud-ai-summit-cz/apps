@@ -1,6 +1,6 @@
 gateway:
   enabled: true
-  name: web-frontend-gateway
+  name: toytrip-gateway
   annotations: {}
   infrastructure:
     annotations: {}
@@ -12,9 +12,6 @@ gateway:
       allowedRoutes:
         namespaces:
           from: Same
-        selector:
-          matchLabels:
-            acme.cert-manager.io/http01-solver: "true"
     - name: https
       hostname: "appdemo-eniwvl.swedencentral.cloudapp.azure.com"
       port: 443

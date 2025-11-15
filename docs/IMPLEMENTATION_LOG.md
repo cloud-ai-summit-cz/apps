@@ -1,5 +1,15 @@
 # Implementation Log
 
+## 2025-11-15 - Automated Gateway Solver Config & Renamed Gateway
+
+**Context**: The `azure.yaml` file needs to remain pipeline-owned, and we also wanted a consistent gateway name across all charts (dropping the old `web-frontend-gateway` label).
+
+**Implementation**:
+- Updated `.github/workflows/deploy-infra.yml` to emit the full `letsencrypt.solver` block (Gateway HTTP-01 solver + labels) so no manual edits to `azure.yaml` are required.
+- Switched every reference to the shared gateway (platform values, app HTTPRoutes, Azure config, docs) to the new canonical name `toytrip-gateway`.
+
+**Result**: The deployment pipeline now produces the exact solver configuration we rely on, and all manifests consistently reference `toytrip-gateway`, avoiding ArgoCD diffs or manual mutations.
+
 ## 2025-11-15 - Restored ACME HTTP-01 Reachability on Istio Gateway
 
 **Context**: Let's Encrypt renewals were stuck in `pending` because the managed Istio ingress gateway only exposed port 443. cert-manager's temporary HTTP solver pods sat behind the AKS Web App Routing nginx load balancer (different public IP), so ACME self-checks to `http://appdemo-eniwvl...` always timed out.
@@ -7,7 +17,7 @@
 **Implementation**:
 - Extended `helm-charts/platform-gateway` staging values so the shared Gateway now publishes a dedicated `http` listener on port 80 that keeps the existing static IP and restricts allowed routes via the `acme.cert-manager.io/http01-solver` label.
 - Updated all service `HTTPRoute` values (web/toy/trip) to reference the `https` listener explicitly, preventing normal traffic from binding to the new HTTP endpoint while still allowing cert-manager to attach its temporary routes.
-- Taught the cert-manager wrapper chart to support both ingress and Gateway HTTP-01 solvers, added the `--enable-gateway-api` flag, and configured the staging environment (`azure.yaml`) to use the Gateway solver with parentRef `web-frontend-gateway/http`.
+- Taught the cert-manager wrapper chart to support both ingress and Gateway HTTP-01 solvers, added the `--enable-gateway-api` flag, and configured the staging environment (`azure.yaml`) to use the Gateway solver with parentRef `toytrip-gateway/http`.
 
 **Result**: Port 80 is now open on the same Azure load balancer IP as port 443, but only cert-manager's labeled HTTPRoutes can attach to it. ACME HTTP-01 challenges complete successfully without reintroducing a parallel ingress controller.
 
@@ -29,7 +39,7 @@
 
 **Implementation**:
 - Removed the obsolete `Ingress` templates from `helm-charts/toy` and `helm-charts/trip` and replaced them with `HTTPRoute` templates that accept configurable parent refs.
-- Updated each chart's default values plus `env/staging/apps/*-values.yaml` to point their HTTPRoutes at the `web-frontend-gateway` (Istio-managed) and to publish `/api/toys` and `/api/trips` respectively.
+- Updated each chart's default values plus `env/staging/apps/*-values.yaml` to point their HTTPRoutes at the `toytrip-gateway` (Istio-managed) and to publish `/api/toys` and `/api/trips` respectively.
 - Adjusted `docs/DEPLOYMENT.md` to reflect that all services now rely on Gateway API resources.
 
 **Result**: The toy and trip APIs now reuse the same public endpoint as the web frontend via discrete HTTPRoute resources, and there are no orphaned ingress manifests left in the charts.

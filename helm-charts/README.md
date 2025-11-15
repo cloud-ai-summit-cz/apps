@@ -124,7 +124,7 @@ httpRoute:
   parentRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway
-      name: web-frontend-gateway
+      name: toytrip-gateway
       namespace: toytrip-staging
   hosts:
     - host: "appdemo-eniwvl.swedencentral.cloudapp.azure.com"
