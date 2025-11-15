@@ -6,20 +6,20 @@ This directory contains Helm charts for all ToyTrip microservices. Each chart fo
 
 ### Platform Components
 
-#### platform-ingress
-**Path**: `helm-charts/platform-ingress/`  
-**Purpose**: AKS App Routing NGINX ingress controller configuration  
-**Resources**: NginxIngressController CRD
+#### platform-gateway
+**Path**: `helm-charts/platform-gateway/`  
+**Purpose**: Shared Istio Gateway + TLS certificate  
+**Resources**: Gateway API `Gateway`, cert-manager `Certificate`
 
-Configures the managed NGINX ingress with:
-- Static public IP from infrastructure outputs
-- HTTPS redirect enabled
-- Load balancer annotations for Azure integration
+Features:
+- Binds the managed Istio ingress gateway to the pre-created static public IP
+- Emits listener definitions (hostname, protocol, TLS mode) from env-specific values
+- Optionally provisions the cert-manager `Certificate` that backs the listener's secret
 
-Values (injected from `azure.yaml`):
-- `ingress.publicIpName`: Public IP resource name
-- `ingress.resourceGroup`: Resource group containing the IP
-- `ingress.forceSSLRedirect`: Enable HTTPS redirect
+Values:
+- `gateway.name`: Logical name for the Gateway (referenced by HTTPRoutes)
+- `gateway.listeners[]`: Host, port, protocol, TLS settings, and allowedRoutes
+- `certificate.*`: ClusterIssuer, secretName, and DNS names (optional)
 
 #### platform-cert-manager
 **Path**: `helm-charts/platform-cert-manager/`  
@@ -29,7 +29,7 @@ Values (injected from `azure.yaml`):
 Provides automatic TLS certificate management:
 - Installs cert-manager v1.16.2 from Jetstack
 - Creates Let's Encrypt ClusterIssuers (staging + production)
-- HTTP-01 challenge via AKS App Routing ingress
+- HTTP-01 challenge served through the shared Istio Gateway listener
 
 Values:
 - `environment`: "staging" or "production" (determines issuer deployment)
@@ -41,7 +41,7 @@ Values:
 **Path**: `helm-charts/toy/`  
 **Service**: Toy Service (FastAPI)  
 **Port**: 8001  
-**Ingress Path**: `/api/toys`
+**HTTPRoute Path**: `/api/toys`
 
 Dependencies:
 - Cosmos DB (toys container)
@@ -58,7 +58,7 @@ Environment variables:
 **Path**: `helm-charts/trip/`  
 **Service**: Trip Service (FastAPI)  
 **Port**: 8002  
-**Ingress Path**: `/api/trips`
+**HTTPRoute Path**: `/api/trips`
 
 Dependencies:
 - Cosmos DB (trips container)
@@ -77,7 +77,7 @@ Environment variables:
 **Path**: `helm-charts/web/`  
 **Service**: Web Frontend (Nginx)  
 **Port**: 80  
-**Ingress Path**: `/`
+**HTTPRoute Path**: `/`
 
 Static React application served by Nginx. No runtime environment variables (configuration injected at build time).
 
@@ -90,11 +90,12 @@ Each chart follows standard Helm conventions:
 ├── Chart.yaml              # Chart metadata
 ├── values.yaml             # Default values
 └── templates/
-    ├── _helpers.tpl        # Template helpers
-    ├── deployment.yaml     # Kubernetes Deployment
-    ├── service.yaml        # Kubernetes Service
-    ├── ingress.yaml        # Ingress (AKS App Routing)
-    └── serviceaccount.yaml # ServiceAccount
+  ├── _helpers.tpl        # Template helpers
+  ├── deployment.yaml     # Kubernetes Deployment
+  ├── service.yaml        # Kubernetes Service
+  ├── httproute.yaml      # Gateway API HTTPRoute (per service)
+  ├── gateway.yaml        # Shared Gateway (platform chart only)
+  └── serviceaccount.yaml # ServiceAccount
 ```
 
 ## Key Configuration Parameters
@@ -104,34 +105,35 @@ Each chart follows standard Helm conventions:
 - `image.tag`: Image tag (typically commit SHA for immutability)
 - `replicaCount`: Number of pod replicas
 - `resources`: CPU and memory limits/requests
-- `ingress.enabled`: Enable/disable ingress
-- `ingress.hosts`: Ingress host and path configuration
+- `httpRoute.enabled`: Enable/disable Gateway API routing
+- `httpRoute.parentRefs`: List of `Gateway` references each route should attach to
+- `httpRoute.hosts[]`: Host + path match configuration per service
 
 ### Service-specific
 - `env`: Dictionary of environment variables
 - `workloadIdentity.enabled`: Enable Azure Workload Identity
 - `workloadIdentity.clientId`: Managed Identity client ID
 
-## Ingress Configuration
+## Gateway API HTTPRoute Configuration
 
-All charts use AKS App Routing with NGINX:
+All service charts now attach to the shared Istio gateway via HTTPRoute resources:
 
 ```yaml
-ingress:
+httpRoute:
   enabled: true
-  className: "webapprouting.kubernetes.azure.com"
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: web-frontend-gateway
+      namespace: toytrip-staging
   hosts:
-    - host: "example.com"  # or "" for IP-based
+    - host: "appdemo-eniwvl.swedencentral.cloudapp.azure.com"
       paths:
         - path: /api/toys
-          pathType: Prefix
+          pathType: PathPrefix
 ```
 
-The App Routing addon provides:
-- Managed NGINX ingress controller
-- Automatic load balancer provisioning
-- Optional Azure DNS integration
-- Optional TLS with Azure Key Vault
+The `platform-gateway` chart manages the actual `Gateway` resource and TLS secrets; services simply define the host/path matches and backend service port. Update the `parentRefs` section whenever the gateway name or namespace changes.
 
 ## Usage in ArgoCD
 

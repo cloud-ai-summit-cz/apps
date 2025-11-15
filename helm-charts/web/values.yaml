@@ -20,16 +20,14 @@ service:
   port: 80
   targetPort: 80
 
-ingress:
+httpRoute:
   enabled: true
-  className: "nginx"
-  annotations: {}
+  parentRefs: []
   hosts:
-    - host: "" # Override with actual hostname
+    - host: ""
       paths:
         - path: /
-          pathType: Prefix
-  tls: []
+          pathType: PathPrefix
 
 resources:
   limits:

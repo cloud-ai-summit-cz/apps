@@ -1,0 +1,62 @@
+{{- if .Values.gateway.enabled }}
+{{- $fullName := include "platform-gateway.fullname" . -}}
+{{- $name := .Values.gateway.name | default (printf "%s-gateway" $fullName) -}}
+{{- $baseInfraAnnotations := dict -}}
+{{- if .Values.ingress.publicIpName }}
+{{- $_ := set $baseInfraAnnotations "service.beta.kubernetes.io/azure-pip-name" .Values.ingress.publicIpName -}}
+{{- end -}}
+{{- if .Values.ingress.resourceGroup }}
+{{- $_ := set $baseInfraAnnotations "service.beta.kubernetes.io/azure-load-balancer-resource-group" .Values.ingress.resourceGroup -}}
+{{- end -}}
+{{- $userInfraAnnotations := .Values.gateway.infrastructure.annotations | default dict -}}
+{{- $infraAnnotations := merge $baseInfraAnnotations $userInfraAnnotations -}}
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "platform-gateway.labels" . | nindent 4 }}
+  {{- with .Values.gateway.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  gatewayClassName: {{ .Values.gateway.className | default "istio" | quote }}
+  {{- if or $infraAnnotations (.Values.gateway.infrastructure.parametersRef) }}
+  infrastructure:
+    {{- if $infraAnnotations }}
+    annotations:
+      {{- toYaml $infraAnnotations | nindent 6 }}
+    {{- end }}
+    {{- with .Values.gateway.infrastructure.parametersRef }}
+    parametersRef:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- end }}
+  listeners:
+    {{- range .Values.gateway.listeners }}
+    - name: {{ .name | quote }}
+      {{- if .hostname }}
+      hostname: {{ .hostname | quote }}
+      {{- end }}
+      port: {{ .port | default 443 }}
+      protocol: {{ .protocol | default "HTTPS" | quote }}
+      {{- if .tls }}
+      tls:
+        {{- if .tls.mode }}
+        mode: {{ .tls.mode | quote }}
+        {{- end }}
+        {{- if .tls.certificateRefs }}
+        certificateRefs:
+          {{- toYaml .tls.certificateRefs | nindent 10 }}
+        {{- else if .tls.secretName }}
+        certificateRefs:
+          - name: {{ .tls.secretName | quote }}
+        {{- end }}
+      {{- end }}
+      {{- if .allowedRoutes }}
+      allowedRoutes:
+        {{- toYaml .allowedRoutes | nindent 8 }}
+      {{- end }}
+    {{- end }}
+{{- end }}

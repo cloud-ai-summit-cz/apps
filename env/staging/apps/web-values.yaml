@@ -12,19 +12,19 @@ resources:
   requests:
     cpu: 100m
     memory: 128Mi
-ingress:
+
+httpRoute:
   enabled: true
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-staging  # Switch to letsencrypt-prod when ready
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: web-frontend-gateway
+      namespace: toytrip-staging
   hosts:
     - host: "appdemo-eniwvl.swedencentral.cloudapp.azure.com"
       paths:
         - path: /
-          pathType: Prefix
-  tls:
-    - hosts:
-        - "appdemo-eniwvl.swedencentral.cloudapp.azure.com"
-      secretName: toytrip-tls  # cert-manager creates this automatically
+          pathType: PathPrefix
 # Web service runtime configuration
 # These URLs are injected at container startup via docker-entrypoint.sh
 env:

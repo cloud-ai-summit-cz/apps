@@ -20,17 +20,14 @@ service:
   port: 80
   targetPort: 8002
 
-ingress:
-  enabled: true
-  className: "nginx"
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /trip$1$2
+httpRoute:
+  enabled: false
+  parentRefs: []
   hosts:
-    - host: "" # Override with actual hostname
+    - host: ""
       paths:
-        - path: /api/trips(/|$)(.*)
-          pathType: ImplementationSpecific
-  tls: []
+        - path: /api/trips
+          pathType: PathPrefix
 
 resources:
   limits:

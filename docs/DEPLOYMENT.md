@@ -143,18 +143,17 @@ docker build -t <acr-name>.azurecr.io/toy-service:latest ./src/services/toy
 docker push <acr-name>.azurecr.io/toy-service:latest
 ```
 
-### AKS App Routing & TLS Certificates (Automated via ArgoCD)
+### Istio Gateway & TLS Automation (Automated via ArgoCD)
 
-The infrastructure deployment configures:
-- AKS App Routing add-on enabled with NGINX ingress
-- Preconfigured public IP with DNS label (`<basename>.<region>.cloudapp.azure.com`)
-- IP details exported to `env/staging/infra_config/azure.yaml`
+The AKS cluster now enables the Istio service mesh with the managed Gateway API add-on. The networking module still provisions a static, zone-redundant public IP and the GitHub workflow captures its metadata under `ingress.*` in `env/<env>/infra_config/azure.yaml`.
 
-ArgoCD automatically deploys platform components via `bootstrap/platform-app.yaml`:
-- **NGINX Ingress Controller**: Helm chart with static public IP and HTTPS redirect (values from azure.yaml)
-- **cert-manager**: Helm chart with Let's Encrypt ClusterIssuers (staging + production)
+Edge traffic terminates through a `Gateway` object that lives inside the `helm-charts/web` chart. Its annotations instruct Azure to bind the gateway service to the pre-created public IP/resource group, while listeners and TLS settings are driven by the environment values file. Matching `HTTPRoute` resources in the same chart map hostnames and paths to the web workload (and will be expanded to additional backends as needed).
 
-Platform components deploy before service apps, enabling automatic TLS certificate provisioning for ingress resources.
+ArgoCD's platform root application (`bootstrap/platform-root.yaml`) now deploys two platform charts:
+- `helm-charts/platform-gateway/` renders the shared `Gateway` resource (anchored to the static public IP) and the cert-manager `Certificate` that backs its TLS listener.
+- `helm-charts/platform-cert-manager/` keeps ClusterIssuers available cluster-wide.
+
+Application charts (web, toy, trip, etc.) only contribute `HTTPRoute` objects that reference the shared gateway; no standalone nginx ingress controller remains in the cluster.
 
 ### Bootstrap ArgoCD (Automated with Infrastructure)
 
@@ -211,8 +210,8 @@ az aks command invoke \
 az aks command invoke \
   --resource-group $RG \
   --name $AKS_CLUSTER \
-  --file env/staging/bootstrap/root-app.yaml \
-  --command "kubectl apply -f root-app.yaml"
+  --file env/staging/bootstrap/app-root.yaml \
+  --command "kubectl apply -f app-root.yaml"
 ```
 
 **Access ArgoCD UI:**
@@ -260,7 +259,7 @@ stringData:
 EOF
 
 # 4. Apply root app
-kubectl apply -f env/staging/bootstrap/root-app.yaml
+kubectl apply -f env/staging/bootstrap/app-root.yaml
 
 # 5. Watch applications sync
 kubectl get applications -n argocd -w
@@ -277,14 +276,22 @@ helm-charts/
   <service>/                  # Application services
     Chart.yaml
     templates/*.yaml
-  platform-ingress/           # Platform Helm charts
+  platform-gateway/
     Chart.yaml
     values.yaml
-    templates/nginx-ingress-controller.yaml
+    templates/
+      gateway.yaml
+      certificate.yaml
   platform-cert-manager/
     Chart.yaml
     values.yaml
     templates/cluster-issuer.yaml
+  web/
+    templates/httproute.yaml
+  toy/
+    templates/httproute.yaml
+  trip/
+    templates/httproute.yaml
 env/
   staging/
     infra_config/
@@ -294,11 +301,12 @@ env/
       trip-app.yaml
       web-app.yaml
     platform/
-      ingress-controller-app.yaml  # ArgoCD apps for platform components
-      cert-manager-app.yaml
+      cert-manager-app.yaml        # Platform component (ClusterIssuers)
+      gateway-app.yaml             # Shared Istio Gateway + TLS
+      gateway-values.yaml          # Listener + certificate values
     bootstrap/
-      platform-app.yaml       # App of apps for platform (deployed first)
-      root-app.yaml           # App of apps for services
+      platform-root.yaml      # App of apps for platform (deployed first)
+      app-root.yaml           # App of apps for services
   production/
     (same structure)
 ```
@@ -361,24 +369,28 @@ Each microservice has a minimal chart focusing on only the most commonly tuned a
 Non‑critical or rarely changed Kubernetes fields remain static within `templates/` to reduce maintenance overhead and cognitive load.
 
 #### Implemented Charts
-Three Helm charts are provided in `helm-charts/`:
+Four Helm charts are provided in `helm-charts/`:
+
+0. **platform-gateway** (`helm-charts/platform-gateway/`)
+  - Provisions the shared Istio `Gateway` bound to the static ingress IP
+  - Optionally renders the cert-manager `Certificate` that supplies its TLS secret
 
 1. **toy** (`helm-charts/toy/`)
-   - FastAPI service on port 8001
-   - Ingress path: `/api/toys`
-   - Environment: Cosmos DB (toys container), Blob Storage (avatars)
+  - FastAPI service on port 8001
+  - HTTPRoute publishes `/api/toys` through the shared Istio Gateway
+  - Environment: Cosmos DB (toys container), Blob Storage (avatars)
 
 2. **trip** (`helm-charts/trip/`)
-   - FastAPI service on port 8002
-   - Ingress path: `/api/trips`
-   - Environment: Cosmos DB (trips container), Blob Storage (gallery), inter-service call to toy service
+  - FastAPI service on port 8002
+  - HTTPRoute publishes `/api/trips` through the shared Istio Gateway
+  - Environment: Cosmos DB (trips container), Blob Storage (gallery), inter-service call to toy service
 
 3. **web** (`helm-charts/web/`)
-   - Nginx static frontend on port 80
-   - Ingress path: `/` (root)
-   - No runtime environment variables (build-time configuration)
+  - Nginx static frontend on port 80
+  - Exposes `/` via an `HTTPRoute` that targets the shared Gateway
+  - No runtime environment variables (config is injected via `env-config.js`)
 
-All charts use `ingressClassName: webapprouting.kubernetes.azure.com` for AKS App Routing with managed NGINX ingress.
+All external HTTP entrypoints now share the Istio-managed Gateway rendered by the `platform-gateway` chart; each application chart contributes only its HTTPRoute resources.
 
 ### Image Tagging & Build Workflow
 1. Developer merges or pushes to main (or feature branch for preview if extended later).
@@ -395,23 +407,23 @@ Production values are updated via an intentional promotion step (manual PR) to e
 
 Two ArgoCD root applications manage the deployment:
 
-1. **Platform Application** (`bootstrap/platform-app.yaml`):
+1. **Platform Application** (`bootstrap/platform-root.yaml`):
    - Points to `env/<environment>/platform/`
-   - Deploys infrastructure components (ingress controller, cert-manager)
-   - Deploys first to establish platform capabilities
+  - Deploys shared platform components (platform-gateway + cert-manager)
+  - Deploys first to establish platform capabilities
 
-2. **Services Application** (`bootstrap/root-app.yaml`):
+2. **Services Application** (`bootstrap/app-root.yaml`):
    - Points to `env/<environment>/apps/`
    - Deploys application services (toy, trip, web)
    - Relies on platform components being available
 
 #### Bootstrap Process
 1. Install ArgoCD in the AKS cluster (automated via deploy-infra.yml)
-2. Apply platform application: `kubectl apply -f env/staging/bootstrap/platform-app.yaml`
+2. Apply platform application: `kubectl apply -f env/staging/bootstrap/platform-root.yaml`
 3. ArgoCD deploys platform components:
-   - `ingress-controller-app.yaml` → Configures NGINX with static IP
+   - `gateway-app.yaml` → Creates Istio Gateway + certificate (static IP binding)
    - `cert-manager-app.yaml` → Installs cert-manager + Let's Encrypt issuers
-4. Apply root application: `kubectl apply -f env/staging/bootstrap/root-app.yaml`
+4. Apply root application: `kubectl apply -f env/staging/bootstrap/app-root.yaml`
 5. ArgoCD deploys services:
    - `toy-app.yaml` → Deploys toy service
    - `trip-app.yaml` → Deploys trip service

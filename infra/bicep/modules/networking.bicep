@@ -32,7 +32,7 @@ resource natPublicIp 'Microsoft.Network/publicIPAddresses@2024-01-01' = {
   }
 }
 
-// Public IP address for NGINX Ingress Controller - Standard SKU with DNS label
+// Public IP address for the Istio-managed ingress gateway - Standard SKU with DNS label
 resource ingressPublicIp 'Microsoft.Network/publicIPAddresses@2024-01-01' = {
   name: 'pip-${baseNameDash}-ingress'
   location: location
@@ -75,7 +75,7 @@ resource aksNodesNsg 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
       {
         name: 'AllowAzureLoadBalancerInbound'
         properties: {
-          description: 'Allow Azure Load Balancer health probes - required for ingress controller'
+          description: 'Allow Azure Load Balancer health probes for the Istio ingress gateway'
           protocol: '*'
           sourcePortRange: '*'
           destinationPortRange: '*'

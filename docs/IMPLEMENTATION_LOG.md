@@ -1,5 +1,40 @@
 # Implementation Log
 
+## 2025-11-15 - Migrated Edge Traffic to AKS Istio Gateway
+
+**Context**: We replaced the nginx ingress controller + AKS App Routing dependency with the managed Istio ingress gateway that ships with the AKS automatic cluster (Gateway API Standard installation).
+
+**Implementation**:
+- Updated `infra/bicep/modules/aksAutomatic.bicep` to AKS `2025-06-02-preview`, enabling `serviceMeshProfile.mode = Istio` and `ingressProfile.gatewayAPI.installation = Standard` so the cluster provisions the managed gateway and controller pods.
+- Removed the ArgoCD ingress-controller application and all nginx-specific wiring from infrastructure outputs and GitHub workflows; the only remaining platform bootstrap component is cert-manager.
+- Rebuilt the `helm-charts/web` chart to emit `Gateway`, `HTTPRoute`, and optional `Certificate` resources, with Azure load balancer annotations and TLS wiring supplied via environment-specific values (`env/staging/apps/web-values.yaml`).
+- Updated staging values plus docs to describe the new routing model and highlight that legacy Ingress manifests in other charts are slated for migration.
+
+**Result**: All north-south traffic now flows through the AKS-managed Istio ingress gateway, retaining the original static public IP and Let's Encrypt automation while eliminating the nginx controller.
+
+## 2025-11-15 - Converted Toy & Trip APIs to Gateway API HTTPRoutes
+
+**Context**: After cutting over the cluster ingress to Istio, the toy and trip Helm charts were still shipping legacy Ingress manifests. ArgoCD continued to apply them, but the resources were no longer wired to any controller, so API traffic could not reach the services through the new gateway.
+
+**Implementation**:
+- Removed the obsolete `Ingress` templates from `helm-charts/toy` and `helm-charts/trip` and replaced them with `HTTPRoute` templates that accept configurable parent refs.
+- Updated each chart's default values plus `env/staging/apps/*-values.yaml` to point their HTTPRoutes at the `web-frontend-gateway` (Istio-managed) and to publish `/api/toys` and `/api/trips` respectively.
+- Adjusted `docs/DEPLOYMENT.md` to reflect that all services now rely on Gateway API resources.
+
+**Result**: The toy and trip APIs now reuse the same public endpoint as the web frontend via discrete HTTPRoute resources, and there are no orphaned ingress manifests left in the charts.
+
+## 2025-11-15 - Introduced Platform Gateway Chart & Bootstrap Rename
+
+**Context**: To centralize ownership of the shared Istio ingress gateway, we moved the Gateway + TLS certificate resources out of the web chart. This also required new GitOps plumbing so that all services can continue referencing a stable parent resource.
+
+**Implementation**:
+- Added `helm-charts/platform-gateway/` with templates for the managed `Gateway` and its cert-manager `Certificate`, plus a new ArgoCD application at `env/staging/platform/gateway-app.yaml` (values stored beside it).
+- Updated the web, toy, and trip charts so they only render `HTTPRoute` manifests with configurable `parentRefs`; deleted the remaining `Ingress` manifests from service charts.
+- Created a platform-level values file for the gateway, referenced it (together with `azure.yaml`) via the new ArgoCD app, and ensured the annotations continue binding to the static public IP/resource group outputs.
+- Renamed the bootstrap manifests to `platform-root.yaml` and `app-root.yaml`, and updated the deployment workflow plus documentation to reference the new filenames.
+
+**Result**: Gateway lifecycle is now handled by a dedicated platform chart, application charts are HTTPRoute-only, and the bootstrap process clearly separates platform dependencies from app deployments.
+
 ## 2025-11-14 - Fixed ArgoCD Hang on NGINX Ingress Admission Webhook Hooks
 
 **Context**: ArgoCD deployment of `platform-nginx-ingress` was consistently stuck in "Running" state with message "waiting for completion of hook batch/Job/platform-nginx-ingress-ingress-nginx-admission-create". The admission webhook job completed successfully but ArgoCD never progressed past the hook phase.

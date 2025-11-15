@@ -1,0 +1,23 @@
+gateway:
+  enabled: true
+  name: web-frontend-gateway
+  annotations: {}
+  infrastructure:
+    annotations: {}
+  listeners:
+    - name: https
+      hostname: "appdemo-eniwvl.swedencentral.cloudapp.azure.com"
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        secretName: toytrip-tls
+      allowedRoutes:
+        namespaces:
+          from: Same
+certificate:
+  enabled: true
+  clusterIssuer: letsencrypt-staging
+  secretName: toytrip-tls
+  dnsNames:
+    - "appdemo-eniwvl.swedencentral.cloudapp.azure.com"

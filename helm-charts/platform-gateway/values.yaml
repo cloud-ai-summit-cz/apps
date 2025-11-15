@@ -1,0 +1,25 @@
+gateway:
+  enabled: true
+  name: ""
+  className: istio
+  annotations: {}
+  infrastructure:
+    annotations: {}
+    parametersRef: {}
+  listeners:
+    - name: https
+      hostname: ""
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        secretName: ""
+      allowedRoutes:
+        namespaces:
+          from: Same
+certificate:
+  enabled: false
+  nameOverride: ""
+  secretName: ""
+  clusterIssuer: ""
+  dnsNames: []

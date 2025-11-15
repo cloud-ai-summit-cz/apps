@@ -23,7 +23,7 @@ param kubeletIdentityId string
 param kubeletIdentityPrincipalId string
 
 // AKS Automatic cluster with custom VNet
-resource aks 'Microsoft.ContainerService/managedClusters@2024-09-02-preview' = {
+resource aks 'Microsoft.ContainerService/managedClusters@2025-06-02-preview' = {
   name: 'aks-${baseName}'
   location: location
   sku: {
@@ -117,6 +117,24 @@ resource aks 'Microsoft.ContainerService/managedClusters@2024-09-02-preview' = {
         }
       }
     }
+    serviceMeshProfile: {
+      mode: 'Istio'
+      istio: {
+        components: {
+          ingressGateways: [
+            {
+              enabled: true
+              mode: 'External'
+            }
+          ]
+        }
+      }
+    }
+    ingressProfile: {
+      gatewayAPI: {
+        installation: 'Standard'
+      }
+    }
   }
 }
 
@@ -125,3 +143,4 @@ output aksClusterName string = aks.name
 output aksFqdn string = aks.properties.fqdn
 output aksOidcIssuerUrl string = aks.properties.oidcIssuerProfile.issuerURL
 output aksKubeletIdentityObjectId string = aks.properties.identityProfile.kubeletidentity.objectId
+output clusterIdentityPrincipalId string = clusterIdentityPrincipalId

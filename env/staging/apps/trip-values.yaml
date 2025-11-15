@@ -12,19 +12,18 @@ resources:
   requests:
     cpu: 250m
     memory: 256Mi
-ingress:
+httpRoute:
   enabled: true
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-staging  # Switch to letsencrypt-prod when ready
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: web-frontend-gateway
+      namespace: toytrip-staging
   hosts:
     - host: "appdemo-eniwvl.swedencentral.cloudapp.azure.com"
       paths:
         - path: /api/trips
-          pathType: Prefix
-  tls:
-    - hosts:
-        - "appdemo-eniwvl.swedencentral.cloudapp.azure.com"
-      secretName: toytrip-tls  # cert-manager creates this automatically
+          pathType: PathPrefix
 env:
   # Auth and infrastructure values come from azure-values.yaml
   COSMOS_CONTAINER_NAME: "trips"

@@ -22,13 +22,6 @@ ingress:
   publicIpAddress: 4.165.0.65
   publicIpFqdn: appdemo-eniwvl.swedencentral.cloudapp.azure.com
   resourceGroup: rg-appdemo
-ingress-nginx:
-  controller:
-    service:
-      annotations:
-        service.beta.kubernetes.io/azure-pip-name: pip-appdemo-eniwvl-ingress
-        service.beta.kubernetes.io/azure-load-balancer-resource-group: rg-appdemo
-        service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: /healthz
 letsencrypt:
   email: tkubica12@gmail.com
 generatedAt: "2025-11-14T20:18:30Z"

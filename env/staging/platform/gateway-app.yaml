@@ -1,0 +1,39 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-gateway
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://github.com/cloud-ai-summit-cz/apps.git
+      targetRevision: main
+      ref: infraconfig
+    - repoURL: https://github.com/cloud-ai-summit-cz/apps.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://github.com/cloud-ai-summit-cz/apps.git
+      targetRevision: main
+      path: helm-charts/platform-gateway
+      helm:
+        valueFiles:
+          - $infraconfig/env/staging/infra_config/azure.yaml
+          - $values/env/staging/platform/gateway-values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: toytrip-staging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

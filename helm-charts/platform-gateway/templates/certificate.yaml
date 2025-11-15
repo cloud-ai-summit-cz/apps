@@ -1,0 +1,19 @@
+{{- if .Values.certificate.enabled }}
+{{- $fullName := include "platform-gateway.fullname" . -}}
+{{- $name := .Values.certificate.nameOverride | default (printf "%s-tls" $fullName) -}}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "platform-gateway.labels" . | nindent 4 }}
+spec:
+  secretName: {{ .Values.certificate.secretName | default $name | quote }}
+  issuerRef:
+    kind: ClusterIssuer
+    name: {{ .Values.certificate.clusterIssuer | quote }}
+  dnsNames:
+    {{- range .Values.certificate.dnsNames }}
+    - {{ . | quote }}
+    {{- end }}
+{{- end }}
