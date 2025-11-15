@@ -11,15 +11,24 @@ spec:
   sources:
     - repoURL: https://github.com/cloud-ai-summit-cz/apps.git
       targetRevision: main
-      ref: infraconfig
-    - repoURL: https://github.com/cloud-ai-summit-cz/apps.git
-      targetRevision: main
+      ref: repo
+    - ref: repo
       path: helm-charts/platform-cert-manager
       helm:
         valueFiles:
-          - $infraconfig/env/staging/infra_config/azure.yaml
+          - $repo/env/staging/infra_config/azure.yaml
         values: |
           environment: staging
+
+  ignoreDifferences:
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[].clientConfig.caBundle
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[].clientConfig.caBundle
   
   destination:
     server: https://kubernetes.default.svc

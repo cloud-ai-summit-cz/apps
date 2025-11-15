@@ -153,13 +153,12 @@ spec:
   sources:
     - repoURL: https://github.com/cloud-ai-summit-cz/apps.git
       targetRevision: main
+      ref: repo
+    - ref: repo
       path: helm-charts/toy
       helm:
         valueFiles:
-          - $values/env/staging/apps/toy-values.yaml
-    - repoURL: https://github.com/cloud-ai-summit-cz/apps.git
-      targetRevision: main
-      ref: values
+          - $repo/env/staging/apps/toy-values.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: toytrip-staging

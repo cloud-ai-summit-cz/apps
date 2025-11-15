@@ -10,20 +10,24 @@ spec:
   
   # Multi-source configuration
   sources:
-    # Source 1: Helm chart from repo
+    # Shared repo reference (chart + env values)
     - repoURL: https://github.com/cloud-ai-summit-cz/apps.git
       targetRevision: main
+      ref: repo
+
+    # Helm chart renders using the shared ref
+    - ref: repo
       path: helm-charts/trip
       helm:
         valueFiles:
-          # Reference values from other sources using $-prefixed variables
-          - $values/env/staging/infra_config/azure.yaml
-          - $values/env/staging/apps/trip-values.yaml
-    
-    # Source 2: Values repository (staging service values)
-    - repoURL: https://github.com/cloud-ai-summit-cz/apps.git
-      targetRevision: main
-      ref: values
+          - $repo/env/staging/infra_config/azure.yaml
+          - $repo/env/staging/apps/trip-values.yaml
+
+  ignoreDifferences:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      jsonPointers:
+        - /status
   
   destination:
     server: https://kubernetes.default.svc

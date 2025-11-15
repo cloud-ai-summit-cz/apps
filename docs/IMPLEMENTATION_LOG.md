@@ -1,5 +1,16 @@
 # Implementation Log
 
+## 2025-11-15 - Argo Ignore Rules for Gateway & Routes
+
+**Context**: ArgoCD kept reporting perpetual drift for the Gateway API resources, cert-manager webhooks, and HTTPRoutes even when nothing changed in Git; the compare step was fighting controller-managed fields and Cilium’s dynamic identities.
+
+**Implementation**:
+- Added `ignoreDifferences` to `platform-cert-manager` so Argo skips webhook `caBundle` mutations injected by cert-manager at runtime.
+- Extended the `platform-gateway` application with ignore rules for Gateway `status` blocks and for `CiliumIdentity` objects spawned by the Cilium operator.
+- Updated the toy/trip/web application manifests to ignore the `status` subresource on their HTTPRoutes, preventing self-heal churn.
+
+**Result**: ArgoCD no longer loops through redundant syncs whenever Istio, cert-manager, or Cilium mutate their managed resources, so OutOfSync alerts now surface only when repo changes actually matter.
+
 ## 2025-11-15 - Automated Gateway Solver Config & Renamed Gateway
 
 **Context**: The `azure.yaml` file needs to remain pipeline-owned, and we also wanted a consistent gateway name across all charts (dropping the old `web-frontend-gateway` label).
