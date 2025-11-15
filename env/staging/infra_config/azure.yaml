@@ -33,4 +33,19 @@ letsencrypt:
           sectionName: http
       labels:
         acme.cert-manager.io/http01-solver: "true"
-generatedAt: "2025-11-15T15:06:51Z"
+generatedAt: "2025-11-15T19:56:02Z"
+workloadIdentities:
+  toy:
+    resourceId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-appdemo/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-appdemo-eniwvl-toy
+    clientId: 62015f83-f015-452b-a298-d8ec905623bc
+    principalId: 03ebb8c7-33a1-49f1-88e9-dd8bddf1bd5c
+    serviceAccountNamespace: toytrip-staging
+    serviceAccountName: toy-service
+    federatedSubject: system:serviceaccount:toytrip-staging:toy-service
+  trip:
+    resourceId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-appdemo/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-appdemo-eniwvl-trip
+    clientId: bb3a116d-6908-4882-aa2b-3a14bd658aae
+    principalId: 01886c68-d8f6-49d2-b8fb-e5a1f63fead9
+    serviceAccountNamespace: toytrip-staging
+    serviceAccountName: trip-service
+    federatedSubject: system:serviceaccount:toytrip-staging:trip-service

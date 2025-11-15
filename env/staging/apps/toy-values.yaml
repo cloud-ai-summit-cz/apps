@@ -37,5 +37,5 @@ env:
   API_PORT: "8001"
   LOG_LEVEL: "INFO"
 workloadIdentity:
-  enabled: false
-  clientId: "" # Set when workload identity is configured
+  enabled: true
+  clientId: "62015f83-f015-452b-a298-d8ec905623bc" # Set when workload identity is configured
