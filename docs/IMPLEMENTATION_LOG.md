@@ -1,5 +1,14 @@
 # Implementation Log
 
+## 2025-11-15 - Gateway HTTPRoute Backend Defaults
+
+**Context**: Gateway controller injected default `backendRefs` fields (`group`, `kind`, `weight`) for every HTTPRoute, so ArgoCD saw perpetual drift between rendered manifests and the live objects.
+
+**Implementation**:
+- Updated `helm-charts/web|toy|trip` HTTPRoute templates to render those defaults explicitly (`group: ""`, `kind: Service`, `weight: 1`) alongside the service name and port.
+
+**Result**: ArgoCD comparisons are now stable across all service HTTPRoutes because controller-managed defaults match the manifests, eliminating the OutOfSync noise.
+
 ## 2025-11-15 - Runtime MSAL Redirect Configuration
 
 **Context**: MSAL still redirected to `http://localhost:3000`, so users hitting the staging hostname were bounced back to localhost after authenticating. The redirect URI must follow the Gateway DNS which is already emitted to `azure.yaml`.

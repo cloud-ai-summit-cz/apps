@@ -22,8 +22,11 @@ spec:
             type: {{ .pathType | default "PathPrefix" }}
             value: {{ .path | default "/" | quote }}
       backendRefs:
-        - name: {{ $fullName }}
+        - group: ""
+          kind: Service
+          name: {{ $fullName }}
           port: {{ $.Values.service.port }}
+          weight: 1
     {{- end }}
 ---
 {{- end }}
