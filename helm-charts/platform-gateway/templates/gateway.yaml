@@ -48,10 +48,16 @@ spec:
         {{- end }}
         {{- if .tls.certificateRefs }}
         certificateRefs:
-          {{- toYaml .tls.certificateRefs | nindent 10 }}
+          {{- range .tls.certificateRefs }}
+          - group: {{ default "" .group | quote }}
+            kind: {{ default "Secret" .kind | quote }}
+            name: {{ .name | quote }}
+          {{- end }}
         {{- else if .tls.secretName }}
         certificateRefs:
-          - name: {{ .tls.secretName | quote }}
+          - group: ""
+            kind: "Secret"
+            name: {{ .tls.secretName | quote }}
         {{- end }}
       {{- end }}
       {{- if .allowedRoutes }}

@@ -1,5 +1,24 @@
 # Implementation Log
 
+## 2025-11-15 - Web API Hostnames & Gateway Listener Defaults
+
+**Context**: The SPA still pointed at the bare ingress IP for toy/trip APIs, so browser calls bypassed the TLS hostname and produced future drift whenever we reassign IPs. Separately, the Gateway controller kept injecting default `group/kind` values under `certificateRefs`, leaving ArgoCD stuck OutOfSync.
+
+**Implementation**:
+- Added `ingress.publicIpFqdn/publicIpAddress` defaults to the web Helm chart and switched the staging `env` block to template `TOY_SERVICE_URL`, `TRIP_SERVICE_URL`, and `MSAL_REDIRECT_URI` straight from `azure.yaml` (HTTPS with DNS fallback to the raw IP).
+- Updated the platform gateway template to render certificate references with explicit `group: ""` and `kind: "Secret"`, matching what Gateway API controllers write back when only a secret name is supplied.
+
+**Result**: All runtime web config now flows through the managed DNS name, and ArgoCD diffs for `toytrip-gateway` remain clean instead of fighting controller-added defaults.
+
+## 2025-11-15 - DNS-Only Web Runtime Config
+
+**Context**: After switching the SPA to prefer the ingress FQDN, we no longer want to fall back to the raw IP address—the DNS record is authoritative and TLS certificates only cover the hostname.
+
+**Implementation**:
+- Dropped `publicIpAddress` from the web chart values and simplified the staging env block so toy/trip API URLs plus the MSAL redirect are rendered strictly as `https://<FQDN>/...`.
+
+**Result**: Web pods now always read fully qualified hostnames from `azure.yaml`, eliminating mixed-hostname drift and ensuring TLS assumptions stay valid.
+
 ## 2025-11-15 - Gateway HTTPRoute Backend Defaults
 
 **Context**: Gateway controller injected default `backendRefs` fields (`group`, `kind`, `weight`) for every HTTPRoute, so ArgoCD saw perpetual drift between rendered manifests and the live objects.

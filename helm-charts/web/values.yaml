@@ -60,6 +60,9 @@ env:
   TRIP_SERVICE_URL: "http://localhost:8002"
   MSAL_REDIRECT_URI: "http://localhost:3000"
 
+ingress:
+  publicIpFqdn: ""
+
 nodeSelector: {}
 
 tolerations: []
