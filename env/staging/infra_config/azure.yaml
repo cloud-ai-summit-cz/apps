@@ -4,7 +4,7 @@ acr:
   loginServer: crappdemoeniwvl.azurecr.io
 aks:
   name: aks-appdemo-eniwvl
-  oidcIssuerUrl: https://swedencentral.oic.prod-aks.azure.com/6ce4f237-667f-43f5-aafd-cbef954adf97/9cd77e0d-50f8-4524-926e-16fa8eba930c/
+  oidcIssuerUrl: https://swedencentral.oic.prod-aks.azure.com/6ce4f237-667f-43f5-aafd-cbef954adf97/ac07f30d-3c95-4bc6-a2fd-7fca83dcf71c/
 storage:
   accountId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-appdemo/providers/Microsoft.Storage/storageAccounts/stappdemoeniwvl
   accountName: stappdemoeniwvl
