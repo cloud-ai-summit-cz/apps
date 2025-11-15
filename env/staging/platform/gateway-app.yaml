@@ -28,6 +28,11 @@ spec:
       kind: CiliumIdentity
       jqPathExpressions:
         - .
+  orphanedResources:
+    warn: true
+    ignore:
+      - group: cilium.io
+        kind: CiliumIdentity
   destination:
     server: https://kubernetes.default.svc
     namespace: toytrip-staging

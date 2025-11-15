@@ -5,6 +5,16 @@
 - Later adjusted toy staging rewrite to use `/` as the replacement prefix, effectively removing `/api/toys` entirely so downstream services receive whatever path segments follow the public prefix.
 - Documented the new chart knobs in default `values.yaml` to keep future environments consistent.
 
+## 2025-11-15 - Ignore orphaned CiliumIdentity records
+
+- Added an `orphanedResources.ignore` entry to `env/staging/platform/gateway-app.yaml` so ArgoCD no longer flags the dynamically created `CiliumIdentity` objects from the Cilium operator as OutOfSync artifacts of the platform gateway application.
+- Kept orphan warnings enabled for every other resource to ensure Git/state drift is still surfaced promptly.
+
+## 2025-11-15 - Cert-manager webhook namespace selector drift
+
+- Expanded the `ignoreDifferences` block in `env/staging/platform/cert-manager-app.yaml` so ArgoCD also skips mutations to `webhooks[].namespaceSelector` on the `ValidatingWebhookConfiguration` object, which AKS admissions controllers keep rewriting with managed cluster match expressions.
+- Left the existing `caBundle` ignore in place; these two fields cover the only differences observed between Helm renders and the live cert-manager webhook resource.
+
 # Implementation Log
 
 ## 2025-11-15 - Web API Hostnames & Gateway Listener Defaults

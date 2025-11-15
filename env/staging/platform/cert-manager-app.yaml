@@ -30,6 +30,7 @@ spec:
       kind: ValidatingWebhookConfiguration
       jqPathExpressions:
         - .webhooks[].clientConfig.caBundle
+        - .webhooks[].namespaceSelector
   
   destination:
     server: https://kubernetes.default.svc
