@@ -1,17 +1,11 @@
 # Default values for platform-cert-manager
 
-# Environment: staging or production
-# This determines which Let's Encrypt server to use
-environment: staging
-
-# Let's Encrypt configuration
+# Let's Encrypt configuration (production-only certificates)
 letsencrypt:
-  email: "your-email@example.com" 
-  
-  # ACME server URLs
-  staging: "https://acme-staging-v02.api.letsencrypt.org/directory"
-  production: "https://acme-v02.api.letsencrypt.org/directory"
-  
+  email: "your-email@example.com"
+  server: "https://acme-v02.api.letsencrypt.org/directory"
+  clusterIssuerName: "letsencrypt"
+  privateKeySecretName: "letsencrypt"
   # Default ingress class used when the ingress solver is selected
   ingressClassName: "nginx"
   solver:

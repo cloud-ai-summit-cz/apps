@@ -10,6 +10,17 @@
 
 **Result**: The deployment pipeline now produces the exact solver configuration we rely on, and all manifests consistently reference `toytrip-gateway`, avoiding ArgoCD diffs or manual mutations.
 
+## 2025-11-15 - Production-Only Let's Encrypt Issuer
+
+**Context**: The staging ACME endpoint issues untrusted certificates, which broke client TLS validation even in staging, so we decided to standardize on production certificates everywhere.
+
+**Implementation**:
+- Simplified `helm-charts/platform-cert-manager` to render a single `ClusterIssuer` (production server only) with customizable solver metadata.
+- Removed the staging/prod toggle from chart values and switched platform gateway values to reference `letsencrypt` exclusively.
+- Updated docs/examples so they no longer mention staging issuers.
+
+**Result**: Every environment now provisions publicly trusted certificates by default, eliminating the untrusted chain warnings we saw on the staging hostname.
+
 ## 2025-11-15 - Restored ACME HTTP-01 Reachability on Istio Gateway
 
 **Context**: Let's Encrypt renewals were stuck in `pending` because the managed Istio ingress gateway only exposed port 443. cert-manager's temporary HTTP solver pods sat behind the AKS Web App Routing nginx load balancer (different public IP), so ACME self-checks to `http://appdemo-eniwvl...` always timed out.
@@ -269,7 +280,7 @@ kind: Ingress
 metadata:
   name: my-app
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod  # or letsencrypt-staging
+   cert-manager.io/cluster-issuer: letsencrypt
 spec:
   tls:
   - hosts:
