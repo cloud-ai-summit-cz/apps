@@ -12,10 +12,21 @@ letsencrypt:
   staging: "https://acme-staging-v02.api.letsencrypt.org/directory"
   production: "https://acme-v02.api.letsencrypt.org/directory"
   
-  # HTTP-01 challenge uses nginx ingress class
+  # Default ingress class used when the ingress solver is selected
   ingressClassName: "nginx"
+  solver:
+    # Supported values: ingress, gateway
+    type: ingress
+    ingress:
+      ingressClassName: ""
+      serviceType: ""
+    gateway:
+      parentRefs: []
+      labels: {}
 
 # cert-manager Helm chart values
 cert-manager:
   crds:
     enabled: true
+  extraArgs:
+    - --enable-gateway-api

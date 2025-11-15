@@ -24,4 +24,13 @@ ingress:
   resourceGroup: rg-appdemo
 letsencrypt:
   email: tkubica12@gmail.com
+  solver:
+    type: gateway
+    gateway:
+      parentRefs:
+        - name: web-frontend-gateway
+          namespace: toytrip-staging
+          sectionName: http
+      labels:
+        acme.cert-manager.io/http01-solver: "true"
 generatedAt: "2025-11-15T11:18:31Z"

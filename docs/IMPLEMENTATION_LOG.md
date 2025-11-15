@@ -1,5 +1,16 @@
 # Implementation Log
 
+## 2025-11-15 - Restored ACME HTTP-01 Reachability on Istio Gateway
+
+**Context**: Let's Encrypt renewals were stuck in `pending` because the managed Istio ingress gateway only exposed port 443. cert-manager's temporary HTTP solver pods sat behind the AKS Web App Routing nginx load balancer (different public IP), so ACME self-checks to `http://appdemo-eniwvl...` always timed out.
+
+**Implementation**:
+- Extended `helm-charts/platform-gateway` staging values so the shared Gateway now publishes a dedicated `http` listener on port 80 that keeps the existing static IP and restricts allowed routes via the `acme.cert-manager.io/http01-solver` label.
+- Updated all service `HTTPRoute` values (web/toy/trip) to reference the `https` listener explicitly, preventing normal traffic from binding to the new HTTP endpoint while still allowing cert-manager to attach its temporary routes.
+- Taught the cert-manager wrapper chart to support both ingress and Gateway HTTP-01 solvers, added the `--enable-gateway-api` flag, and configured the staging environment (`azure.yaml`) to use the Gateway solver with parentRef `web-frontend-gateway/http`.
+
+**Result**: Port 80 is now open on the same Azure load balancer IP as port 443, but only cert-manager's labeled HTTPRoutes can attach to it. ACME HTTP-01 challenges complete successfully without reintroducing a parallel ingress controller.
+
 ## 2025-11-15 - Migrated Edge Traffic to AKS Istio Gateway
 
 **Context**: We replaced the nginx ingress controller + AKS App Routing dependency with the managed Istio ingress gateway that ships with the AKS automatic cluster (Gateway API Standard installation).

@@ -1,3 +1,8 @@
+{{- $solver := .Values.letsencrypt.solver | default dict -}}
+{{- $solverType := default "ingress" $solver.type -}}
+{{- $solverIngress := $solver.ingress | default dict -}}
+{{- $solverGateway := $solver.gateway | default dict -}}
+{{- $ingressClass := default .Values.letsencrypt.ingressClassName $solverIngress.ingressClassName -}}
 {{- if eq .Values.environment "production" }}
 ---
 apiVersion: cert-manager.io/v1
@@ -12,8 +17,23 @@ spec:
       name: letsencrypt-prod
     solvers:
       - http01:
+          {{- if eq $solverType "gateway" }}
+          gatewayHTTPRoute:
+            {{- with $solverGateway.parentRefs }}
+            parentRefs:
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- with $solverGateway.labels }}
+            labels:
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- else }}
           ingress:
-            ingressClassName: {{ .Values.letsencrypt.ingressClassName }}
+            ingressClassName: {{ $ingressClass | quote }}
+            {{- with $solverIngress.serviceType }}
+            serviceType: {{ . | quote }}
+            {{- end }}
+          {{- end }}
 {{- end }}
 ---
 apiVersion: cert-manager.io/v1
@@ -28,5 +48,20 @@ spec:
       name: letsencrypt-staging
     solvers:
       - http01:
+          {{- if eq $solverType "gateway" }}
+          gatewayHTTPRoute:
+            {{- with $solverGateway.parentRefs }}
+            parentRefs:
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- with $solverGateway.labels }}
+            labels:
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- else }}
           ingress:
-            ingressClassName: {{ .Values.letsencrypt.ingressClassName }}
+            ingressClassName: {{ $ingressClass | quote }}
+            {{- with $solverIngress.serviceType }}
+            serviceType: {{ . | quote }}
+            {{- end }}
+          {{- end }}

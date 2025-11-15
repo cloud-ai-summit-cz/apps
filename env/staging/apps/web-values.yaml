@@ -20,6 +20,7 @@ httpRoute:
       kind: Gateway
       name: web-frontend-gateway
       namespace: toytrip-staging
+      sectionName: https
   hosts:
     - host: "appdemo-eniwvl.swedencentral.cloudapp.azure.com"
       paths:
