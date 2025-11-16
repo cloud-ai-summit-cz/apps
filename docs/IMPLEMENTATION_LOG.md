@@ -1,3 +1,14 @@
+## 2025-11-16 - Demo Data Docker Build Context Fix
+
+**Context**: The new demo-data-init workflow failed in GitHub Actions because the Dockerfile copied `tools/data/`, but the workflow used `./src` as the build context, so the directory was missing from the build context.
+
+**Changes**:
+- Updated `.github/workflows/build-demo-data-init.yml` to send the repository root as the Docker build context so assets outside `src/` are available.
+- Adjusted `src/services/demo-data-init/Dockerfile` copy statements to reference `src/...` paths when running from the repo root context.
+- Added a root `.dockerignore` to keep the uploaded context small while still including `tools/data/`.
+
+**Outcome**: Docker builds (both locally and in CI) can now package the curated data assets without checksum failures, while the new `.dockerignore` keeps the context efficient.
+
 ## 2025-11-16 - Stateless demo data import
 
 - Removed the SQLite-backed `OperationStore`, job manager queue, and related models so the demo-data-init service now runs imports synchronously via the request lifecycle—no persistent files, no background worker, and no extra env vars.

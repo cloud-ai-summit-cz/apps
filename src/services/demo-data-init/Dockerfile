@@ -10,15 +10,15 @@ RUN apt-get update && \
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Copy dependency metadata
-COPY services/demo-data-init/pyproject.toml ./
+COPY src/services/demo-data-init/pyproject.toml ./
 
 RUN uv pip install --system --no-cache -r pyproject.toml
 
 # Copy shared auth module so FastAPI service can import it
-COPY shared/auth /app/auth
+COPY src/shared/auth /app/auth
 
 # Copy service source
-COPY services/demo-data-init/ ./
+COPY src/services/demo-data-init/ ./
 
 # Bundle dataset assets inside the container
 COPY tools/data/ /app/data/

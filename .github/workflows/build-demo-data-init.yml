@@ -47,7 +47,7 @@ jobs:
       - name: Build and Push to ACR
         uses: docker/build-push-action@v6
         with:
-          context: ./src
+          context: .
           file: ./src/services/${{ env.SERVICE_NAME }}/Dockerfile
           push: true
           tags: |
