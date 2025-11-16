@@ -30,4 +30,5 @@ httpRoute:
 env:
   TOY_SERVICE_URL: "https://{{ .Values.ingress.publicIpFqdn }}/api/toys"
   TRIP_SERVICE_URL: "https://{{ .Values.ingress.publicIpFqdn }}/api/trips"
+  DEMO_DATA_API_URL: "https://{{ .Values.ingress.publicIpFqdn }}/api/demo-data"
   MSAL_REDIRECT_URI: "https://{{ .Values.ingress.publicIpFqdn }}"

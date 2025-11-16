@@ -1,9 +1,16 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMsal } from '@azure/msal-react';
 import { toyApiClient } from '../services/toyApiClient';
 import { tripApiClient } from '../services/tripApiClient';
 import type { Toy } from '../types/toy';
+import DemoDataPanel from '../components/admin/DemoDataPanel';
+
+function hasAdminRole(idTokenClaims?: Record<string, any>): boolean {
+  const roles = idTokenClaims?.roles;
+  if (!roles) return false;
+  return Array.isArray(roles) ? roles.includes('Admin.FullAccess') : roles === 'Admin.FullAccess';
+}
 
 function ToyCatalog() {
   const [toys, setToys] = useState<Toy[]>([]);
@@ -14,6 +21,7 @@ function ToyCatalog() {
   const [loadingTripCounts, setLoadingTripCounts] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
   const { accounts } = useMsal();
+  const isAdmin = useMemo(() => hasAdminRole(accounts[0]?.idTokenClaims as Record<string, any> | undefined), [accounts]);
   const userOid = accounts[0]?.idTokenClaims?.oid as string | undefined;
   const observerRef = useRef<IntersectionObserver | null>(null);
   const toysRef = useRef<Toy[]>([]);
@@ -189,8 +197,12 @@ function ToyCatalog() {
     );
   }
 
+  const shouldShowDemoDataPanel = !loading && !error && isAdmin && toys.length === 0;
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <>
+      {shouldShowDemoDataPanel && <DemoDataPanel />}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
         <h2 className="text-2xl font-semibold text-gray-900">Toy Catalog</h2>
         <p className="mt-1 text-sm text-gray-600">Browse all available toys</p>
@@ -199,6 +211,9 @@ function ToyCatalog() {
       {toys.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-gray-500">No toys found</p>
+          {shouldShowDemoDataPanel && (
+            <p className="text-sm text-gray-400 mt-3">Use the import panel above to seed demo content.</p>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -277,7 +292,8 @@ function ToyCatalog() {
           })}
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 

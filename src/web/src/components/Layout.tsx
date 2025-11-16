@@ -1,12 +1,5 @@
 import { Outlet } from 'react-router-dom';
 import { useMsal } from '@azure/msal-react';
-import DemoDataPanel from './admin/DemoDataPanel';
-
-function hasAdminRole(idTokenClaims?: Record<string, any>): boolean {
-  const roles = idTokenClaims?.roles;
-  if (!roles) return false;
-  return Array.isArray(roles) ? roles.includes('Admin.FullAccess') : roles === 'Admin.FullAccess';
-}
 
 function Layout() {
   const { instance, accounts } = useMsal();
@@ -41,9 +34,6 @@ function Layout() {
 
       {/* Main Content */}
       <main>
-        {accounts[0] && hasAdminRole(accounts[0].idTokenClaims) && (
-          <DemoDataPanel />
-        )}
         <Outlet />
       </main>
     </div>

@@ -9,6 +9,16 @@
 
 **Outcome**: Docker builds (both locally and in CI) can now package the curated data assets without checksum failures, while the new `.dockerignore` keeps the context efficient.
 
+## 2025-11-16 - Demo Import Panel Conditional Visibility
+
+**Context**: Admins only need Demo Data seeding tools when the catalog is empty, and the frontend also required a staging runtime URL for the demo-data-init service.
+
+**Changes**:
+- Moved `DemoDataPanel` rendering from the global layout into `ToyCatalog`, gating it behind both the admin role and an empty catalog state so regular browsing stays uncluttered once toys exist.
+- Added `DEMO_DATA_API_URL` across runtime config surfaces (`docker-entrypoint.sh`, `helm-charts/web/values.yaml`, and `env/staging/apps/web-values.yaml`) to keep the frontend aware of the demo-data-init ingress endpoint.
+
+**Outcome**: Admins now see the import controls only when they matter, while staging deployments provide the correct API URL for triggering imports.
+
 ## 2025-11-16 - Stateless demo data import
 
 - Removed the SQLite-backed `OperationStore`, job manager queue, and related models so the demo-data-init service now runs imports synchronously via the request lifecycle—no persistent files, no background worker, and no extra env vars.
