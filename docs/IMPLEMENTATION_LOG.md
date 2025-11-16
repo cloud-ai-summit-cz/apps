@@ -19,6 +19,17 @@
 
 **Outcome**: Admins now see the import controls only when they matter, while staging deployments provide the correct API URL for triggering imports.
 
+## 2025-11-16 - Demo Data Init Exposure via Gateway HTTPRoute
+
+**Context**: The demo-data-init service was deployed internally but not reachable from the public gateway, so the frontend hit the web pod and received 405s when trying to invoke `/api/demo-data`.
+
+**Changes**:
+- Added missing Kubernetes Service and HTTPRoute templates to `helm-charts/demo-data-init`, guarded by values flags like the other services.
+- Enabled the service in `env/staging/apps/demo-data-init-values.yaml` and wired an HTTPRoute that rewrites `/api/demo-data` to the backing pod.
+- Ensured the chart defaults expose `service.enabled` and optional rewrite configuration for other environments.
+
+**Outcome**: The demo-data-init pods now receive traffic through the shared Gateway under `/api/demo-data`, so the admin import action can reach the FastAPI endpoint.
+
 ## 2025-11-16 - Stateless demo data import
 
 - Removed the SQLite-backed `OperationStore`, job manager queue, and related models so the demo-data-init service now runs imports synchronously via the request lifecycle—no persistent files, no background worker, and no extra env vars.
