@@ -3,7 +3,7 @@
 
 image:
   repository: "crappdemoeniwvl.azurecr.io/demo-data-init"
-  tag: "latest"
+  tag: "91badc3ce3c06cb73095c68e52fcb4faf8d262da"
 replicaCount: 1
 resources:
   limits:
@@ -14,11 +14,9 @@ resources:
     memory: 128Mi
 service:
   enabled: false
-
 downstream:
   toyServiceUrl: "https://{{ .Values.ingress.publicIpFqdn }}/api/toys"
   tripServiceUrl: "https://{{ .Values.ingress.publicIpFqdn }}/api/trips"
-
 workloadIdentity:
   enabled: false
   clientId: ""
