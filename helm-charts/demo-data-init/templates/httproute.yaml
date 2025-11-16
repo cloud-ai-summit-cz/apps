@@ -14,13 +14,13 @@ spec:
     - {{- toYaml . | nindent 6 }}
     {{- end }}
   hostnames:
-    - {{ $host.host | quote }}
+    - {{ tpl ($host.host | toString) $ | quote }}
   rules:
     {{- range $host.paths }}
     - matches:
         - path:
             type: {{ .pathType | default "PathPrefix" }}
-            value: {{ .path | default "/" | quote }}
+            value: {{ tpl ((.path | default "/") | toString) $ | quote }}
       backendRefs:
         - group: ""
           kind: Service
