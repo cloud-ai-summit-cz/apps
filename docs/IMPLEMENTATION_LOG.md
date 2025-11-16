@@ -25,8 +25,9 @@
 
 **Changes**:
 - Added missing Kubernetes Service and HTTPRoute templates to `helm-charts/demo-data-init`, guarded by values flags like the other services.
-- Enabled the service in `env/staging/apps/demo-data-init-values.yaml` and wired an HTTPRoute that rewrites `/api/demo-data` to the backing pod.
-- Ensured the chart defaults expose `service.enabled` and optional rewrite configuration for other environments.
+- Enabled the service in `env/staging/apps/demo-data-init-values.yaml` and wired an HTTPRoute that rewrites `/api/demo-data` to the backing pod, relying on chart defaults to pull the ingress FQDN rather than embedding template strings in values files.
+- Simplified env var plumbing by removing the unused `downstream` block and templating the URLs via the chart so env files just override concrete values.
+- Ensured the chart defaults expose `service.enabled`, optional rewrite configuration, and an ingress placeholder for other environments.
 
 **Outcome**: The demo-data-init pods now receive traffic through the shared Gateway under `/api/demo-data`, so the admin import action can reach the FastAPI endpoint.
 
