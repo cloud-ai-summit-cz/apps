@@ -148,15 +148,19 @@ async def create_trip(
     owner_oid = await verify_toy_ownership(trip_data.toy_id, auth_ctx, token)
 
     # Create trip with owner_oid denormalized for fast auth checks
-    trip = Trip(
-        title=trip_data.title.strip(),
-        description=trip_data.description.strip() if trip_data.description else None,
-        location_name=trip_data.location_name.strip(),
-        country_code=trip_data.country_code,
-        toy_id=trip_data.toy_id,
-        owner_oid=owner_oid,
-        public_tracking_enabled=trip_data.public_tracking_enabled,
-    )
+    trip_kwargs = {
+        "title": trip_data.title.strip(),
+        "description": trip_data.description.strip() if trip_data.description else None,
+        "location_name": trip_data.location_name.strip(),
+        "country_code": trip_data.country_code,
+        "toy_id": trip_data.toy_id,
+        "owner_oid": owner_oid,
+        "public_tracking_enabled": trip_data.public_tracking_enabled,
+    }
+    if trip_data.id is not None:
+        trip_kwargs["id"] = trip_data.id
+
+    trip = Trip(**trip_kwargs)
 
     created_trip = await repo.create(trip)
     logger.info(f"Created trip {created_trip.id} for toy {trip_data.toy_id}")

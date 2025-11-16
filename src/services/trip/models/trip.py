@@ -56,6 +56,7 @@ class TripCreate(TripBase):
     """Model for creating a new trip."""
 
     toy_id: UUID = Field(..., description="ID of the toy taking this trip")
+    id: UUID | None = Field(None, description="Optional explicit trip ID (for imports)")
 
 
 class TripUpdate(BaseModel):

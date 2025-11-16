@@ -1,0 +1,77 @@
+replicaCount: 1
+
+image:
+  repository: ""
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8010
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+livenessProbe:
+  enabled: true
+  httpGet:
+    path: /health
+    port: 8010
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+readinessProbe:
+  enabled: true
+  httpGet:
+    path: /health
+    port: 8010
+  initialDelaySeconds: 10
+  periodSeconds: 5
+
+env:
+  AZURE_TENANT_ID: "{{ .Values.auth.tenantId }}"
+  APP_ID_URI: "{{ .Values.auth.appIdUri }}"
+  DEMO_DATA_ROLE_VALUE: "Admin.FullAccess"
+  TOY_SERVICE_URL: "{{ .Values.downstream.toyServiceUrl }}"
+  TRIP_SERVICE_URL: "{{ .Values.downstream.tripServiceUrl }}"
+  DEMO_DATA_ASSETS_PATH: "/app/data"
+  API_HOST: "0.0.0.0"
+  API_PORT: "8010"
+  LOG_LEVEL: "INFO"
+
+httpRoute:
+  enabled: false
+  parentRefs: []
+  hosts:
+    - host: ""
+      paths:
+        - path: /demo-data
+          pathType: PathPrefix
+
+workloadIdentity:
+  enabled: false
+  clientId: ""
+
+auth:
+  tenantId: ""
+  appIdUri: ""
+
+downstream:
+  toyServiceUrl: "http://toy.default.svc.cluster.local"
+  tripServiceUrl: "http://trip.default.svc.cluster.local"
+
+imagePullSecrets: []
+nodeSelector: {}
+tolerations: []
+affinity: {}

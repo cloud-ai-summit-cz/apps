@@ -1,0 +1,41 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-data-init
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  sources:
+    - repoURL: https://github.com/cloud-ai-summit-cz/apps.git
+      targetRevision: main
+      ref: repo
+
+    - repoURL: https://github.com/cloud-ai-summit-cz/apps.git
+      targetRevision: main
+      path: helm-charts/demo-data-init
+      helm:
+        valueFiles:
+          - $repo/env/staging/infra_config/azure.yaml
+          - $repo/env/staging/apps/demo-data-init-values.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: toytrip-staging
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

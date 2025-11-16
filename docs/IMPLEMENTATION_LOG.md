@@ -1,3 +1,15 @@
+## 2025-11-16 - Stateless demo data import
+
+- Removed the SQLite-backed `OperationStore`, job manager queue, and related models so the demo-data-init service now runs imports synchronously via the request lifecycle—no persistent files, no background worker, and no extra env vars.
+- Simplified the FastAPI router to call the importer directly, returning an `ImportResponse` with per-run stats + duration, alongside new unit tests that exercise the auth/role checks without the queue plumbing.
+- Updated the Helm chart, config, and `.env.example` to drop state volume mounts/variables, regenerated `uv.lock`, and refreshed the service README + adhoc plan to describe the new behavior.
+- Reworked the admin `DemoDataPanel` UI to invoke the POST endpoint once and render the returned summary instead of polling a status route.
+
+## 2025-11-16 - Demo data role + staging config cleanup
+
+- Swapped the demo data authorization role everywhere (backend config, Helm defaults, env examples, tests, UI gating) to reuse the existing `Admin.FullAccess` role instead of introducing `DemoData.Admin`.
+- Updated the staging values for demo-data-init so downstream URLs are derived from `ingress.publicIpFqdn` just like other services, avoiding hard-coded hostnames.
+
 ## 2025-11-15 - Workload identity plumbing for toy/trip
 
 - Extended `.github/workflows/deploy-infra.yml` so the Bicep deployment outputs are parsed, `env/staging/infra_config/azure.yaml` gains a `workloadIdentities` map (resource/client/principal IDs plus service account metadata), and the staging toy/trip Helm values get their `workloadIdentity` blocks flipped on with the correct client IDs.
