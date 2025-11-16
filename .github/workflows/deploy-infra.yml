@@ -15,7 +15,7 @@ jobs:
   deploy-infrastructure:
     runs-on: ubuntu-latest
     env:
-      RESOURCE_GROUP: rg-appdemo
+      RESOURCE_GROUP: rg-appdemo2
       LOCATION: swedencentral
       BICEP_FILE: infra/bicep/main.bicep
       BICEPPARAM_FILE: infra/bicep/main.parameters.bicepparam
