@@ -43,6 +43,16 @@
 - Swapped the demo data authorization role everywhere (backend config, Helm defaults, env examples, tests, UI gating) to reuse the existing `Admin.FullAccess` role instead of introducing `DemoData.Admin`.
 - Updated the staging values for demo-data-init so downstream URLs are derived from `ingress.publicIpFqdn` just like other services, avoiding hard-coded hostnames.
 
+## 2025-11-16 - Trip service toy lookup via internal base URL
+
+**Context**: Trip creation requests from the demo importer failed with `404 Toy not found` because the trip API verified ownership using `http://toy-service/api/toys`, a Gateway-prefixed path that does not exist when calling the toy pod over the cluster-internal service DNS.
+
+**Changes**:
+- Updated `helm-charts/trip/values.yaml` to default `TOY_SERVICE_URL` to `http://toy-service`, letting the application append `/toy/...` so FastAPI routes match.
+- Mirrored the change in `env/staging/apps/trip-values.yaml` so the running deployment stops issuing `api/toys` prefixed requests.
+
+**Outcome**: The trip service now talks to the toy service on the correct path, allowing ownership verification (and therefore trip creation) to succeed inside the cluster.
+
 ## 2025-11-15 - Workload identity plumbing for toy/trip
 
 - Extended `.github/workflows/deploy-infra.yml` so the Bicep deployment outputs are parsed, `env/staging/infra_config/azure.yaml` gains a `workloadIdentities` map (resource/client/principal IDs plus service account metadata), and the staging toy/trip Helm values get their `workloadIdentity` blocks flipped on with the correct client IDs.

@@ -33,7 +33,7 @@ env:
   # Auth and infrastructure values come from azure-values.yaml
   COSMOS_CONTAINER_NAME: "trips"
   BLOB_CONTAINER_GALLERY: "gallery"
-  TOY_SERVICE_URL: "http://toy-service/api/toys"
+  TOY_SERVICE_URL: "http://toy-service"
   API_HOST: "0.0.0.0"
   API_PORT: "8002"
   LOG_LEVEL: "INFO"
