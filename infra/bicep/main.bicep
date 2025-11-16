@@ -31,7 +31,7 @@ var workloadIdentities = [
 ]
 
 // Deterministic unique suffix seeded by subscription + prefix (6 characters)
-var rawUnique = uniqueString(subscription().id, prefix)
+var rawUnique = uniqueString(resourceGroup().id, prefix)
 // Replace digits with letters a-j to satisfy "letters only" requirement, then take first 6 chars
 var sanitizedUnique = substring(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(rawUnique, '0', 'a'), '1', 'b'), '2', 'c'), '3', 'd'), '4', 'e'), '5', 'f'), '6', 'g'), '7', 'h'), '8', 'i'), '9', 'j'), 0, 6)
 var baseNameDash = '${prefix}-${sanitizedUnique}'
