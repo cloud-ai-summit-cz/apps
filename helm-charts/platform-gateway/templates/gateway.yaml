@@ -34,10 +34,11 @@ spec:
     {{- end }}
   {{- end }}
   listeners:
+    {{- $hostname := $.Values.ingress.publicIpFqdn | default "" }}
     {{- range .Values.gateway.listeners }}
     - name: {{ .name | quote }}
-      {{- if .hostname }}
-      hostname: {{ .hostname | quote }}
+      {{- if $hostname }}
+      hostname: {{ $hostname | quote }}
       {{- end }}
       port: {{ .port | default 443 }}
       protocol: {{ .protocol | default "HTTPS" | quote }}

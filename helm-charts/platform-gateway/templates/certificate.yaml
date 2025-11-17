@@ -13,7 +13,8 @@ spec:
     kind: ClusterIssuer
     name: {{ .Values.certificate.clusterIssuer | quote }}
   dnsNames:
-    {{- range .Values.certificate.dnsNames }}
+    {{- $dnsNames := .Values.certificate.dnsNames | default (list .Values.ingress.publicIpFqdn) }}
+    {{- range $dnsNames }}
     - {{ . | quote }}
     {{- end }}
 {{- end }}

@@ -6,14 +6,12 @@ gateway:
     annotations: {}
   listeners:
     - name: http
-      hostname: {{ .Values.ingress.publicIpFqdn }}
       port: 80
       protocol: HTTP
       allowedRoutes:
         namespaces:
           from: Same
     - name: https
-      hostname: {{ .Values.ingress.publicIpFqdn }}
       port: 443
       protocol: HTTPS
       tls:
@@ -26,5 +24,4 @@ certificate:
   enabled: true
   clusterIssuer: letsencrypt
   secretName: toytrip-tls
-  dnsNames:
-    - {{ .Values.ingress.publicIpFqdn }}
+  dnsNames: []

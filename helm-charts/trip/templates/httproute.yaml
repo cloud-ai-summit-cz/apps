@@ -1,7 +1,7 @@
 {{- if and .Values.httpRoute.enabled .Values.httpRoute.parentRefs .Values.httpRoute.hosts }}
 {{- $fullName := include "trip.fullname" . }}
+{{- $hostname := .Values.ingress.publicIpFqdn | default "" }}
 {{- range $index, $host := .Values.httpRoute.hosts }}
-{{- if $host.host }}
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -13,8 +13,10 @@ spec:
     {{- range $.Values.httpRoute.parentRefs }}
     - {{- toYaml . | nindent 6 }}
     {{- end }}
+  {{- if $hostname }}
   hostnames:
-    - {{ $host.host | quote }}
+    - {{ $hostname | quote }}
+  {{- end }}
   rules:
     {{- range $host.paths }}
     - matches:
@@ -47,6 +49,5 @@ spec:
       {{- end }}
     {{- end }}
 ---
-{{- end }}
 {{- end }}
 {{- end }}

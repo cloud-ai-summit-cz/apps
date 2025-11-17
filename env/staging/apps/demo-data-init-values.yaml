@@ -23,8 +23,9 @@ httpRoute:
       name: toytrip-gateway
       namespace: toytrip-staging
       sectionName: https
+  # Note: host value comes from azure.yaml via ingress.publicIpFqdn
   hosts:
-    - host: {{ .Values.ingress.publicIpFqdn }}
+    - host:
       paths:
         - path: /api/demo-data
           pathType: PathPrefix
