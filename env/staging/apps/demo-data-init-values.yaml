@@ -24,7 +24,7 @@ httpRoute:
       namespace: toytrip-staging
       sectionName: https
   hosts:
-    - host: "{{ .Values.ingress.publicIpFqdn }}"
+    - host: {{ .Values.ingress.publicIpFqdn }}
       paths:
         - path: /api/demo-data
           pathType: PathPrefix
