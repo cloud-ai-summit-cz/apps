@@ -53,6 +53,16 @@
 
 **Outcome**: The trip service now talks to the toy service on the correct path, allowing ownership verification (and therefore trip creation) to succeed inside the cluster.
 
+## 2025-11-17 - Harden networking & stabilize Cosmos RBAC
+
+**Context**: Cosmos SQL role assignments were racing ahead of the account creation, causing `ResourceNotFound` errors decoupled from its private access settings. At the same time, the AKS subnets still allowed direct Internet ingress and the API subnet lacked NAT egress, preventing us from treating the VNet as fully private.
+
+**Changes**:
+- Added explicit `dependsOn` entries so Cosmos DB role assignments wait for the `cosmosDeploy` module to finish provisioning before resolving the existing resource handle.
+- Removed the Internet-allowing NSG rules from the AKS node subnet and attached the NAT gateway to both the node and API subnets to keep all subnet egress private.
+
+**Outcome**: Cosmos role assignments now wait for the account to exist, eliminating the race, and every AKS-facing subnet egresses via the NAT gateway with no direct inbound exposure.
+
 ## 2025-11-15 - Workload identity plumbing for toy/trip
 
 - Extended `.github/workflows/deploy-infra.yml` so the Bicep deployment outputs are parsed, `env/staging/infra_config/azure.yaml` gains a `workloadIdentities` map (resource/client/principal IDs plus service account metadata), and the staging toy/trip Helm values get their `workloadIdentity` blocks flipped on with the correct client IDs.

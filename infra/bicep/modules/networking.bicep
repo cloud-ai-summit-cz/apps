@@ -139,12 +139,16 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-01-01' = {
           }
           privateEndpointNetworkPolicies: 'Disabled'
           privateLinkServiceNetworkPolicies: 'Enabled'
+          defaultOutboundAccess: false
         }
       }
       {
         name: 'snet-aks-api'
         properties: {
           addressPrefix: aksApiSubnetPrefix
+          natGateway: {
+            id: natGateway.id
+          }
           delegations: [
             {
               name: 'aks-delegation'
@@ -154,6 +158,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-01-01' = {
             }
           ]
           privateEndpointNetworkPolicies: 'Disabled'
+          defaultOutboundAccess: false
         }
       }
       {
@@ -162,6 +167,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-01-01' = {
           addressPrefix: privateEndpointsSubnetPrefix
           privateEndpointNetworkPolicies: 'Disabled'
           privateLinkServiceNetworkPolicies: 'Enabled'
+          defaultOutboundAccess: false
         }
       }
     ]

@@ -175,6 +175,9 @@ var cosmosBuiltInRoles = {
 
 resource cosmosAccountExisting 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' existing = {
   name: cosmosAccountName
+  dependsOn: [
+    cosmos
+  ]
 }
 
 
@@ -260,6 +263,9 @@ resource cosmosUserRoleAssignments 'Microsoft.DocumentDB/databaseAccounts/sqlRol
       roleDefinitionId: assignment.?roleDefinitionId ?? '${cosmosAccountId}/sqlRoleDefinitions/${cosmosBuiltInRoles[assignment.roleName]}'
       scope: assignment.?scope ?? cosmosAccountId
     }
+    dependsOn: [
+      cosmos
+    ]
   }
 ]
 
@@ -272,6 +278,9 @@ resource cosmosWorkloadRoleAssignments 'Microsoft.DocumentDB/databaseAccounts/sq
       roleDefinitionId: '${cosmosAccountId}/sqlRoleDefinitions/${cosmosBuiltInRoles['Cosmos DB Built-in Data Contributor']}'
       scope: cosmosAccountId
     }
+    dependsOn: [
+      cosmos
+    ]
   }
 ]
 
