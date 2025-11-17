@@ -6,14 +6,14 @@ gateway:
     annotations: {}
   listeners:
     - name: http
-      hostname: "appdemo-eniwvl.swedencentral.cloudapp.azure.com"
+      hostname: "{{ .Values.ingress.publicIpFqdn }}"
       port: 80
       protocol: HTTP
       allowedRoutes:
         namespaces:
           from: Same
     - name: https
-      hostname: "appdemo-eniwvl.swedencentral.cloudapp.azure.com"
+      hostname: "{{ .Values.ingress.publicIpFqdn }}"
       port: 443
       protocol: HTTPS
       tls:
@@ -27,4 +27,4 @@ certificate:
   clusterIssuer: letsencrypt
   secretName: toytrip-tls
   dnsNames:
-    - "appdemo-eniwvl.swedencentral.cloudapp.azure.com"
+    - "{{ .Values.ingress.publicIpFqdn }}"

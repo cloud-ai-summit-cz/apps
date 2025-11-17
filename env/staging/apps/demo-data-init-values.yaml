@@ -23,6 +23,15 @@ httpRoute:
       name: toytrip-gateway
       namespace: toytrip-staging
       sectionName: https
+  hosts:
+    - host: "{{ .Values.ingress.publicIpFqdn }}"
+      paths:
+        - path: /api/demo-data
+          pathType: PathPrefix
+          rewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
 env:
   TOY_SERVICE_URL: "https://{{ .Values.ingress.publicIpFqdn }}/api/toys"
   TRIP_SERVICE_URL: "https://{{ .Values.ingress.publicIpFqdn }}/api/trips"

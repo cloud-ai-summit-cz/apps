@@ -21,7 +21,7 @@ httpRoute:
       namespace: toytrip-staging
       sectionName: https
   hosts:
-    - host: "appdemo-eniwvl.swedencentral.cloudapp.azure.com"
+    - host: "{{ .Values.ingress.publicIpFqdn }}"
       paths:
         - path: /api/toys
           pathType: PathPrefix
