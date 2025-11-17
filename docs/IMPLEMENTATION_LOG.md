@@ -1,3 +1,37 @@
+## 2025-11-17 - Fix AKS Pipeline Error Handling & RBAC Propagation
+
+**Context**: The GitHub Actions pipeline was treating failed `az aks command invoke` operations as successful because the command returns JSON with an `exitCode` field rather than propagating the exit code to the shell. Additionally, kubectl commands were failing with authorization errors during ArgoCD bootstrap, and we discovered that AKS Automatic with Azure RBAC does NOT deploy guard webhook pods—authorization happens through the AKS control plane's built-in webhook authorizer.
+
+**Root Cause Analysis**:
+- `az aks command invoke` wraps kubectl commands and always returns 0 to the shell, even when the inner kubectl command fails (exitCode=1 in JSON)
+- Azure RBAC role assignments can take up to 5 minutes to propagate to the authorization server
+- Existing Bicep role assignments at resource group scope did not grant Kubernetes API access—they needed to be scoped to the AKS cluster resource itself
+- No guard pods should exist in kube-system for AKS managed clusters (only Arc-enabled clusters use guard)
+
+**Changes**:
+- **Bicep** (`infra/bicep/main.bicep`):
+  - Added `existing` resource reference to deployed AKS cluster for proper scope targeting
+  - Fixed `userAksAdminAssignment` and `workflowAksAdminAssignment` to use `scope: aksCluster` instead of default resource group scope
+  - Changed GUID calculation to use `aksCluster.id` for stable, cluster-scoped role assignment names
+  - These changes ensure "Azure Kubernetes Service RBAC Cluster Admin" role is properly assigned to both user and GitHub Actions identities during infrastructure deployment
+
+- **GitHub Actions** (`.github/workflows/deploy-infra.yml`):
+  - Removed redundant manual role assignment step (now handled by Bicep)
+  - Added 90-second wait for RBAC propagation before attempting kubectl operations
+  - Wrapped all `az aks command invoke` calls with proper exitCode validation using `jq -r '.exitCode // 1'`
+  - Implemented retry logic with exponential backoff (3 attempts, 30s/60s/90s waits) for ArgoCD Helm installation and repository secret creation
+  - Added `set -euo pipefail` to all bash scripts for proper error handling
+  - Used `--only-show-errors` flag to reduce noise in pipeline output
+
+**Key Learning**: Azure RBAC role assignments must be scoped to the specific AKS cluster resource (using `scope: aksCluster`) to grant Kubernetes API access. Resource group-level assignments only grant Azure control plane access (e.g., scaling, upgrading) but not kubectl/API server authorization.
+
+**Outcome**: Pipeline now properly detects and fails on kubectl errors, retries transient authorization failures during RBAC propagation window, and Bicep automatically provisions correct cluster-scoped permissions. This eliminates silent failures and ensures both interactive users and CI/CD pipelines have proper Kubernetes API access.
+
+**References**:
+- [Azure RBAC for Kubernetes Authorization](https://learn.microsoft.com/en-us/azure/aks/manage-azure-rbac)
+- [AKS guard webhook is for Arc-enabled clusters only](https://learn.microsoft.com/en-us/azure/azure-arc/kubernetes/conceptual-azure-rbac)
+- [Role assignment scopes in Azure RBAC](https://learn.microsoft.com/en-us/azure/role-based-access-control/scope-overview)
+
 ## 2025-11-16 - Demo Data Docker Build Context Fix
 
 **Context**: The new demo-data-init workflow failed in GitHub Actions because the Dockerfile copied `tools/data/`, but the workflow used `./src` as the build context, so the directory was missing from the build context.

@@ -139,6 +139,14 @@ module aks 'modules/aksAutomatic.bicep' = {
   ]
 }
 
+// Reference the deployed AKS cluster resource for role assignments
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-06-02-preview' existing = {
+  name: 'aks-${baseNameDash}'
+  dependsOn: [
+    aks
+  ]
+}
+
 // Storage Account module (flattened path) - naming handled inside module
 module storage 'modules/storageAccount.bicep' = {
   name: 'storageDeploy'
@@ -215,7 +223,8 @@ resource userStorageBlobAssignment 'Microsoft.Authorization/roleAssignments@2022
 }
 
 resource userAksAdminAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(userObjectId)) {
-  name: guid(resourceGroup().id, 'userAksAdminAssignment')
+  scope: aksCluster
+  name: guid(aksCluster.id, userObjectId, 'AksRbacClusterAdmin')
   properties: {
     roleDefinitionId: roleDefinitions.AksRbacClusterAdmin
     principalId: userObjectId
@@ -224,7 +233,8 @@ resource userAksAdminAssignment 'Microsoft.Authorization/roleAssignments@2022-04
 }
 
 resource workflowAksAdminAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(gitHubWorkflowIdentityObjectId) && !sameIdentity) {
-  name: guid(resourceGroup().id, 'workflowAksAdminAssignment')
+  scope: aksCluster
+  name: guid(aksCluster.id, gitHubWorkflowIdentityObjectId, 'AksRbacClusterAdmin')
   properties: {
     roleDefinitionId: roleDefinitions.AksRbacClusterAdmin
     principalId: gitHubWorkflowIdentityObjectId
