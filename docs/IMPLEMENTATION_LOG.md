@@ -1,3 +1,71 @@
+## 2025-11-17 - Create Comprehensive OBSERVABILITY.md Documentation
+
+**Context**: The project needed a high-level observability architecture document describing how logs, metrics, and traces are collected, routed, and visualized across the microservices platform.
+
+**Objective**: Create a structured, concise OBSERVABILITY.md document covering the complete observability strategy without implementation details or code snippets.
+
+**Key Architectural Decisions**:
+
+1. **Centralized Telemetry Collection**:
+   - OpenTelemetry Collector deployed in AKS as the single aggregation point for all observability data
+   - ConfigMap-based configuration for flexible routing to multiple backends
+   - Services push all telemetry (logs, metrics, traces) to the collector using OTEL SDKs
+
+2. **Instrumentation Strategy**:
+   - Auto-instrumentation for FastAPI (HTTP metrics, request tracing)
+   - Auto-instrumentation for Azure SDK operations (Blob Storage, Cosmos DB, Service Bus)
+   - W3C Trace Context standard for distributed tracing across services and through Istio service mesh
+   - Custom instrumentation for business operations and domain-specific telemetry
+
+3. **Custom Dimensions for User Attribution**:
+   - `user_id`: Principal OID from authentication token
+   - `user_role`: Standard user vs admin/System.Service
+   - `is_admin`: Boolean flag for filtering admin operations in all metrics
+   - `toy_id`, `trip_id`: Business entity identifiers for correlation
+
+4. **Business Metrics**:
+   - View counters: toys_viewed_total, trips_viewed_total, gallery_images_viewed_total (all with is_admin dimension)
+   - Operation counters: toys_registered_total, trips_created_total, addons_ordered_total
+   - Queue depth gauges for KEDA autoscaling (story_jobs_pending, media_generation_queue_depth)
+
+5. **Multi-Backend Architecture**:
+   - **Aspire Dashboard**: Quick local inspection during development (deployed via HTTPRoute)
+   - **Azure Monitor for Prometheus**: Metrics storage with remote write authentication via sidecar
+   - **Azure Managed Grafana**: Custom dashboards for business and technical metrics
+   - **Azure Monitor Application Insights**: Long-term logs and distributed trace storage
+   - **AKS Container Insights**: Node, pod, and networking observability
+
+6. **Azure Monitor for Prometheus Integration**:
+   - OTEL Collector exports metrics in Prometheus format via remote write
+   - Azure-provided sidecar container handles Entra ID authentication using Workload Identity
+   - Sidecar assigned "Monitoring Metrics Publisher" role on Data Collection Rule
+   - No secret management required—federated service account identity
+
+7. **Networking and Service Mesh**:
+   - AKS Advanced Networking Observability for network flow logs
+   - Istio ingress gateway participates in distributed tracing
+   - Envoy proxy metrics exported through OTEL Collector
+   - End-to-end trace visibility from ingress through all services
+
+8. **Custom Spans for Business Operations**:
+   - toy.register, trip.create, trip.gallery.upload, addon.order, addon.fulfill
+   - story.compose (batch AI), geo.streamTick (WebSocket streaming)
+   - All spans enriched with user context (user_id, is_admin) and business identifiers
+
+**Document Structure**:
+- 14 sections covering architecture, instrumentation, metrics, dashboards, and operations
+- Focused on design decisions and architectural choices
+- No code snippets or implementation details (delegated to service codebases)
+- Clear separation of business metrics, technical metrics, and infrastructure observability
+
+**Alignment with DESIGN.md**:
+- Referenced existing spans and metrics from Section 6 (Observability & Telemetry)
+- Extended with admin dimension tracking per user request
+- Added specific examples for toy and trip services based on codebase structure
+- Incorporated KEDA/Karpenter scaling metrics already defined in DESIGN.md
+
+**Outcome**: Comprehensive, high-level observability architecture document that serves as the reference for instrumentation implementation across all services. Document is short, structured, and architecture-focused as requested.
+
 ## 2025-11-17 - Fix AKS Pipeline Error Handling & RBAC Propagation
 
 **Context**: The GitHub Actions pipeline was treating failed `az aks command invoke` operations as successful because the command returns JSON with an `exitCode` field rather than propagating the exit code to the shell. Additionally, kubectl commands were failing with authorization errors during ArgoCD bootstrap, and we discovered that AKS Automatic with Azure RBAC does NOT deploy guard webhook pods—authorization happens through the AKS control plane's built-in webhook authorizer.
