@@ -2,8 +2,8 @@
 # This file is automatically updated by CI/CD pipeline with image tags
 
 image:
-  repository: "crappdemoeniwvl.azurecr.io/toy" # Set by CI: <acr-login-server>/toy-service
-  tag: "b51db6e44d73bb602565062b1c1c14ed38dc502b" # Set by CI: commit SHA
+  repository: "crappdemosedkdx.azurecr.io/toy" # Set by CI: <acr-login-server>/toy-service
+  tag: "0de16cb81a971c87949d3db1b41a9c5c17ef9269" # Set by CI: commit SHA
 replicaCount: 2
 resources:
   limits:
