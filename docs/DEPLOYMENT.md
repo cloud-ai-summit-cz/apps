@@ -1,508 +1,229 @@
 # Deployment
 
-## Infrastructure Overview
+## Architecture Overview
 
-### Network Architecture
+This deployment uses a **layered GitOps approach** with clear separation of concerns:
 
-**Virtual Network Design:**
-- **Address Space:** `10.240.0.0/16`
-- **Subnets:**
-  - `snet-aks-nodes` (`10.240.0.0/22`) - AKS cluster nodes with CNI Overlay
-  - `snet-aks-api` (`10.240.4.0/28`) - AKS API server VNET integration (delegated to Microsoft.ContainerService)
-  - `snet-private-endpoints` (`10.240.5.0/24`) - Private endpoints for Azure services
-
-**NAT Gateway:**
-- Zone-redundant NAT Gateway with 2 public IPs across availability zones
-- Attached to `snet-aks-nodes` for outbound connectivity
-- Provides stable outbound IPs for external service integration
-
-**Private DNS Zones:**
-- `privatelink.documents.azure.com` - Cosmos DB private DNS resolution
-- `privatelink.blob.core.windows.net` - Storage Account private DNS resolution
-- `privatelink.azurecr.io` - Azure Container Registry private DNS resolution
-- All zones linked to VNet for automatic DNS resolution
-
-### Kubernetes Platform
-
-**AKS Automatic Cluster:**
-- **Mode:** Automatic (fully managed node provisioning)
-- **SKU:** Standard tier with SLA
-- **Networking:**
-  - Azure CNI Overlay with Cilium dataplane
-  - Cilium network policy engine
-  - Advanced Container Networking Services for observability
-  - API server with VNET integration (public endpoint + private network access)
-  - Outbound via user-assigned NAT Gateway
-- **Identity:**
-  - User-assigned managed identity for cluster control plane
-  - Separate kubelet identity with AcrPull role for container image pulling
-- **Security:**
-  - Workload identity enabled (OIDC federation)
-  - Azure RBAC for Kubernetes authorization
-  - Local accounts disabled (Azure AD only)
-  - Image cleaner enabled (removes vulnerable images daily)
-  - Automatic security patches via node image auto-upgrade
-- **Scaling:** Node auto-provisioning based on workload demands
-- **Monitoring:** Integrated Managed Prometheus and Container Insights
-
-### Container Registry
-
-**Azure Container Registry (Premium):**
-- Zone-redundant storage
-- Admin user disabled (managed identity authentication only)
-- Public network access enabled by default (can be disabled with private endpoints)
-- Network rule bypass for Azure Services
-- Kubelet identity has AcrPull role for seamless image pulling
-
-### Data Services
-
-**Cosmos DB (SQL API, Serverless):**
-- Serverless capacity mode (pay-per-operation)
-- Session consistency level
-- Key-based metadata write disabled (control plane only via Bicep)
-- Database: `toytripdb`
-- Containers: `toys` (partition key: `/toy_id`), `trips` (partition key: `/trip_id`)
-- Optional private endpoint support
-
-**Storage Account (Standard ZRS):**
-- Zone-redundant storage
-- TLS 1.2 minimum
-- Public blob access disabled
-- Containers: `avatars`, `gallery`
-- Optional private endpoint support
-
-### Private Endpoint Strategy
-
-**Toggle:** Controlled by `enablePrivateEndpoints` parameter (default: `false`)
-
-When enabled:
-- Disables public network access for ACR, Cosmos DB, and Storage Account
-- Creates private endpoints in `snet-private-endpoints` subnet
-- Configures private DNS zone groups for automatic DNS resolution
-- All traffic flows through private IPs within VNet
-
-**Recommendation:** Keep disabled during development/testing, enable for production deployments.
-
-### Role-Based Access Control
-
-**User Access:**
-- Storage Blob Data Contributor on Storage Account
-- Cosmos DB Built-in Data Contributor on Cosmos Account
-
-**Service Identity:**
-- AKS kubelet identity: AcrPull on resource group (for pulling images)
-- AKS cluster identity: Network Contributor (automatically assigned by AKS)
-
-## Deployment Process
-
-### Prerequisites
-- Azure CLI or PowerShell
-- Appropriate Azure subscription permissions
-- User object ID for RBAC assignments
-
-### Deploy Infrastructure
-
-```bash
-# Set parameters
-RESOURCE_GROUP="rg-toytrip-dev"
-LOCATION="eastus"
-PREFIX="toytrip"
-USER_OBJECT_ID="<your-azure-ad-user-object-id>"
-
-# Create resource group
-az group create --name $RESOURCE_GROUP --location $LOCATION
-
-# Deploy Bicep template
-az deployment group create \
-  --resource-group $RESOURCE_GROUP \
-  --template-file infra/bicep/main.bicep \
-  --parameters prefix=$PREFIX \
-               userObjectId=$USER_OBJECT_ID \
-               location=$LOCATION \
-               enablePrivateEndpoints=false
+```
+┌─────────────────────────────────────────────┐
+│  Infrastructure (Bicep)                     │  ← Azure resources
+├─────────────────────────────────────────────┤
+│  Bootstrap (ArgoCD)                         │  ← GitOps engine
+├─────────────────────────────────────────────┤
+│  Platform Layer (Helm)                      │  ← Shared services
+│  - Istio Gateway + TLS                      │
+│  - cert-manager + Let's Encrypt             │
+├─────────────────────────────────────────────┤
+│  Application Layer (Helm)                   │  ← Microservices
+│  - toy, trip, web, demo-data-init           │
+└─────────────────────────────────────────────┘
 ```
 
-### Access AKS Cluster
+### Key Architectural Decisions
 
-```bash
-# Get credentials
-az aks get-credentials --resource-group $RESOURCE_GROUP --name <aks-cluster-name>
+**Infrastructure as Code (Bicep)**
+- Single `infra/bicep/main.bicep` orchestrates all Azure resources
+- Modular design: networking, AKS, ACR, Cosmos DB, Storage, RBAC
+- Outputs written to `env/{environment}/infra_config/azure.yaml` as bridge to GitOps layer
+- Workload identities for Azure resources authentication (OIDC federation)
 
-# Verify connectivity
-kubectl get nodes
+**GitOps with ArgoCD**
+- App-of-apps pattern: Two root applications (platform → apps)
+- Platform-first deployment ensures shared gateway and cert-manager exist before services
+- Multi-source apps: Helm charts reference both `azure.yaml` (infra) and `*-values.yaml` (app config)
+
+**Istio Gateway Architecture**
+- Single shared Gateway resource bound to static public IP (provisioned by Bicep)
+- Each service contributes HTTPRoute manifests (no per-service ingress)
+- TLS certificates managed by cert-manager with Gateway API HTTP01 solver
+
+**CI/CD Separation**
+- Infrastructure changes: `deploy-infra.yml` → Bicep deployment → ArgoCD bootstrap
+- Application changes: `build-*.yml` → ACR push → Update values file → ArgoCD sync
+
+## Repository Structure
+
+```
+env/{staging,production}/
+  infra_config/
+    azure.yaml              # Generated by deploy-infra workflow (infra outputs)
+  bootstrap/
+    platform-root.yaml      # App-of-apps for platform (cert-manager, gateway)
+    app-root.yaml           # App-of-apps for services (toy, trip, web)
+  platform/
+    cert-manager-app.yaml   # ArgoCD Application manifest
+    gateway-app.yaml        # ArgoCD Application manifest
+    gateway-values.yaml     # TLS config, domain, Let's Encrypt settings
+  apps/
+    {service}-app.yaml      # ArgoCD Application manifest
+    {service}-values.yaml   # Image tag, replicas, resources, env vars
+
+helm-charts/
+  platform-{gateway,cert-manager}/
+  {toy,trip,web,demo-data-init}/
+
+infra/bicep/
+  main.bicep              # Entry point
+  modules/                # networking, aksAutomatic, acr, cosmos, storage
 ```
 
-### Build and Push Container Images
+## Deployment Workflows
 
+### Infrastructure Deployment
+**Trigger:** Push to `infra/bicep/**` or manual workflow dispatch
+
+**Flow:**
+1. Deploy Bicep → All Azure resources (AKS, ACR, Cosmos, Storage, Networking)
+2. Extract outputs → `env/staging/infra_config/azure.yaml` (ACR details, AKS OIDC, ingress IP, workload identities)
+3. Install ArgoCD via Helm (using `az aks command invoke`)
+4. Configure repo access (GitHub PAT secret)
+5. Apply `platform-root.yaml` → Platform components deploy
+6. Apply `app-root.yaml` → Services deploy
+
+**Key Non-Obvious Details:**
+- Uses OIDC federated credentials (no stored secrets)
+- Workload identities automatically injected into service value files
+- ArgoCD bootstrapping is idempotent (safe to re-run)
+- `azure.yaml` only commits if values actually change
+
+### Application Build & Deploy
+**Trigger:** Push to `src/services/{service}/**` or `src/web/**`
+
+**Flow:**
+1. Load ACR details from `azure.yaml` (dynamic, not hardcoded)
+2. Build Docker image → Tag with `{commit-sha}` and `latest`
+3. Push to ACR
+4. Update `env/staging/apps/{service}-values.yaml` with new tag
+5. Commit changes back to repo
+6. ArgoCD detects Git change → Rolling update in cluster
+
+**Key Non-Obvious Details:**
+- Commit SHA provides image immutability (rollback = Git revert)
+- Staging auto-deploys, production requires manual PR promotion
+- Race condition handling: Retry logic on concurrent pushes
+- Each service workflow is independent (parallel builds possible)
+
+## Infrastructure Components
+
+### AKS Automatic
+- Fully managed node provisioning (no node pools to configure)
+- Azure CNI Overlay + Cilium dataplane
+- Workload identity enabled for Azure service authentication
+- Managed Istio service mesh with Gateway API addon
+
+### Networking
+- NAT Gateway for stable outbound IPs (zone-redundant)
+- Private endpoint support (toggled via `enablePrivateEndpoints` parameter)
+- Three subnets: AKS nodes, API server, private endpoints
+- Private DNS zones for ACR, Cosmos, Storage
+
+### Data & Storage
+- **Cosmos DB:** Serverless SQL API, two containers (`toys`, `trips`)
+- **Storage Account:** Zone-redundant, two containers (`avatars`, `gallery`)
+- **ACR:** Premium tier, kubelet identity has AcrPull role
+
+### RBAC & Identity
+- User-assigned identities: AKS cluster, kubelet, per-service workloads
+- Federated credentials link Kubernetes service accounts to Azure identities
+- GitHub workflow identity has deployment permissions (OIDC)
+
+## Platform Services
+
+### cert-manager
+- Deployed as Helm chart dependency in `platform-cert-manager/`
+- ClusterIssuers: `letsencrypt-staging`, `letsencrypt-prod`
+- Gateway API HTTP01 solver configured in `azure.yaml`
+
+### Istio Gateway
+- Single Gateway resource for all ingress traffic
+- Bound to static public IP (via Azure annotations)
+- TLS certificate issued by cert-manager
+- HTTPRoutes in service charts reference this gateway
+
+## Application Services
+
+| Service | Description | Port | Dependencies |
+|---------|-------------|------|--------------|
+| **toy** | FastAPI - Toy management | 8001 | Cosmos (toys), Storage (avatars) |
+| **trip** | FastAPI - Trip management | 8002 | Cosmos (trips), Storage (gallery), toy service |
+| **web** | Nginx - Static frontend | 80 | None (config via `env-config.js`) |
+| **demo-data-init** | Kubernetes Job - Seed data | N/A | Cosmos, Storage |
+
+All services use workload identity for Azure authentication (no connection strings in config).
+
+## Key Operational Concepts
+
+### Infrastructure Updates
+- Changes to Bicep trigger full deployment (idempotent)
+- `azure.yaml` acts as immutable snapshot of infra state
+- Breaking changes require coordination with values files
+
+### Image Promotion
+- **Staging:** Automatic on merge to main
+- **Production:** Manual PR copying image tags from staging to production values
+- Rollback: Git revert + ArgoCD sync
+
+### ArgoCD Sync Policies
+- **Platform apps:** Auto-sync with prune & self-heal
+- **Service apps (staging):** Auto-sync with prune & self-heal
+- **Service apps (production):** Manual sync recommended (or auto without prune)
+
+### Monitoring Access
 ```bash
-# Login to ACR
-az acr login --name <acr-name>
-
-# Build and push images (example for toy service)
-docker build -t <acr-name>.azurecr.io/toy-service:latest ./src/services/toy
-docker push <acr-name>.azurecr.io/toy-service:latest
-```
-
-### Istio Gateway & TLS Automation (Automated via ArgoCD)
-
-The AKS cluster now enables the Istio service mesh with the managed Gateway API add-on. The networking module still provisions a static, zone-redundant public IP and the GitHub workflow captures its metadata under `ingress.*` in `env/<env>/infra_config/azure.yaml`.
-
-Edge traffic terminates through a `Gateway` object that lives inside the `helm-charts/web` chart. Its annotations instruct Azure to bind the gateway service to the pre-created public IP/resource group, while listeners and TLS settings are driven by the environment values file. Matching `HTTPRoute` resources in the same chart map hostnames and paths to the web workload (and will be expanded to additional backends as needed).
-
-ArgoCD's platform root application (`bootstrap/platform-root.yaml`) now deploys two platform charts:
-- `helm-charts/platform-gateway/` renders the shared `Gateway` resource (anchored to the static public IP) and the cert-manager `Certificate` that backs its TLS listener.
-- `helm-charts/platform-cert-manager/` keeps ClusterIssuers available cluster-wide.
-
-Application charts (web, toy, trip, etc.) only contribute `HTTPRoute` objects that reference the shared gateway; no standalone nginx ingress controller remains in the cluster.
-
-### Bootstrap ArgoCD (Automated with Infrastructure)
-
-ArgoCD installation and configuration is fully integrated into the infrastructure deployment workflow. The `deploy-infra.yml` workflow:
-- Deploys all Azure resources (AKS, ACR, Storage, Cosmos DB)
-- Installs and configures ArgoCD automatically using AKS run command
-- Applies the root application to bootstrap all services
-- Eliminates the need for manual bootstrapping or separate workflows
-
-**Prerequisites:**
-1. GitHub secret `ARGOCD_REPO_TOKEN` configured with PAT having `repo` scope
-
-**Deployment:**
-
-Simply run the infrastructure deployment workflow:
-
-```bash
-# Via GitHub CLI
-gh workflow run deploy-infra.yml
-
-# Or via GitHub UI:
-# Actions → Deploy Infrastructure → Run workflow
-
-# Or automatically on push to infra/bicep/**
-git push
-```
-
-The workflow automatically performs:
-1. **Deploy Infrastructure**: Creates/updates all Azure resources via Bicep
-2. **Generate Config**: Writes `env/staging/infra_config/azure.yaml` with deployment outputs
-3. **Install ArgoCD**: Creates namespace and applies manifests using `az aks command invoke`
-4. **Configure Repository Access**: Creates secret with GitHub PAT for private repo access
-5. **Apply Platform Application**: Deploys platform components (ingress, cert-manager)
-6. **Apply Root Application**: Deploys the app-of-apps manifest to bootstrap all services
-
-**What happens behind the scenes:**
-
-```bash
-# 1. Install ArgoCD
-az aks command invoke \
-  --resource-group $RG \
-  --name $AKS_CLUSTER \
-  --command "kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - && \
-             kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml"
-
-# 2. Configure repo access (using secret from GitHub)
-az aks command invoke \
-  --resource-group $RG \
-  --name $AKS_CLUSTER \
-  --file repo-secret.yaml \
-  --command "kubectl apply -f repo-secret.yaml"
-
-# 3. Apply root app
-az aks command invoke \
-  --resource-group $RG \
-  --name $AKS_CLUSTER \
-  --file env/staging/bootstrap/app-root.yaml \
-  --command "kubectl apply -f app-root.yaml"
-```
-
-**Access ArgoCD UI:**
-
-After bootstrap completes:
-
-```bash
-# Get cluster credentials
-az aks get-credentials --resource-group $RESOURCE_GROUP --name <aks-cluster-name>
-
-# Port-forward to access UI
+# ArgoCD UI
 kubectl port-forward svc/argocd-server -n argocd 8080:443
 
-# Access at https://localhost:8080
-# Username: admin
-# Password: (displayed in workflow output)
+# Check sync status
+kubectl get applications -n argocd
+
+# View service logs
+kubectl logs -n toytrip-staging deployment/toy-service -f
 ```
 
-**Manual Bootstrap (Alternative):**
+### Troubleshooting
+- **Service won't start:** Check workload identity configuration in `azure.yaml` matches service account
+- **Image pull failure:** Verify kubelet identity has AcrPull on resource group
+- **Gateway not binding IP:** Check annotations in `platform-gateway` values match Bicep output
+- **ArgoCD out of sync:** Review Git commit history vs. cluster state with `kubectl diff`
 
-If you need to bootstrap manually without the workflow:
+## Multi-Environment Strategy
 
+Staging and production share:
+- Infrastructure pattern (separate resource groups)
+- Helm charts and templates
+- ArgoCD bootstrap process
+
+Per-environment differences:
+- `env/{staging,production}/infra_config/azure.yaml` (different resource names/IDs)
+- Service image tags (staging auto-updates, production manual)
+- TLS certificates (staging vs. prod Let's Encrypt issuer)
+- Sync policies (staging aggressive, production conservative)
+
+## Quick Start
+
+**Deploy everything:**
 ```bash
-# 1. Get cluster credentials
-az aks get-credentials --resource-group $RESOURCE_GROUP --name <aks-cluster-name>
+# 1. Set GitHub secrets (AZURE_CLIENT_ID, AZURE_TENANT_ID, etc.)
+# 2. Run workflow
+gh workflow run deploy-infra.yml
 
-# 2. Install ArgoCD
-kubectl create namespace argocd
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-
-# 3. Configure repository access
-kubectl apply -f - <<EOF
-apiVersion: v1
-kind: Secret
-metadata:
-  name: repo-apps
-  namespace: argocd
-  labels:
-    argocd.argoproj.io/secret-type: repository
-stringData:
-  type: git
-  url: https://github.com/cloud-ai-summit-cz/apps.git
-  username: git
-  password: <github-token>
-EOF
-
-# 4. Apply root app
-kubectl apply -f env/staging/bootstrap/app-root.yaml
-
-# 5. Watch applications sync
-kubectl get applications -n argocd -w
+# 3. Wait ~10 minutes for full deployment
+# 4. Access services via ingress FQDN (check azure.yaml)
 ```
 
-## ArgoCD GitOps Strategy
-
-### Overview
-We use ArgoCD with an "app of apps" pattern to declaratively manage all microservice deployments. Source of truth lives in this repository; ArgoCD continuously reconciles the desired state in Git with the running state in the AKS cluster.
-
-### Repository Layout (GitOps Directories)
-```
-helm-charts/
-  <service>/                  # Application services
-    Chart.yaml
-    templates/*.yaml
-  platform-gateway/
-    Chart.yaml
-    values.yaml
-    templates/
-      gateway.yaml
-      certificate.yaml
-  platform-cert-manager/
-    Chart.yaml
-    values.yaml
-    templates/cluster-issuer.yaml
-  web/
-    templates/httproute.yaml
-  toy/
-    templates/httproute.yaml
-  trip/
-    templates/httproute.yaml
-env/
-  staging/
-    infra_config/
-      azure.yaml              # infrastructure outputs (ACR, storage, cosmos, aks, ingress IP, resourceGroup)
-    apps/
-      toy-app.yaml            # ArgoCD apps for services
-      trip-app.yaml
-      web-app.yaml
-    platform/
-      cert-manager-app.yaml        # Platform component (ClusterIssuers)
-      gateway-app.yaml             # Shared Istio Gateway + TLS
-      gateway-values.yaml          # Listener + certificate values
-    bootstrap/
-      platform-root.yaml      # App of apps for platform (deployed first)
-      app-root.yaml           # App of apps for services
-  production/
-    (same structure)
+**Update a service:**
+```bash
+# Make changes to src/services/toy/**
+git commit && git push
+# Workflow automatically builds, updates values, ArgoCD syncs
 ```
 
-### Infrastructure Outputs Propagation (`azure.yaml`)
-An automated GitHub Actions workflow (`deploy-infra.yml`) deploys the Bicep template to the resource group `rg-appdemo` using OIDC federated credentials, then writes key outputs into `env/staging/infra_config/azure.yaml` with the following schema:
-
-```yaml
-# env/staging/infra_config/azure.yaml
-resourceGroup: rg-appdemo
-acr:
-  name: <acrName>
-  loginServer: <acrLoginServer>
-aks:
-  name: <aksClusterName>
-  oidcIssuerUrl: <aksOidcIssuerUrl>
-storage:
-  accountId: <storageAccountId>
-  accountName: <derived-from-id>
-cosmos:
-  accountId: <cosmosAccountId>
-  accountName: <derived-from-id>
-ingress:
-  publicIpName: <pip-name>
-  publicIpAddress: <ip-address>
-  publicIpFqdn: <fqdn>
-  resourceGroup: <rg-name>
-generatedAt: <ISO8601 timestamp>
+**Promote to production:**
+```bash
+# Copy image tags from staging to production values
+cp env/staging/apps/toy-values.yaml env/production/apps/toy-values.yaml
+git commit -m "Promote toy service to production"
+git push
+# ArgoCD syncs (manual approval if configured)
 ```
-
-Only values that change (e.g., on first deployment or infra drift requiring recreation) result in a commit with message:
-```
-Automation - Infrastructure config
-```
-The workflow intentionally **does not** trigger service image rebuilds (values files are separate) but allows ArgoCD (multi-source or valueFiles) to reference ACR login server or other infra data if needed.
-
-### Using `azure.yaml` in Workflows & ArgoCD
-* **Build Workflows:** Can parse `env/staging/infra_config/azure.yaml` (e.g. with `yq`) to set `ACR_NAME` / `ACR_LOGIN_SERVER` instead of hardcoding.
-* **Helm Charts:** Optionally load selected values (e.g. `acr.loginServer`) via a ConfigMap or inject as environment variables referencing cluster secrets—kept minimal here.
-* **Promotion:** If production uses a distinct infrastructure deployment, a corresponding `env/production/infra_config/azure.yaml` is created by running the infra workflow with `environment: production` (future enhancement). Otherwise, copy or cherry-pick the staging file when promoting.
-
-### Rationale
-Centralizing infra outputs as versioned YAML inside the Git repo ensures:
-1. **Determinism:** Git history reflects infra evolution.
-2. **Single Source of Truth:** Both CI and GitOps CD read identical values.
-3. **Security Boundary:** Only non-secret identifiers are stored (no connection strings/keys). Secrets remain in Azure or sealed secret stores.
-4. **Low Coupling:** Application value files remain focused on deploy-time app settings; infra YAML changes rarely.
-
-> Note: If future outputs (e.g., Key Vault names) are required, extend the Bicep outputs and append new keys to `azure.yaml` without breaking existing consumers (treat additions as backward-compatible).
-
-### Helm Chart Conventions
-Each microservice has a minimal chart focusing on only the most commonly tuned attributes:
-* Image repository & tag
-* Replicas count
-* Resource requests & limits
-* Liveness / readiness probes (toggle & paths if applicable)
-* Environment variables / config map references (only essential)
-* Service type & port
-
-Non‑critical or rarely changed Kubernetes fields remain static within `templates/` to reduce maintenance overhead and cognitive load.
-
-#### Implemented Charts
-Four Helm charts are provided in `helm-charts/`:
-
-0. **platform-gateway** (`helm-charts/platform-gateway/`)
-  - Provisions the shared Istio `Gateway` bound to the static ingress IP
-  - Optionally renders the cert-manager `Certificate` that supplies its TLS secret
-
-1. **toy** (`helm-charts/toy/`)
-  - FastAPI service on port 8001
-  - HTTPRoute publishes `/api/toys` through the shared Istio Gateway
-  - Environment: Cosmos DB (toys container), Blob Storage (avatars)
-
-2. **trip** (`helm-charts/trip/`)
-  - FastAPI service on port 8002
-  - HTTPRoute publishes `/api/trips` through the shared Istio Gateway
-  - Environment: Cosmos DB (trips container), Blob Storage (gallery), inter-service call to toy service
-
-3. **web** (`helm-charts/web/`)
-  - Nginx static frontend on port 80
-  - Exposes `/` via an `HTTPRoute` that targets the shared Gateway
-  - No runtime environment variables (config is injected via `env-config.js`)
-
-All external HTTP entrypoints now share the Istio-managed Gateway rendered by the `platform-gateway` chart; each application chart contributes only its HTTPRoute resources.
-
-### Image Tagging & Build Workflow
-1. Developer merges or pushes to main (or feature branch for preview if extended later).
-2. GitHub Actions workflow builds each changed microservice image.
-3. Image is tagged with immutable commit SHA (e.g. `toy-service:<git-sha>`).
-4. For staging environment only: workflow updates the corresponding `env/staging/apps/<service>-values.yaml` file, setting `image.tag` to the new commit SHA.
-  - ACR name & login server now sourced dynamically (if desired) from `env/staging/infra_config/azure.yaml` instead of hardcoding.
-5. Workflow commits the change back to the repository (fast‑forward or PR merge strategy—ensure bot account has permission).
-6. ArgoCD detects the changed values file and reconciles, rolling out the new image to staging.
-
-Production values are updated via an intentional promotion step (manual PR) to ensure controlled releases.
-
-### App of Apps Bootstrap
-
-Two ArgoCD root applications manage the deployment:
-
-1. **Platform Application** (`bootstrap/platform-root.yaml`):
-   - Points to `env/<environment>/platform/`
-  - Deploys shared platform components (platform-gateway + cert-manager)
-  - Deploys first to establish platform capabilities
-
-2. **Services Application** (`bootstrap/app-root.yaml`):
-   - Points to `env/<environment>/apps/`
-   - Deploys application services (toy, trip, web)
-   - Relies on platform components being available
-
-#### Bootstrap Process
-1. Install ArgoCD in the AKS cluster (automated via deploy-infra.yml)
-2. Apply platform application: `kubectl apply -f env/staging/bootstrap/platform-root.yaml`
-3. ArgoCD deploys platform components:
-   - `gateway-app.yaml` → Creates Istio Gateway + certificate (static IP binding)
-   - `cert-manager-app.yaml` → Installs cert-manager + Let's Encrypt issuers
-4. Apply root application: `kubectl apply -f env/staging/bootstrap/app-root.yaml`
-5. ArgoCD deploys services:
-   - `toy-app.yaml` → Deploys toy service
-   - `trip-app.yaml` → Deploys trip service
-   - `web-app.yaml` → Deploys web frontend
-
-Services deploy to `toytrip-staging` namespace (auto-created).
-
-### Promotion Flow
-* Staging soak verification (integration tests, manual checks)
-* Create PR copying validated commit SHAs from `env/staging/apps/*.yaml` to `env/production/apps/*.yaml`
-* Merge PR – ArgoCD syncs production
-
-### Sync & Drift Policies
-* Automated sync enabled for staging (auto‑prune & self‑heal)
-* Manual sync (or auto without prune) for production to allow controlled rollout & rapid rollback (revert Git commit)
-
-### Rollback
-Rollback is a Git revert of the values file changes to a prior commit SHA; ArgoCD reconciliation rolls the deployment back (leveraging image immutability).
-
-### Benefits
-* Deterministic deployments (Git = source of truth)
-* Fast promotion via SHA copy
-* Minimal surface of change (only values files mutate post‑merge)
-* Clear audit trail of each deployment via Git history
-
-### Operational Notes
-* Ensure ArgoCD has read access (deploy key / PAT) to the repository.
-* Consider enabling notifications (Slack / Teams) for sync & health events.
-* Namespace strategy: Using single `toytrip-staging` namespace for all staging services.
-
-### CI/CD Image Update Workflow
-When service code changes are merged to main:
-
-1. **Build & Push**: GitHub Actions builds container image tagged with commit SHA
-   - Parse `env/staging/infra_config/azure.yaml` to get ACR login server
-   - Build: `docker build -t <acr>.azurecr.io/<service>:<sha>`
-   - Push to ACR
-
-2. **Update Values**: Same workflow updates `env/staging/apps/<service>-values.yaml`:
-   ```yaml
-   image:
-     repository: <acr>.azurecr.io/<service>
-     tag: <commit-sha>
-   ```
-
-3. **Commit Back**: Workflow commits change with message:
-   ```
-   Automation - Update <service> image to <sha>
-   ```
-
-4. **ArgoCD Sync**: ArgoCD detects Git change and reconciles deployment (automated for staging)
-
-5. **Verification**: Check sync status: `kubectl get application -n argocd`
-
-**Example workflow additions** (add to `.github/workflows/<service>-build.yml`):
-```yaml
-- name: Get ACR details
-  run: |
-    ACR_LOGIN_SERVER=$(yq '.acr.loginServer' env/staging/infra_config/azure.yaml)
-    echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> $GITHUB_ENV
-
-- name: Update staging values
-  run: |
-    yq -i ".image.repository = \"$ACR_LOGIN_SERVER/$SERVICE_NAME\"" env/staging/apps/$SERVICE_NAME-values.yaml
-    yq -i ".image.tag = \"$GITHUB_SHA\"" env/staging/apps/$SERVICE_NAME-values.yaml
-
-- name: Commit values update
-  run: |
-    git config user.name "github-actions[bot]"
-    git config user.email "github-actions[bot]@users.noreply.github.com"
-    git add env/staging/apps/$SERVICE_NAME-values.yaml
-    git commit -m "Automation - Update $SERVICE_NAME image to $GITHUB_SHA"
-    git push
-```
-
-## Future Enhancements
-- Application Gateway Ingress Controller
-- Azure Key Vault integration for secrets management
-- Network policies for pod-to-pod traffic control
-- ArgoCD ApplicationSet for dynamic app generation
-- Progressive delivery (Blue/Green or Canary) with Argo Rollouts
 
