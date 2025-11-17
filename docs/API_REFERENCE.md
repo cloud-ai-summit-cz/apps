@@ -68,6 +68,41 @@ Error Responses:
 ### 3.6 Agent Service (`/agent`)
 (Chat orchestration endpoints – details TBD; inherits same auth scheme.)
 
+### 3.7 Demo Data Init Service (`/demo-data`)
+| Method | Path | Description | Auth | Notes |
+|--------|------|-------------|------|-------|
+| POST | /demo-data/import | Import demo data | Admin | Requires `Admin.FullAccess` role; reseeds toy/trip data |
+| GET | /health | Health check | Public | No auth required |
+
+**Purpose:** Admin-only service to reseed toy and trip demo content on demand for testing and demonstration purposes.
+
+**Authorization:** Requires Entra ID bearer token with the `Admin.FullAccess` app role. Downstream toy/trip service calls reuse the caller's token for auditing.
+
+**Request Body (POST /demo-data/import):**
+```jsonc
+{
+	"include_toys": true,    // Whether to reseed toy profiles
+	"include_trips": true    // Whether to reseed trip itineraries
+}
+```
+
+**Response (POST /demo-data/import):**
+```jsonc
+{
+	"include_toys": true,
+	"include_trips": true,
+	"summary": {
+		"toys_processed": 5,
+		"toy_failures": 0,
+		"toy_avatars_uploaded": 5,
+		"trips_processed": 10,
+		"trip_failures": 0,
+		"images_uploaded": 30
+	},
+	"duration_ms": 2450
+}
+```
+
 ## 4. Standard Error Schema (Draft)
 ```jsonc
 {

@@ -1,0 +1,178 @@
+openapi: 3.0.3
+info:
+  title: Demo Data Init Service
+  description: Admin-only service to reseed demo datasets for toy and trip data
+  version: 0.1.0
+
+servers:
+  - url: http://localhost:8004
+    description: Local development
+
+security:
+  - BearerAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Returns service health status
+      tags:
+        - System
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  service:
+                    type: string
+                    example: demo-data-init
+
+  /demo-data/import:
+    post:
+      summary: Import demo data
+      description: |
+        Triggers synchronous import of demo toy and trip data.
+        Requires Admin.FullAccess app role.
+        Downstream toy/trip service calls reuse the caller's bearer token for auditing.
+      tags:
+        - Demo Data
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportRequest'
+      responses:
+        '200':
+          description: Import completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResponse'
+        '400':
+          description: Invalid request (e.g., neither toys nor trips selected)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Token valid but Admin.FullAccess role not present
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '502':
+          description: Downstream service failure during import
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Import service not initialized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Entra ID JWT token with Admin.FullAccess app role.
+        Issuer: https://login.microsoftonline.com/{tenant_id}/v2.0
+        Audience: Application ID URI (e.g., api://<app_id>)
+
+  schemas:
+    ImportRequest:
+      type: object
+      properties:
+        include_toys:
+          type: boolean
+          default: true
+          description: Whether toy profiles should be reseeded
+        include_trips:
+          type: boolean
+          default: true
+          description: Whether trip itineraries should be reseeded
+      description: At least one of include_toys or include_trips must be true
+
+    OperationSummary:
+      type: object
+      properties:
+        toys_processed:
+          type: integer
+          format: int32
+          default: 0
+          description: Number of toy records processed
+        toy_failures:
+          type: integer
+          format: int32
+          default: 0
+          description: Number of toy creation failures
+        toy_avatars_uploaded:
+          type: integer
+          format: int32
+          default: 0
+          description: Number of toy avatar images uploaded
+        trips_processed:
+          type: integer
+          format: int32
+          default: 0
+          description: Number of trip records processed
+        trip_failures:
+          type: integer
+          format: int32
+          default: 0
+          description: Number of trip creation failures
+        images_uploaded:
+          type: integer
+          format: int32
+          default: 0
+          description: Number of trip gallery images uploaded
+
+    ImportResponse:
+      type: object
+      required:
+        - include_toys
+        - include_trips
+        - summary
+        - duration_ms
+      properties:
+        include_toys:
+          type: boolean
+          description: Indicates if toys were included in this import
+        include_trips:
+          type: boolean
+          description: Indicates if trips were included in this import
+        summary:
+          $ref: '#/components/schemas/OperationSummary'
+        duration_ms:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Total runtime in milliseconds
+
+    Error:
+      type: object
+      properties:
+        detail:
+          type: string
+          description: Human-readable error message
