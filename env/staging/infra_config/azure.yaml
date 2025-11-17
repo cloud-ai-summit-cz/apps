@@ -33,7 +33,7 @@ letsencrypt:
           sectionName: http
       labels:
         acme.cert-manager.io/http01-solver: "true"
-generatedAt: "2025-11-17T17:38:49Z"
+generatedAt: "2025-11-17T18:02:40Z"
 workloadIdentities:
   toy:
     resourceId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-apps/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-appdemo-sedkdx-toy
