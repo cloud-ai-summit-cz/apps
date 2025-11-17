@@ -38,4 +38,4 @@ env:
   LOG_LEVEL: "INFO"
 workloadIdentity:
   enabled: true
-  clientId: "62015f83-f015-452b-a298-d8ec905623bc" # Set when workload identity is configured
+  clientId: "6ab480ab-2418-4df3-b2f1-aa481a6a0e9e" # Set when workload identity is configured

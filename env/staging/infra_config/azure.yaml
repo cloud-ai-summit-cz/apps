@@ -1,27 +1,27 @@
-resourceGroup: rg-appdemo
+resourceGroup: rg-apps
 acr:
-  name: crappdemoeniwvl
-  loginServer: crappdemoeniwvl.azurecr.io
+  name: crappdemosedkdx
+  loginServer: crappdemosedkdx.azurecr.io
 aks:
-  name: aks-appdemo-eniwvl
-  oidcIssuerUrl: https://swedencentral.oic.prod-aks.azure.com/6ce4f237-667f-43f5-aafd-cbef954adf97/ac07f30d-3c95-4bc6-a2fd-7fca83dcf71c/
+  name: aks-appdemo-sedkdx
+  oidcIssuerUrl: https://swedencentral.oic.prod-aks.azure.com/6ce4f237-667f-43f5-aafd-cbef954adf97/68d12dbc-9f4c-4f6f-b45b-9c7ed49fefc9/
 storage:
-  accountId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-appdemo/providers/Microsoft.Storage/storageAccounts/stappdemoeniwvl
-  accountName: stappdemoeniwvl
-  accountUrl: https://stappdemoeniwvl.blob.core.windows.net/
+  accountId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-apps/providers/Microsoft.Storage/storageAccounts/stappdemosedkdx
+  accountName: stappdemosedkdx
+  accountUrl: https://stappdemosedkdx.blob.core.windows.net/
 cosmos:
-  accountId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-appdemo/providers/Microsoft.DocumentDB/databaseAccounts/cosmosappdemoeniwvl
-  accountName: cosmosappdemoeniwvl
-  endpoint: https://cosmosappdemoeniwvl.documents.azure.com:443/
+  accountId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-apps/providers/Microsoft.DocumentDB/databaseAccounts/cosmosappdemosedkdx
+  accountName: cosmosappdemosedkdx
+  endpoint: https://cosmosappdemosedkdx.documents.azure.com:443/
   databaseName: toytripdb
 auth:
   tenantId: 6ce4f237-667f-43f5-aafd-cbef954adf97
   appIdUri: api://5163cc2b-3d50-4278-8fbc-c13f3f0de588
 ingress:
-  publicIpName: pip-appdemo-eniwvl-ingress
-  publicIpAddress: 4.165.0.65
-  publicIpFqdn: appdemo-eniwvl.swedencentral.cloudapp.azure.com
-  resourceGroup: rg-appdemo
+  publicIpName: pip-appdemo-sedkdx-ingress
+  publicIpAddress: 4.165.89.68
+  publicIpFqdn: appdemo-sedkdx.swedencentral.cloudapp.azure.com
+  resourceGroup: rg-apps
 letsencrypt:
   email: tkubica12@gmail.com
   solver:
@@ -33,19 +33,19 @@ letsencrypt:
           sectionName: http
       labels:
         acme.cert-manager.io/http01-solver: "true"
-generatedAt: "2025-11-15T19:56:02Z"
+generatedAt: "2025-11-17T12:57:57Z"
 workloadIdentities:
   toy:
-    resourceId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-appdemo/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-appdemo-eniwvl-toy
-    clientId: 62015f83-f015-452b-a298-d8ec905623bc
-    principalId: 03ebb8c7-33a1-49f1-88e9-dd8bddf1bd5c
+    resourceId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-apps/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-appdemo-sedkdx-toy
+    clientId: 6ab480ab-2418-4df3-b2f1-aa481a6a0e9e
+    principalId: 9301739d-8f15-47d4-bc2a-761aeb9ca929
     serviceAccountNamespace: toytrip-staging
     serviceAccountName: toy-service
     federatedSubject: system:serviceaccount:toytrip-staging:toy-service
   trip:
-    resourceId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-appdemo/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-appdemo-eniwvl-trip
-    clientId: bb3a116d-6908-4882-aa2b-3a14bd658aae
-    principalId: 01886c68-d8f6-49d2-b8fb-e5a1f63fead9
+    resourceId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-apps/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-appdemo-sedkdx-trip
+    clientId: 160d13f0-23a1-4a5f-8f6b-a176f93f3a8a
+    principalId: 6e81304b-38f3-4c74-8032-bab96f578e02
     serviceAccountNamespace: toytrip-staging
     serviceAccountName: trip-service
     federatedSubject: system:serviceaccount:toytrip-staging:trip-service
