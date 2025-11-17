@@ -2,8 +2,8 @@
 # This file is automatically updated by CI/CD pipeline with image tags
 
 image:
-  repository: "crappdemoeniwvl.azurecr.io/web" # Set by CI: <acr-login-server>/web
-  tag: "930030a557a7a4936b827501e11b35c7205b2456" # Set by CI: commit SHA
+  repository: "crappdemosedkdx.azurecr.io/web" # Set by CI: <acr-login-server>/web
+  tag: "0de16cb81a971c87949d3db1b41a9c5c17ef9269" # Set by CI: commit SHA
 replicaCount: 2
 resources:
   limits:
