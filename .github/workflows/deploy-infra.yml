@@ -222,14 +222,23 @@ jobs:
                            --timeout 10m" \
               --only-show-errors)
             
-            exit_code=$(echo "$result" | jq -r '.exitCode // 1')
+            # Check if result is valid JSON
+            if ! echo "$result" | jq empty 2>/dev/null; then
+              echo "Command failed - invalid JSON response"
+              echo "Raw output: $result"
+              exit_code=1
+            else
+              exit_code=$(echo "$result" | jq -r '.exitCode // 1')
+            fi
             
             if [ "$exit_code" -eq 0 ]; then
               echo "ArgoCD installation successful!"
               exit 0
             else
               echo "Command failed with exit code $exit_code"
-              echo "Output: $(echo "$result" | jq -r '.logs // ""')"
+              if echo "$result" | jq empty 2>/dev/null; then
+                echo "Output: $(echo "$result" | jq -r '.logs // ""')"
+              fi
               
               if [ $attempt -lt $max_attempts ]; then
                 wait_time=$((attempt * 30))
@@ -280,7 +289,14 @@ jobs:
               --command "kubectl apply -f repo-secret.yaml" \
               --only-show-errors)
             
-            exit_code=$(echo "$result" | jq -r '.exitCode // 1')
+            # Check if result is valid JSON
+            if ! echo "$result" | jq empty 2>/dev/null; then
+              echo "Command failed - invalid JSON response"
+              echo "Raw output: $result"
+              exit_code=1
+            else
+              exit_code=$(echo "$result" | jq -r '.exitCode // 1')
+            fi
             
             if [ "$exit_code" -eq 0 ]; then
               echo "Repository secret configured successfully!"
@@ -288,7 +304,9 @@ jobs:
               exit 0
             else
               echo "Command failed with exit code $exit_code"
-              echo "Output: $(echo "$result" | jq -r '.logs // ""')"
+              if echo "$result" | jq empty 2>/dev/null; then
+                echo "Output: $(echo "$result" | jq -r '.logs // ""')"
+              fi
               
               if [ $attempt -lt $max_attempts ]; then
                 wait_time=$((attempt * 30))
@@ -316,6 +334,13 @@ jobs:
             --command "kubectl apply -f platform-root.yaml" \
             --only-show-errors)
           
+          # Check if result is valid JSON
+          if ! echo "$result" | jq empty 2>/dev/null; then
+            echo "Command failed - invalid JSON response"
+            echo "Raw output: $result"
+            exit 1
+          fi
+          
           exit_code=$(echo "$result" | jq -r '.exitCode // 1')
           
           if [ "$exit_code" -ne 0 ]; then
@@ -337,6 +362,13 @@ jobs:
             --file env/staging/bootstrap/app-root.yaml \
             --command "kubectl apply -f app-root.yaml" \
             --only-show-errors)
+          
+          # Check if result is valid JSON
+          if ! echo "$result" | jq empty 2>/dev/null; then
+            echo "Command failed - invalid JSON response"
+            echo "Raw output: $result"
+            exit 1
+          fi
           
           exit_code=$(echo "$result" | jq -r '.exitCode // 1')
           
