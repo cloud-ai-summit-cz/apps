@@ -198,69 +198,24 @@ jobs:
 
       - name: Install ArgoCD via Helm
         run: |
-          set -euo pipefail
-          echo "Installing ArgoCD via Helm in namespace 'argocd'..."
-          
-          max_attempts=3
-          attempt=1
-          
-          while [ $attempt -le $max_attempts ]; do
-            echo "Attempt $attempt of $max_attempts..."
-            
-            result=$(az aks command invoke \
-              --resource-group ${{ env.RESOURCE_GROUP }} \
-              --name ${{ needs.deploy-infrastructure.outputs.aks-cluster-name }} \
-              --file infra/argocd-values.yaml \
-              --command "kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - && \
-                         helm repo add argo https://argoproj.github.io/argo-helm && \
-                         helm repo update && \
-                         helm upgrade --install argocd argo/argo-cd \
-                           --namespace argocd \
-                           --version 7.7.11 \
-                           --values argocd-values.yaml \
-                           --wait \
-                           --timeout 10m" \
-              --only-show-errors)
-            
-            # Check if result is valid JSON
-            if ! echo "$result" | jq empty 2>/dev/null; then
-              echo "Command failed - invalid JSON response"
-              echo "Raw output: $result"
-              exit_code=1
-            else
-              exit_code=$(echo "$result" | jq -r '.exitCode // 1')
-            fi
-            
-            if [ "$exit_code" -eq 0 ]; then
-              echo "ArgoCD installation successful!"
-              exit 0
-            else
-              echo "Command failed with exit code $exit_code"
-              if echo "$result" | jq empty 2>/dev/null; then
-                echo "Output: $(echo "$result" | jq -r '.logs // ""')"
-              fi
-              
-              if [ $attempt -lt $max_attempts ]; then
-                wait_time=$((attempt * 30))
-                echo "Retrying in $wait_time seconds..."
-                sleep $wait_time
-              fi
-            fi
-            
-            attempt=$((attempt + 1))
-          done
-          
-          echo "Failed after $max_attempts attempts"
-          exit 1
+          az aks command invoke \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name ${{ needs.deploy-infrastructure.outputs.aks-cluster-name }} \
+            --file infra/argocd-values.yaml \
+            --command "kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - && \
+                       helm repo add argo https://argoproj.github.io/argo-helm && \
+                       helm repo update && \
+                       helm upgrade --install argocd argo/argo-cd \
+                         --namespace argocd \
+                         --version 7.7.11 \
+                         --values argocd-values.yaml \
+                         --wait \
+                         --timeout 10m"
 
       - name: Configure ArgoCD repository access
         env:
           GH_TOKEN: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
-          set -euo pipefail
-          echo "Configuring private repository access for ArgoCD..."
-          
-          # Create repo secret manifest in working directory
           cat <<EOF > repo-secret.yaml
           apiVersion: v1
           kind: Secret
@@ -276,106 +231,26 @@ jobs:
             password: ${GH_TOKEN}
           EOF
           
-          max_attempts=3
-          attempt=1
-          
-          while [ $attempt -le $max_attempts ]; do
-            echo "Attempt $attempt of $max_attempts..."
-            
-            result=$(az aks command invoke \
-              --resource-group ${{ env.RESOURCE_GROUP }} \
-              --name ${{ needs.deploy-infrastructure.outputs.aks-cluster-name }} \
-              --file repo-secret.yaml \
-              --command "kubectl apply -f repo-secret.yaml" \
-              --only-show-errors)
-            
-            # Check if result is valid JSON
-            if ! echo "$result" | jq empty 2>/dev/null; then
-              echo "Command failed - invalid JSON response"
-              echo "Raw output: $result"
-              exit_code=1
-            else
-              exit_code=$(echo "$result" | jq -r '.exitCode // 1')
-            fi
-            
-            if [ "$exit_code" -eq 0 ]; then
-              echo "Repository secret configured successfully!"
-              rm -f repo-secret.yaml
-              exit 0
-            else
-              echo "Command failed with exit code $exit_code"
-              if echo "$result" | jq empty 2>/dev/null; then
-                echo "Output: $(echo "$result" | jq -r '.logs // ""')"
-              fi
-              
-              if [ $attempt -lt $max_attempts ]; then
-                wait_time=$((attempt * 30))
-                echo "Retrying in $wait_time seconds..."
-                sleep $wait_time
-              fi
-            fi
-            
-            attempt=$((attempt + 1))
-          done
+          az aks command invoke \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name ${{ needs.deploy-infrastructure.outputs.aks-cluster-name }} \
+            --file repo-secret.yaml \
+            --command "kubectl apply -f repo-secret.yaml"
           
           rm -f repo-secret.yaml
-          echo "Failed after $max_attempts attempts"
-          exit 1
 
       - name: Apply ArgoCD platform application (app of apps for platform)
         run: |
-          set -euo pipefail
-          echo "Applying platform application for staging..."
-          
-          result=$(az aks command invoke \
+          az aks command invoke \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --name ${{ needs.deploy-infrastructure.outputs.aks-cluster-name }} \
             --file env/staging/bootstrap/platform-root.yaml \
-            --command "kubectl apply -f platform-root.yaml" \
-            --only-show-errors)
-          
-          # Check if result is valid JSON
-          if ! echo "$result" | jq empty 2>/dev/null; then
-            echo "Command failed - invalid JSON response"
-            echo "Raw output: $result"
-            exit 1
-          fi
-          
-          exit_code=$(echo "$result" | jq -r '.exitCode // 1')
-          
-          if [ "$exit_code" -ne 0 ]; then
-            echo "Command failed with exit code $exit_code"
-            echo "Output: $(echo "$result" | jq -r '.logs // ""')"
-            exit 1
-          fi
-          
-          echo "Platform application applied successfully!"
+            --command "kubectl apply -f platform-root.yaml"
 
       - name: Apply ArgoCD root application (app of apps for services)
         run: |
-          set -euo pipefail
-          echo "Applying root application for staging..."
-          
-          result=$(az aks command invoke \
+          az aks command invoke \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --name ${{ needs.deploy-infrastructure.outputs.aks-cluster-name }} \
             --file env/staging/bootstrap/app-root.yaml \
-            --command "kubectl apply -f app-root.yaml" \
-            --only-show-errors)
-          
-          # Check if result is valid JSON
-          if ! echo "$result" | jq empty 2>/dev/null; then
-            echo "Command failed - invalid JSON response"
-            echo "Raw output: $result"
-            exit 1
-          fi
-          
-          exit_code=$(echo "$result" | jq -r '.exitCode // 1')
-          
-          if [ "$exit_code" -ne 0 ]; then
-            echo "Command failed with exit code $exit_code"
-            echo "Output: $(echo "$result" | jq -r '.logs // ""')"
-            exit 1
-          fi
-          
-          echo "Root application applied successfully!"
+            --command "kubectl apply -f app-root.yaml"
