@@ -216,28 +216,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
-          cat <<EOF > repo-secret.yaml
-          apiVersion: v1
-          kind: Secret
-          metadata:
-            name: repo-apps
-            namespace: argocd
-            labels:
-              argocd.argoproj.io/secret-type: repository
-          stringData:
-            type: git
-            url: https://github.com/${{ github.repository }}.git
-            username: git
-            password: ${GH_TOKEN}
-          EOF
-          
           az aks command invoke \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --name ${{ needs.deploy-infrastructure.outputs.aks-cluster-name }} \
-            --file repo-secret.yaml \
-            --command "kubectl apply -f repo-secret.yaml"
-          
-          rm -f repo-secret.yaml
+            --command "kubectl create secret generic repo-apps \
+              --namespace argocd \
+              --from-literal=type=git \
+              --from-literal=url=https://github.com/${{ github.repository }}.git \
+              --from-literal=username=git \
+              --from-literal=password='${GH_TOKEN}' \
+              --dry-run=client -o yaml | kubectl apply -f - && \
+              kubectl label secret repo-apps -n argocd argocd.argoproj.io/secret-type=repository --overwrite"
 
       - name: Apply ArgoCD platform application (app of apps for platform)
         run: |
