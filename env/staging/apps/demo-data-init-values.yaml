@@ -2,8 +2,8 @@
 # This file is automatically updated by CI/CD pipeline with image tags
 
 image:
-  repository: "crappdemoeniwvl.azurecr.io/demo-data-init"
-  tag: "91badc3ce3c06cb73095c68e52fcb4faf8d262da"
+  repository: "crappdemosedkdx.azurecr.io/demo-data-init"
+  tag: "0de16cb81a971c87949d3db1b41a9c5c17ef9269"
 replicaCount: 1
 resources:
   limits:
