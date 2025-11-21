@@ -28,6 +28,11 @@ var workloadIdentities = [
     serviceAccountNamespace: 'toytrip-staging'
     serviceAccountName: 'trip-service'
   }
+  {
+    name: 'otelcollector'
+    serviceAccountNamespace: 'observability'
+    serviceAccountName: 'otel-collector'
+  }
 ]
 
 // Deterministic unique suffix seeded by subscription + prefix (6 characters)
@@ -108,6 +113,9 @@ var roleDefinitions = {
   NetworkContributor: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4d97b98b-1d4f-4787-a291-c67834d212e7')
   StorageBlobDataContributor: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
   AksRbacClusterAdmin: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b')
+  MonitoringMetricsPublisher: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '3913510d-42f4-4e42-8a64-420c390055eb')
+  MonitoringReader: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '43d0d8ad-25c7-4714-9337-8ba259a9fe05')
+  GrafanaAdmin: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '22926164-76b3-42b3-bc55-97df8dab3e41')
 }
 
 // Special: Managed Identity Operator needs to be scoped to the kubelet identity resource
@@ -133,6 +141,8 @@ module aks 'modules/aksAutomatic.bicep' = {
     clusterIdentityPrincipalId: aksClusterIdentity.properties.principalId
     kubeletIdentityId: aksKubeletIdentity.id
     kubeletIdentityPrincipalId: aksKubeletIdentity.properties.principalId
+    logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
+    dataCollectionRuleId: monitoring.outputs.dataCollectionRuleId
   }
   dependsOn: [
     managedIdentityOperatorAssignment
@@ -188,6 +198,30 @@ resource cosmosAccountExisting 'Microsoft.DocumentDB/databaseAccounts@2024-11-15
   ]
 }
 
+// =============================================================================
+// Observability Infrastructure
+// =============================================================================
+
+// Consolidated monitoring infrastructure (Log Analytics, App Insights, Azure Monitor Workspace, DCR)
+module monitoring 'modules/monitoring.bicep' = {
+  name: 'monitoringDeploy'
+  params: {
+    baseNameDash: baseNameDash
+    location: location
+  }
+}
+
+// Azure Managed Grafana
+module grafana 'modules/azureManagedGrafana.bicep' = {
+  name: 'grafanaDeploy'
+  params: {
+    baseName: baseNameDash
+    location: location
+    azureMonitorWorkspaceIds: [
+      monitoring.outputs.azureMonitorWorkspaceId
+    ]
+  }
+}
 
 // =============================================================================
 // RBAC Assignments
@@ -252,6 +286,48 @@ resource workloadStorageAssignments 'Microsoft.Authorization/roleAssignments@202
     }
   }
 ]
+
+// =============================================================================
+// Observability RBAC Assignments
+// =============================================================================
+
+// Find OTEL collector identity index
+var otelCollectorIdentityIndex = filter(workloadIdentitySpecs, identity => identity.name == 'otelcollector')[0].idx
+
+// OTEL Collector: Monitoring Metrics Publisher role on Data Collection Rule (at resource group level)
+resource otelCollectorMetricsPublisher 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, 'otelcollector', baseNameDash, roleDefinitions.MonitoringMetricsPublisher)
+  properties: {
+    roleDefinitionId: roleDefinitions.MonitoringMetricsPublisher
+    principalId: workloadUserAssignedIdentities[otelCollectorIdentityIndex].properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Grafana: Monitoring Reader role on Azure Monitor Workspace (at resource group level per documentation)
+resource grafanaMonitoringReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, 'grafana', baseNameDash, roleDefinitions.MonitoringReader)
+  properties: {
+    roleDefinitionId: roleDefinitions.MonitoringReader
+    principalId: grafana.outputs.grafanaPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// User: Grafana Admin role on Grafana workspace
+resource grafanaExisting 'Microsoft.Dashboard/grafana@2023-09-01' existing = {
+  name: 'grafana-${baseNameDash}'
+}
+
+resource userGrafanaAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(userObjectId)) {
+  scope: grafanaExisting
+  name: guid(grafanaExisting.id, userObjectId, roleDefinitions.GrafanaAdmin)
+  properties: {
+    roleDefinitionId: roleDefinitions.GrafanaAdmin
+    principalId: userObjectId
+    principalType: 'User'
+  }
+}
 
 // =============================================================================
 // Cosmos DB RBAC (separate - uses different API)
@@ -325,3 +401,25 @@ output ingressPublicIpName string = networking.outputs.ingressPublicIpName
 output ingressPublicIpAddress string = networking.outputs.ingressPublicIpAddress
 output ingressPublicIpFqdn string = networking.outputs.ingressPublicIpFqdn
 output ingressPublicIpResourceGroup string = resourceGroup().name
+
+// =============================================================================
+// Observability Outputs
+// =============================================================================
+output logAnalyticsWorkspaceId string = monitoring.outputs.logAnalyticsWorkspaceId
+output logAnalyticsWorkspaceName string = monitoring.outputs.logAnalyticsWorkspaceName
+output logAnalyticsWorkspaceCustomerId string = monitoring.outputs.logAnalyticsWorkspaceCustomerId
+output applicationInsightsId string = monitoring.outputs.applicationInsightsId
+output applicationInsightsName string = monitoring.outputs.applicationInsightsName
+// Application Insights ingestion endpoint (safe to store in Git - used with AAD auth)
+output applicationInsightsIngestionEndpoint string = monitoring.outputs.applicationInsightsIngestionEndpoint
+output azureMonitorWorkspaceId string = monitoring.outputs.azureMonitorWorkspaceId
+output azureMonitorWorkspaceName string = monitoring.outputs.azureMonitorWorkspaceName
+output azureMonitorWorkspaceQueryEndpoint string = monitoring.outputs.azureMonitorWorkspaceQueryEndpoint
+// Data Collection Endpoint ingestion URL (safe to store in Git)
+output azureMonitorWorkspaceIngestionEndpoint string = monitoring.outputs.azureMonitorWorkspaceIngestionEndpoint
+output dataCollectionEndpointIngestionEndpoint string = monitoring.outputs.dataCollectionEndpointIngestionEndpoint
+output dataCollectionRuleId string = monitoring.outputs.dataCollectionRuleId
+output dataCollectionRuleName string = monitoring.outputs.dataCollectionRuleName
+output grafanaId string = grafana.outputs.grafanaId
+output grafanaName string = grafana.outputs.grafanaName
+output grafanaEndpoint string = grafana.outputs.grafanaEndpoint

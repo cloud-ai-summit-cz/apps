@@ -25,7 +25,7 @@ $objectId = az ad signed-in-user show --query id -o tsv
 
 ## Create Resource Group
 ```pwsh
-$rg='rg-appdemo'
+$rg='rg-apps'
 az group create -n $rg -l swedencentral
 ```
 

@@ -118,6 +118,30 @@ resource aksNodesNsg 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
   }
 }
 
+// Network Security Group for AKS API server subnet
+resource aksApiNsg 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
+  name: 'nsg-${baseNameDash}-aks-api'
+  location: location
+  properties: {
+    securityRules: [
+      {
+        name: 'AllowHttpsFromInternet'
+        properties: {
+          description: 'Allow HTTPS traffic from Internet to AKS API server'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '443'
+          sourceAddressPrefix: 'Internet'
+          destinationAddressPrefix: '*'
+          access: 'Allow'
+          priority: 100
+          direction: 'Inbound'
+        }
+      }
+    ]
+  }
+}
+
 // Virtual Network
 resource vnet 'Microsoft.Network/virtualNetworks@2024-01-01' = {
   name: 'vnet-${baseNameDash}'
@@ -148,6 +172,9 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-01-01' = {
           addressPrefix: aksApiSubnetPrefix
           natGateway: {
             id: natGateway.id
+          }
+          networkSecurityGroup: {
+            id: aksApiNsg.id
           }
           delegations: [
             {

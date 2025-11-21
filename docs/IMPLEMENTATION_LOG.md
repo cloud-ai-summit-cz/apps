@@ -1,3 +1,186 @@
+## 2025-01-18 - Consolidate Monitoring Infrastructure Modules
+
+**Context**: Refactored observability infrastructure from 4 separate modules into a single consolidated monitoring module with improved architectural clarity.
+
+**Objective**: Simplify infrastructure code, reduce module count, and establish clearer ownership boundaries between monitoring infrastructure and AKS cluster configuration.
+
+**Architectural Changes**:
+
+1. **Created Consolidated `modules/monitoring.bicep`**:
+   - Merged 4 separate modules into single monitoring infrastructure module:
+     - `logAnalyticsWorkspace.bicep` → Log Analytics for Container Insights
+     - `applicationInsights.bicep` → Application Insights with AAD auth
+     - `azureMonitorWorkspace.bicep` → Azure Monitor Workspace + DCE + DCR for Prometheus
+     - `prometheusMonitoringDcra.bicep` → (moved to AKS module)
+   - All observability infrastructure resources deployed from single module
+   - Consolidated outputs for cleaner module interface
+
+2. **Moved DCRA to AKS Module**:
+   - Data Collection Rule Association (DCRA) now created within `aksAutomatic.bicep`
+   - Added `dataCollectionRuleId` parameter to AKS module
+   - DCRA scoped to AKS cluster resource, logically belongs with cluster configuration
+   - Conditional creation: `if (!empty(dataCollectionRuleId))`
+
+3. **Simplified main.bicep**:
+   - Reduced from 4 monitoring module calls to 1 monitoring module call
+   - AKS module now receives both `logAnalyticsWorkspaceId` and `dataCollectionRuleId`
+   - Removed separate `prometheusDcra` module deployment
+   - Updated all outputs to reference consolidated monitoring module
+
+4. **Benefits**:
+   - Single source of truth for all monitoring infrastructure
+   - Clearer separation: monitoring module = infrastructure, AKS module = cluster + associations
+   - Easier to understand and maintain
+   - Reduced deployment complexity
+   - Better encapsulation of related resources
+
+5. **RBAC Adjustment**:
+   - OTEL Collector Monitoring Metrics Publisher role now assigned at resource group level
+   - Simplified role assignment without needing to reference DCR resource directly
+
+**Files Modified**:
+- Created: `infra/bicep/modules/monitoring.bicep`
+- Modified: `infra/bicep/modules/aksAutomatic.bicep` (added DCRA)
+- Modified: `infra/bicep/main.bicep` (consolidated module calls)
+- Deleted: 4 obsolete monitoring modules
+
+**Validation**: Bicep compilation successful with only harmless BCP334 length warnings (acr.bicep, storageAccount.bicep).
+
+---
+
+## 2025-01-18 - Configure AKS Automatic Security and Ingress Profiles
+
+**Context**: Enhanced AKS Automatic cluster configuration to include Microsoft Defender for Containers and properly configure the ingress profile for application routing.
+
+**Objective**: Enable comprehensive security monitoring with Defender and configure the built-in NGINX ingress controller through the application routing add-on.
+
+**Key Configuration Changes**:
+
+1. **Microsoft Defender for Containers**:
+   - Added `defender` section to `securityProfile` in aksAutomatic.bicep
+   - Enabled security monitoring: `securityMonitoring.enabled = true`
+   - Linked to Log Analytics workspace for threat detection data
+   - Provides real-time security alerts and vulnerability assessments for containers
+
+2. **Application Routing with Web App Routing**:
+   - Changed `ingressProfile` from `gatewayAPI` to `webAppRouting`
+   - Enabled managed NGINX ingress controller (AKS Automatic default)
+   - Configuration: `webAppRouting.enabled = true` with empty DNS zones array
+   - This is the preconfigured ingress solution for AKS Automatic clusters
+   - Works alongside Istio service mesh for ingress gateway capabilities
+
+3. **Azure Monitor Metrics Profile**:
+   - Kept `azureMonitorProfile.metrics.enabled = true` for Prometheus collection
+   - The workspace link is established via Data Collection Rule Association (DCRA)
+   - No direct workspace property on metrics profile (API doesn't support it)
+   - ama-metrics addon pods get configuration from DCRA linking cluster to DCR
+
+4. **Architecture Clarification**:
+   - Azure Monitor workspace link happens through infrastructure relationships, not AKS properties:
+     - AKS cluster has `metrics.enabled = true` (enables ama-metrics addon)
+     - DCRA associates AKS cluster with Data Collection Rule (DCR)
+     - DCR specifies Azure Monitor workspace as destination
+     - ama-metrics pods discover configuration via this association
+   - This pattern is different from Container Insights which has explicit `logAnalyticsWorkspaceResourceId` property
+
+**Bicep Updates**:
+- **aksAutomatic.bicep**:
+  - Added `defender` configuration with Log Analytics integration
+  - Changed `ingressProfile` from Gateway API to Web App Routing
+  - Maintained existing Istio service mesh configuration
+  - Kept Azure Monitor metrics profile enabled
+
+**Deployment Note**: The DCRA module (prometheusMonitoringDcra.bicep) handles the critical link between AKS and Azure Monitor workspace. This association enables the ama-metrics pods to discover where to send Prometheus metrics.
+
+---
+
+## 2025-01-23 - Implement Observability Infrastructure with AAD Authentication
+
+**Context**: Implemented complete Azure observability infrastructure for the AKS cluster following the architecture defined in OBSERVABILITY.md. The implementation focuses on secure, managed identity-based authentication throughout, avoiding secrets in Git.
+
+**Objective**: Deploy Azure Monitor for Prometheus, Azure Managed Grafana, Application Insights, Container Insights, and set up the foundation for OpenTelemetry Collector deployment using workload identity.
+
+**Key Implementation Decisions**:
+
+1. **AAD Authentication Proxy Pattern for OTEL Collector**:
+   - OpenTelemetry Collector's azuremonitorexporter does NOT natively support managed identity
+   - Solution: Deploy AAD authentication proxy sidecar with workload identity
+   - OTEL collector sends to localhost proxy, proxy forwards with AAD tokens
+   - Same pattern used for both Prometheus metrics and Application Insights ingestion
+   - Workload identity created: `otelcollector` in `observability` namespace with `otel-collector` service account
+
+2. **Application Insights Security**:
+   - DisableLocalAuth: true enforced on Application Insights resource
+   - No instrumentation key authentication - AAD only
+   - ConnectionString and InstrumentationKey available as outputs but only for proxy use
+   - IngestionEndpoint is safe to store in Git (used with AAD authentication)
+
+3. **Container Insights Integration**:
+   - AKS azureMonitorProfile.containerInsights enabled with managed identity
+   - Linked to Log Analytics workspace via logAnalyticsWorkspaceResourceId
+   - AKS metrics addon enabled (azureMonitorProfile.metrics.enabled: true)
+
+4. **Prometheus Metrics Collection**:
+   - Azure Monitor Workspace created with Data Collection Endpoint and Data Collection Rule
+   - Data Collection Rule Association (DCRA) links AKS cluster to the DCR
+   - OTEL collector identity assigned "Monitoring Metrics Publisher" role on DCR
+   - Grafana workspace integrated with Azure Monitor Workspace for dashboard queries
+
+5. **RBAC Configuration**:
+   - OTEL Collector workload identity: "Monitoring Metrics Publisher" on Data Collection Rule
+   - Grafana system-assigned identity: "Monitoring Reader" on resource group (inherited by Azure Monitor Workspace)
+   - All service principals, no user accounts involved in data plane authentication
+
+6. **Bicep Module Structure**:
+   - logAnalyticsWorkspace.bicep: Backend for Container Insights (30-day retention)
+   - applicationInsights.bicep: Workspace-based App Insights with AAD auth enforced
+   - azureMonitorWorkspace.bicep: Prometheus storage with DCE and DCR configuration
+   - azureManagedGrafana.bicep: Standard tier Grafana with Azure Monitor integration
+   - prometheusMonitoringDcra.bicep: Associates AKS cluster with Prometheus DCR
+   - aksAutomatic.bicep: Updated to enable Container Insights and metrics
+
+7. **Workload Identity Pattern**:
+   - Added `otelcollector` to workloadIdentities array in main.bicep
+   - Federated credential created for system:serviceaccount:observability:otel-collector
+   - Follows same pattern as existing toy/trip service identities
+   - Identity creation, federated credentials, and RBAC all managed by main.bicep
+
+8. **Infrastructure Outputs for GitOps Configuration**:
+   - Application Insights ingestion endpoint (safe for Git)
+   - Azure Monitor Workspace query and ingestion endpoints
+   - Data Collection Endpoint ingestion URL
+   - OTEL collector identity client ID (from workloadIdentities array)
+   - Data Collection Rule ID (for RBAC reference)
+   - Grafana workspace endpoint
+   - NO secrets in outputs: connection strings/keys stay in Azure resources only
+
+9. **Next Steps for Full Observability**:
+   - Deploy AAD authentication proxy as sidecar in OTEL collector deployment
+   - Configure OTEL collector to send Prometheus metrics to localhost proxy
+   - Configure OTEL collector to send Application Insights telemetry to localhost proxy
+   - Deploy service account `otel-collector` in `observability` namespace
+   - Label service account with azure.workload.identity/client-id annotation
+   - Configure Grafana dashboards for business and technical metrics
+
+**Files Created**:
+- infra/bicep/modules/logAnalyticsWorkspace.bicep
+- infra/bicep/modules/applicationInsights.bicep
+- infra/bicep/modules/azureMonitorWorkspace.bicep
+- infra/bicep/modules/azureManagedGrafana.bicep
+- infra/bicep/modules/prometheusMonitoringDcra.bicep
+
+**Files Modified**:
+- infra/bicep/main.bicep: Integrated all observability modules, added otelcollector workload identity, RBAC assignments, and observability outputs
+- infra/bicep/modules/aksAutomatic.bicep: Enabled Container Insights and metrics addons with Log Analytics integration
+
+**Technical Notes**:
+- AKS Automatic API version: 2025-06-02-preview (supports latest monitoring features)
+- Data Collection Rule API version: 2022-06-01 (for Prometheus metrics)
+- Application Insights API version: 2020-02-02 (supports DisableLocalAuth property)
+- Grafana API version: 2023-09-01 (supports azureMonitorWorkspaceIntegrations)
+- Role assignment scoping: DCR-level for OTEL collector, resource group-level for Grafana
+- Azure Monitor Workspace retention: 18 months at no additional cost
+
 ## 2025-11-17 - Create Comprehensive OBSERVABILITY.md Documentation
 
 **Context**: The project needed a high-level observability architecture document describing how logs, metrics, and traces are collected, routed, and visualized across the microservices platform.

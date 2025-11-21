@@ -22,6 +22,12 @@ param kubeletIdentityId string
 @description('User-assigned managed identity principal ID for kubelet.')
 param kubeletIdentityPrincipalId string
 
+@description('Log Analytics workspace resource ID for Container Insights.')
+param logAnalyticsWorkspaceId string = ''
+
+@description('Data Collection Rule resource ID for Prometheus metrics.')
+param dataCollectionRuleId string = ''
+
 // AKS Automatic cluster with custom VNet
 resource aks 'Microsoft.ContainerService/managedClusters@2025-06-02-preview' = {
   name: 'aks-${baseName}'
@@ -47,14 +53,14 @@ resource aks 'Microsoft.ContainerService/managedClusters@2025-06-02-preview' = {
       {
         name: 'userpool'
         mode: 'User'
-        count: 1 
+        count: 1
         vnetSubnetID: clusterSubnetId
       }
     ]
     // API Server with VNET integration (public endpoint + private network)
     apiServerAccessProfile: {
       subnetId: apiServerSubnetId
-      enablePrivateCluster: false 
+      enablePrivateCluster: false
     }
     // Network profile with Azure CNI Overlay and Cilium
     networkProfile: {
@@ -63,7 +69,7 @@ resource aks 'Microsoft.ContainerService/managedClusters@2025-06-02-preview' = {
       networkPolicy: 'cilium'
       networkDataplane: 'cilium'
       loadBalancerSku: 'standard'
-      outboundType: 'userAssignedNATGateway' 
+      outboundType: 'userAssignedNATGateway'
       serviceCidr: '10.250.0.0/16'
       dnsServiceIP: '10.250.0.10'
       // Advanced Container Networking Services (observability)
@@ -91,6 +97,12 @@ resource aks 'Microsoft.ContainerService/managedClusters@2025-06-02-preview' = {
     disableLocalAccounts: true
     // Security and operational features
     securityProfile: {
+      defender: {
+        logAnalyticsWorkspaceResourceId: logAnalyticsWorkspaceId
+        securityMonitoring: {
+          enabled: true
+        }
+      }
       workloadIdentity: {
         enabled: true
       }
@@ -117,6 +129,15 @@ resource aks 'Microsoft.ContainerService/managedClusters@2025-06-02-preview' = {
         }
       }
     }
+    addonProfiles: {
+      omsagent: {
+        enabled: true
+        config: {
+          logAnalyticsWorkspaceResourceID: logAnalyticsWorkspaceId
+          useAADAuth: 'true'
+        }
+      }
+    }
     serviceMeshProfile: {
       mode: 'Istio'
       istio: {
@@ -134,7 +155,21 @@ resource aks 'Microsoft.ContainerService/managedClusters@2025-06-02-preview' = {
       gatewayAPI: {
         installation: 'Standard'
       }
+      webAppRouting: {
+        enabled: true
+        dnsZoneResourceIds: []
+      }
     }
+  }
+}
+
+// Data Collection Rule Association for Prometheus metrics
+resource dcra 'Microsoft.Insights/dataCollectionRuleAssociations@2022-06-01' = if (!empty(dataCollectionRuleId)) {
+  name: 'dcra-${split(dataCollectionRuleId, '/')[8]}'
+  scope: aks
+  properties: {
+    dataCollectionRuleId: dataCollectionRuleId
+    description: 'Association of Prometheus Data Collection Rule with AKS cluster'
   }
 }
 
