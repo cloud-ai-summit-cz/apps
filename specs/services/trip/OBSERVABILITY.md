@@ -1,6 +1,18 @@
-## Trip Service Observability
+# Service Observability Plan – trip
 
-- Emits HTTP metrics and traces via OpenTelemetry SDK
-- Business metrics examples:
-  - `trips_created_total`
-  - `gallery_images_uploaded_total`
+Describe the metrics, logs, and traces that prove this service is healthy. Inherit global goals from `../../platform/OBSERVABILITY.md` and add service-level KPIs here.
+
+## Metrics
+- **trips_viewed_total** (counter, dimensions: user_id, trip_id, is_admin): Trip detail views
+- **trips_created_total** (counter, dimensions: user_id, destination): New trip creations
+- **gallery_images_viewed_total** (counter, dimensions: trip_id, media_type, is_admin): Gallery image views
+
+## Logs
+- Ensure `user_id`, `trip_id`, and `destination` are included in structured logs.
+
+## Traces
+- **trip.create:** Trip creation (user validation, destination lookup, storage)
+- **trip.gallery.upload:** Gallery image upload (blob storage, metadata update)
+
+## Alerts
+- Alert on high failure rate for `trip.create`.
