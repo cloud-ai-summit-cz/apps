@@ -290,3 +290,22 @@ The OTEL Collector was crashing with `invalid configuration: service::extensions
 
 ### Verification
 - The generated ConfigMap will now contain the `extensions` block, allowing the collector to start successfully.
+
+---
+
+## 2024-11-21 - Aspire Dashboard Connectivity Fixes
+
+Addressed connectivity issues between OTEL Collector and Aspire Dashboard.
+
+### Issues
+1. **Connection Refused**: The OTEL Collector could not connect to the Aspire Dashboard (`dial tcp ... connection refused`). This was likely due to the Dashboard pod not being marked "Ready" because of failing HTTP probes, causing the Service to have no endpoints.
+2. **Probe Reliability**: The HTTP probe on `/` might be returning unexpected status codes or redirects, causing the pod to stay in `CrashLoopBackOff` or unready state.
+
+### Fixes
+1. **Updated Probes**: Changed `livenessProbe` and `readinessProbe` in `helm-charts/platform-observability/templates/aspire-dashboard-deployment.yaml` to use `tcpSocket` instead of `httpGet`. This ensures the pod is marked ready as soon as the UI port (18888) is open, avoiding HTTP path/status ambiguity.
+2. **Service Port Definition**: Updated `helm-charts/platform-observability/templates/aspire-dashboard-service.yaml` to use numeric `targetPort` (e.g., 18888, 18889) instead of named ports. This improves reliability of port mapping.
+
+### Verification
+- The Dashboard pod should now become Ready reliably.
+- The Service will populate with the pod's endpoint.
+- The OTEL Collector should successfully connect to `aspire-dashboard:18889`.

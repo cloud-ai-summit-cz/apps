@@ -53,15 +53,13 @@ spec:
           {{- toYaml .Values.aspireDashboard.resources | nindent 10 }}
         
         livenessProbe:
-          httpGet:
-            path: /
+          tcpSocket:
             port: ui
-          initialDelaySeconds: 10
+          initialDelaySeconds: 15
           periodSeconds: 10
         
         readinessProbe:
-          httpGet:
-            path: /
+          tcpSocket:
             port: ui
           initialDelaySeconds: 5
           periodSeconds: 5

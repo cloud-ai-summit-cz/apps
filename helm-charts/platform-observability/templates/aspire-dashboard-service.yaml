@@ -18,10 +18,10 @@ spec:
   ports:
   - name: ui
     port: {{ .Values.aspireDashboard.service.uiPort }}
-    targetPort: ui
+    targetPort: {{ .Values.aspireDashboard.service.uiPort }}
     protocol: TCP
   - name: otlp
     port: {{ .Values.aspireDashboard.service.otlpPort }}
-    targetPort: otlp
+    targetPort: {{ .Values.aspireDashboard.service.otlpPort }}
     protocol: TCP
 {{- end }}
