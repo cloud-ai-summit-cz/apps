@@ -37,6 +37,19 @@ env:
   API_HOST: "0.0.0.0"
   API_PORT: "8001"
   LOG_LEVEL: "INFO"
+  # OpenTelemetry Configuration
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.toytrip-staging.svc.cluster.local:4317"
+  OTEL_SERVICE_NAME: "toy-service"
+  SERVICE_VERSION: "0de16cb81a971c87949d3db1b41a9c5c17ef9269"
+
+# Kubernetes Downward API for context
+envFieldRef:
+  - name: K8S_NAMESPACE
+    fieldPath: metadata.namespace
+  - name: K8S_POD_NAME
+    fieldPath: metadata.name
+  - name: K8S_NODE_NAME
+    fieldPath: spec.nodeName
 workloadIdentity:
   enabled: true
   clientId: "6ab480ab-2418-4df3-b2f1-aa481a6a0e9e" # Set when workload identity is configured

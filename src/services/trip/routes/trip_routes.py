@@ -31,6 +31,10 @@ trip_repository: TripRepository | None = None
 gallery_service: GalleryService | None = None
 get_auth_context: Callable | None = None
 toy_service_url: str | None = None
+tracer = None  # OpenTelemetry tracer
+trips_viewed_counter = None  # Metric counter
+trips_created_counter = None  # Metric counter
+gallery_images_viewed_counter = None  # Metric counter
 
 
 def initialize_auth(tenant_id: str, app_id_uri: str):
@@ -144,28 +148,43 @@ async def create_trip(
     # Extract token for forwarding to toy service
     token = authorization.split(" ", 1)[1] if authorization and " " in authorization else ""
     
-    # Verify toy ownership (this also ensures user is authenticated properly)
-    owner_oid = await verify_toy_ownership(trip_data.toy_id, auth_ctx, token)
+    with tracer.start_as_current_span("trip.create") as span:
+        # Verify toy ownership (this also ensures user is authenticated properly)
+        owner_oid = await verify_toy_ownership(trip_data.toy_id, auth_ctx, token)
 
-    # Create trip with owner_oid denormalized for fast auth checks
-    trip_kwargs = {
-        "title": trip_data.title.strip(),
-        "description": trip_data.description.strip() if trip_data.description else None,
-        "location_name": trip_data.location_name.strip(),
-        "country_code": trip_data.country_code,
-        "toy_id": trip_data.toy_id,
-        "owner_oid": owner_oid,
-        "public_tracking_enabled": trip_data.public_tracking_enabled,
-    }
-    if trip_data.id is not None:
-        trip_kwargs["id"] = trip_data.id
+        # Create trip with owner_oid denormalized for fast auth checks
+        trip_kwargs = {
+            "title": trip_data.title.strip(),
+            "description": trip_data.description.strip() if trip_data.description else None,
+            "location_name": trip_data.location_name.strip(),
+            "country_code": trip_data.country_code,
+            "toy_id": trip_data.toy_id,
+            "owner_oid": owner_oid,
+            "public_tracking_enabled": trip_data.public_tracking_enabled,
+        }
+        if trip_data.id is not None:
+            trip_kwargs["id"] = trip_data.id
 
-    trip = Trip(**trip_kwargs)
+        trip = Trip(**trip_kwargs)
 
-    created_trip = await repo.create(trip)
-    logger.info(f"Created trip {created_trip.id} for toy {trip_data.toy_id}")
+        created_trip = await repo.create(trip)
+        
+        # Add span attributes
+        span.set_attribute("trip_id", str(created_trip.id))
+        span.set_attribute("toy_id", str(trip_data.toy_id))
+        span.set_attribute("user_id", owner_oid)
+        span.set_attribute("destination", trip_data.location_name)
+        span.set_attribute("success", True)
+        
+        # Increment metric counter
+        trips_created_counter.add(1, {
+            "user_id": owner_oid,
+            "destination": trip_data.location_name
+        })
+        
+        logger.info(f"Created trip {created_trip.id} for toy {trip_data.toy_id}")
 
-    return created_trip
+        return created_trip
 
 
 @router.get("/{trip_id}", response_model=Trip)
@@ -182,6 +201,15 @@ async def get_trip(
     trip = await repo.get_by_id(trip_id)
     if not trip:
         raise HTTPException(status_code=404, detail="Trip not found")
+
+    # Track metric for trip view
+    from auth.models import UserPrincipal
+    user_id = auth_ctx.principal.oid if isinstance(auth_ctx.principal, UserPrincipal) else "system"
+    trips_viewed_counter.add(1, {
+        "user_id": user_id,
+        "trip_id": str(trip_id),
+        "is_admin": str(auth_ctx.is_admin).lower()
+    })
 
     logger.debug(f"Retrieved trip {trip_id}")
     return trip
@@ -360,6 +388,15 @@ async def get_gallery_image(
     image = next((img for img in trip.gallery if str(img.image_id) == str(image_id)), None)
     if not image:
         raise HTTPException(status_code=404, detail="Image not found in gallery")
+
+    # Track metric for gallery image view
+    from auth.models import UserPrincipal
+    user_id = auth_ctx.principal.oid if isinstance(auth_ctx.principal, UserPrincipal) else "system"
+    gallery_images_viewed_counter.add(1, {
+        "trip_id": str(trip_id),
+        "media_type": image.source,
+        "is_admin": str(auth_ctx.is_admin).lower()
+    })
 
     try:
         # Stream image from blob storage

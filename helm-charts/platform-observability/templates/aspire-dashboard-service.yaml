@@ -1,0 +1,27 @@
+{{- if .Values.aspireDashboard.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: aspire-dashboard
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: aspire-dashboard
+    app.kubernetes.io/component: dashboard
+    {{- with .Values.commonLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  type: {{ .Values.aspireDashboard.service.type }}
+  selector:
+    app.kubernetes.io/name: aspire-dashboard
+    app.kubernetes.io/component: dashboard
+  ports:
+  - name: ui
+    port: {{ .Values.aspireDashboard.service.uiPort }}
+    targetPort: ui
+    protocol: TCP
+  - name: otlp
+    port: {{ .Values.aspireDashboard.service.otlpPort }}
+    targetPort: otlp
+    protocol: TCP
+{{- end }}

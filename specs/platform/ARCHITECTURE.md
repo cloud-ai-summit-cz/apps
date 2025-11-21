@@ -20,6 +20,8 @@ Attach Mermaid or Draw.io links.
 | trip | Manage trips and galleries | Python / FastAPI | AKS | TODO |
 | demo-data-init | Seed demo toys/trips/media | Python | AKS Job | TODO |
 | web | SPA frontend consuming backend APIs | React + Vite | AKS / Nginx | TODO |
+| otel-collector | Telemetry aggregation and routing | OpenTelemetry | AKS | Platform |
+| aspire-dashboard | Telemetry visualization (Dev/Staging) | .NET Aspire | AKS | Platform |
 | addon | Add-on ordering and fulfillment | Planned | AKS | TODO |
 | geo | Location + live stream service | Planned | AKS | TODO |
 | story | Batch story composer | Planned | AKS | TODO |

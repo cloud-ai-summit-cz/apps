@@ -35,6 +35,14 @@ class Settings(BaseSettings):
     api_port: int = 8002
     log_level: str = "INFO"
 
+    # OpenTelemetry Configuration
+    otel_exporter_otlp_endpoint: str = "http://localhost:4317"
+    otel_service_name: str = "trip-service"
+    service_version: str = "1.0.0"
+    k8s_namespace: str | None = None
+    k8s_pod_name: str | None = None
+    k8s_node_name: str | None = None
+
     # Testing (optional)
     test_client_secret: str | None = None
 

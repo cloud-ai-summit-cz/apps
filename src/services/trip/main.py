@@ -1,6 +1,13 @@
 """Main FastAPI application for Trip Service."""
 import logging
+import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+# Add shared module to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "shared"))
+
+from shared.observability import setup_instrumentation, get_tracer, get_meter
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,20 +17,41 @@ from repositories import TripRepository
 from routes import trip_routes
 from services import GalleryService
 
-# Configure logging
-logging.basicConfig(
-    level=settings.log_level,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+# Initialize OpenTelemetry BEFORE creating FastAPI app
+setup_instrumentation(
+    service_name=settings.otel_service_name,
+    service_version=settings.service_version,
+    otlp_endpoint=settings.otel_exporter_otlp_endpoint,
+    namespace=settings.k8s_namespace,
+    pod_name=settings.k8s_pod_name,
+    node_name=settings.k8s_node_name,
 )
 
-# Suppress verbose Azure SDK logging
-logging.getLogger("azure.cosmos").setLevel(logging.WARNING)
-logging.getLogger("azure.core.pipeline").setLevel(logging.WARNING)
-logging.getLogger("azure.storage").setLevel(logging.WARNING)
-logging.getLogger("azure.identity").setLevel(logging.WARNING)
-logging.getLogger("httpx").setLevel(logging.WARNING)
-
+# Get logger after OTEL setup
 logger = logging.getLogger(__name__)
+
+# Get tracer and meter for custom instrumentation
+tracer = get_tracer(__name__)
+meter = get_meter(__name__)
+
+# Custom business metrics
+trips_viewed_counter = meter.create_counter(
+    name="trips_viewed_total",
+    description="Total trip detail views",
+    unit="1"
+)
+
+trips_created_counter = meter.create_counter(
+    name="trips_created_total",
+    description="Total trip creations",
+    unit="1"
+)
+
+gallery_images_viewed_counter = meter.create_counter(
+    name="gallery_images_viewed_total",
+    description="Total gallery image views",
+    unit="1"
+)
 
 # Global instances
 trip_repo: TripRepository | None = None
@@ -56,6 +84,10 @@ async def lifespan(app: FastAPI):
     # Inject into routes module
     trip_routes.trip_repository = trip_repo
     trip_routes.gallery_service = gallery_svc
+    trip_routes.tracer = tracer
+    trip_routes.trips_viewed_counter = trips_viewed_counter
+    trip_routes.trips_created_counter = trips_created_counter
+    trip_routes.gallery_images_viewed_counter = gallery_images_viewed_counter
     trip_routes.initialize_auth(settings.azure_tenant_id, settings.app_id_uri)
     trip_routes.set_toy_service_url(settings.toy_service_url)
 

@@ -1,6 +1,13 @@
 """Main FastAPI application for Toy Service."""
 import logging
+import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+# Add shared module to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "shared"))
+
+from shared.observability import setup_instrumentation, get_tracer, get_meter
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,19 +17,36 @@ from repositories import ToyRepository
 from routes import toy_routes
 from services import BlobService
 
-# Configure logging
-logging.basicConfig(
-    level=settings.log_level,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+# Initialize OpenTelemetry BEFORE creating FastAPI app
+# This ensures auto-instrumentation captures all FastAPI operations
+setup_instrumentation(
+    service_name=settings.otel_service_name,
+    service_version=settings.service_version,
+    otlp_endpoint=settings.otel_exporter_otlp_endpoint,
+    namespace=settings.k8s_namespace,
+    pod_name=settings.k8s_pod_name,
+    node_name=settings.k8s_node_name,
 )
 
-# Suppress verbose Azure SDK logging (cosmos, storage, core.pipeline)
-logging.getLogger("azure.cosmos").setLevel(logging.WARNING)
-logging.getLogger("azure.core.pipeline").setLevel(logging.WARNING)
-logging.getLogger("azure.storage").setLevel(logging.WARNING)
-logging.getLogger("azure.identity").setLevel(logging.WARNING)
-
+# Get logger after OTEL setup (will auto-export to OTLP)
 logger = logging.getLogger(__name__)
+
+# Get tracer and meter for custom instrumentation
+tracer = get_tracer(__name__)
+meter = get_meter(__name__)
+
+# Custom business metrics
+toys_viewed_counter = meter.create_counter(
+    name="toys_viewed_total",
+    description="Total toy profile views",
+    unit="1"
+)
+
+toys_registered_counter = meter.create_counter(
+    name="toys_registered_total",
+    description="Total toy registrations",
+    unit="1"
+)
 
 # Global instances
 toy_repo: ToyRepository | None = None
@@ -55,6 +79,9 @@ async def lifespan(app: FastAPI):
     # Inject into routes module
     toy_routes.toy_repository = toy_repo
     toy_routes.blob_service = blob_svc
+    toy_routes.tracer = tracer
+    toy_routes.toys_viewed_counter = toys_viewed_counter
+    toy_routes.toys_registered_counter = toys_registered_counter
     toy_routes.initialize_auth(settings.azure_tenant_id, settings.app_id_uri)
 
     logger.info("Toy Service initialized successfully")

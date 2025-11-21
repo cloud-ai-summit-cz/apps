@@ -21,6 +21,7 @@ The deployment pipeline is fully automated for staging and GitOps-driven.
     - **Cosmos DB**: `trips` container (connection via Workload Identity).
     - **Storage**: `gallery` container (connection via Workload Identity).
     - **Toy Service**: HTTP dependency for validating toys.
+    - **Observability**: `otel-collector` (via `OTEL_EXPORTER_OTLP_ENDPOINT`).
 - **Identity**: Uses Azure Workload Identity. The Client ID is automatically injected into `trip-values.yaml` by the infra pipeline.
 
 ## Release Steps

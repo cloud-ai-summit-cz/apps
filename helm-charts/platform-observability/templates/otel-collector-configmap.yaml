@@ -1,0 +1,26 @@
+{{- if .Values.otelCollector.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/component: collector
+    {{- with .Values.commonLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+data:
+  config.yaml: |
+    receivers:
+      {{- toYaml .Values.otelCollector.config.receivers | nindent 6 }}
+    
+    processors:
+      {{- toYaml .Values.otelCollector.config.processors | nindent 6 }}
+    
+    exporters:
+      {{- toYaml .Values.otelCollector.config.exporters | nindent 6 }}
+    
+    service:
+      {{- toYaml .Values.otelCollector.config.service | nindent 6 }}
+{{- end }}

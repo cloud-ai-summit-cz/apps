@@ -1,0 +1,119 @@
+# OpenTelemetry Collector configuration
+otelCollector:
+  enabled: true
+  image:
+    repository: otel/opentelemetry-collector-contrib
+    tag: "0.115.1"
+    pullPolicy: IfNotPresent
+  
+  replicas: 1
+  
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  
+  service:
+    type: ClusterIP
+    # OTLP gRPC receiver
+    grpcPort: 4317
+    # OTLP HTTP receiver
+    httpPort: 4318
+  
+  # ConfigMap will be created with OTEL collector config
+  config:
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+    
+    processors:
+      batch:
+        timeout: 10s
+        send_batch_size: 1024
+      
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 400
+    
+    exporters:
+      # Export to Aspire Dashboard via OTLP
+      otlp:
+        endpoint: aspire-dashboard:18889
+        tls:
+          insecure: true
+      
+      # Debug exporter for troubleshooting (logs to collector stdout)
+      debug:
+        verbosity: basic
+    
+    service:
+      extensions: [health_check]
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlp, debug]
+        
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlp, debug]
+        
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlp, debug]
+
+# Aspire Dashboard configuration
+aspireDashboard:
+  enabled: true
+  image:
+    repository: mcr.microsoft.com/dotnet/aspire-dashboard
+    tag: "9.0"
+    pullPolicy: IfNotPresent
+  
+  replicas: 1
+  
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  
+  service:
+    type: ClusterIP
+    # Dashboard UI port
+    uiPort: 18888
+    # OTLP gRPC receiver port
+    otlpPort: 18889
+  
+  # Dashboard frontend authentication
+  # Options: Unsecured, BrowserToken
+  # BrowserToken generates a login token displayed in logs
+  frontend:
+    authMode: Unsecured
+    # Set to BrowserToken for production and retrieve token from pod logs
+  
+  # OTLP endpoint configuration
+  otlp:
+    # Allowed CORS origins for browser-based OTLP (if needed)
+    corsAllowedOrigins: "*"
+    # Primary endpoint for receiving telemetry
+    primaryEndpoint: http://0.0.0.0:18889
+
+# Common labels applied to all resources
+commonLabels:
+  app.kubernetes.io/part-of: platform-observability

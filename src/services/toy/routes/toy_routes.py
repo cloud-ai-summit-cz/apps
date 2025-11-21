@@ -28,6 +28,9 @@ router = APIRouter(prefix="/toy", tags=["Toy"])
 toy_repository: ToyRepository | None = None
 blob_service: BlobService | None = None
 get_auth_context: Callable | None = None
+tracer = None  # OpenTelemetry tracer
+toys_viewed_counter = None  # Metric counter
+toys_registered_counter = None  # Metric counter
 
 
 def initialize_auth(tenant_id: str, app_id_uri: str):
@@ -85,23 +88,35 @@ async def create_toy(
     if not isinstance(user, UserPrincipal):
         raise HTTPException(status_code=403, detail="Invalid principal type")
 
-    # Create toy with owner_oid from token, using provided ID if available
-    toy_kwargs = {
-        "name": toy_data.name.strip(),
-        "description": toy_data.description.strip() if toy_data.description else None,
-        "owner_oid": user.oid,
-    }
-    
-    # Only include id if it's provided (let Pydantic auto-generate otherwise)
-    if toy_data.id is not None:
-        toy_kwargs["id"] = toy_data.id
+    # Create custom span for business operation
+    with tracer.start_as_current_span("toy.register") as span:
+        # Create toy with owner_oid from token, using provided ID if available
+        toy_kwargs = {
+            "name": toy_data.name.strip(),
+            "description": toy_data.description.strip() if toy_data.description else None,
+            "owner_oid": user.oid,
+        }
         
-    toy = Toy(**toy_kwargs)
+        # Only include id if it's provided (let Pydantic auto-generate otherwise)
+        if toy_data.id is not None:
+            toy_kwargs["id"] = toy_data.id
+            
+        toy = Toy(**toy_kwargs)
 
-    created_toy = await repo.create(toy)
-    logger.info(f"Created toy {created_toy.id} for owner {user.oid}")
+        created_toy = await repo.create(toy)
+        
+        # Add span attributes
+        span.set_attribute("toy_id", str(created_toy.id))
+        span.set_attribute("user_id", user.oid)
+        span.set_attribute("is_admin", auth_ctx.is_admin)
+        span.set_attribute("success", True)
+        
+        # Increment metric counter
+        toys_registered_counter.add(1, {"is_admin": str(auth_ctx.is_admin).lower()})
+        
+        logger.info(f"Created toy {created_toy.id} for owner {user.oid}")
 
-    return created_toy
+        return created_toy
 
 
 @router.get("", response_model=dict)
@@ -133,6 +148,15 @@ async def get_toy(
     toy = await repo.get_by_id(toy_id)
     if not toy:
         raise HTTPException(status_code=404, detail="Toy not found")
+
+    # Track metric for toy view
+    from auth.models import UserPrincipal
+    user_id = auth_ctx.principal.oid if isinstance(auth_ctx.principal, UserPrincipal) else "system"
+    toys_viewed_counter.add(1, {
+        "user_id": user_id,
+        "is_admin": str(auth_ctx.is_admin).lower(),
+        "toy_id": str(toy_id)
+    })
 
     return toy
 
@@ -226,28 +250,38 @@ async def upload_avatar(
     # Check ownership
     require_owner(auth_ctx, toy.owner_oid)
 
-    try:
-        # Delete old avatar if exists
-        if toy.avatar_blob_name:
-            await blob_svc.delete_avatar(toy.avatar_blob_name)
+    with tracer.start_as_current_span("toy.avatar.upload") as span:
+        span.set_attribute("toy_id", str(toy_id))
+        span.set_attribute("content_type", file.content_type or "unknown")
+        
+        try:
+            # Delete old avatar if exists
+            if toy.avatar_blob_name:
+                await blob_svc.delete_avatar(toy.avatar_blob_name)
 
-        # Upload new avatar
-        blob_name = await blob_svc.upload_avatar(file, str(toy_id))
+            # Upload new avatar
+            blob_name = await blob_svc.upload_avatar(file, str(toy_id))
+            span.set_attribute("blob_name", blob_name)
 
-        # Update toy with new avatar reference
-        updated_toy = await repo.update(toy_id, {"avatar_blob_name": blob_name, "has_avatar": True})
+            # Update toy with new avatar reference
+            updated_toy = await repo.update(toy_id, {"avatar_blob_name": blob_name, "has_avatar": True})
 
-        if not updated_toy:
-            raise HTTPException(status_code=404, detail="Toy not found")
+            if not updated_toy:
+                raise HTTPException(status_code=404, detail="Toy not found")
 
-        logger.info(f"Uploaded avatar for toy {toy_id}")
-        return updated_toy
+            span.set_attribute("success", True)
+            logger.info(f"Uploaded avatar for toy {toy_id}")
+            return updated_toy
 
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Failed to upload avatar: {e}")
-        raise HTTPException(status_code=500, detail="Failed to upload avatar")
+        except ValueError as e:
+            span.set_attribute("success", False)
+            span.set_attribute("error", str(e))
+            raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            span.set_attribute("success", False)
+            span.set_attribute("error", str(e))
+            logger.error(f"Failed to upload avatar: {e}")
+            raise HTTPException(status_code=500, detail="Failed to upload avatar")
 
 
 @router.get("/{toy_id}/avatar")

@@ -20,6 +20,7 @@ The deployment pipeline is fully automated for staging and GitOps-driven.
 - **Infrastructure Dependencies**:
     - **Cosmos DB**: `toys` container (connection via Workload Identity).
     - **Storage**: `avatars` container (connection via Workload Identity).
+    - **Observability**: `otel-collector` (via `OTEL_EXPORTER_OTLP_ENDPOINT`).
 - **Identity**: Uses Azure Workload Identity. The Client ID is automatically injected into `toy-values.yaml` by the infra pipeline.
 
 ## Release Steps

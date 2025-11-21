@@ -35,6 +35,12 @@ spec:
         - name: {{ $key }}
           value: {{ tpl ($value | toString) $ | quote }}
         {{- end }}
+        {{- range .Values.envFieldRef }}
+        - name: {{ .name }}
+          valueFrom:
+            fieldRef:
+              fieldPath: {{ .fieldPath }}
+        {{- end }}
         {{- if .Values.livenessProbe.enabled }}
         livenessProbe:
           httpGet:

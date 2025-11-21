@@ -1,0 +1,68 @@
+{{- if .Values.aspireDashboard.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aspire-dashboard
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: aspire-dashboard
+    app.kubernetes.io/component: dashboard
+    {{- with .Values.commonLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  replicas: {{ .Values.aspireDashboard.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: aspire-dashboard
+      app.kubernetes.io/component: dashboard
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: aspire-dashboard
+        app.kubernetes.io/component: dashboard
+        {{- with .Values.commonLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      containers:
+      - name: aspire-dashboard
+        image: "{{ .Values.aspireDashboard.image.repository }}:{{ .Values.aspireDashboard.image.tag }}"
+        imagePullPolicy: {{ .Values.aspireDashboard.image.pullPolicy }}
+        ports:
+        - name: ui
+          containerPort: 18888
+          protocol: TCP
+        - name: otlp
+          containerPort: 18889
+          protocol: TCP
+        env:
+        # Dashboard frontend authentication mode
+        - name: DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS
+          value: "{{ eq .Values.aspireDashboard.frontend.authMode "Unsecured" | ternary "true" "false" }}"
+        
+        # OTLP endpoint configuration
+        - name: DOTNET_DASHBOARD_OTLP_ENDPOINT_URL
+          value: "{{ .Values.aspireDashboard.otlp.primaryEndpoint }}"
+        
+        # CORS configuration for OTLP (browser clients)
+        - name: DOTNET_DASHBOARD_OTLP_CORS_ALLOWED_ORIGINS
+          value: "{{ .Values.aspireDashboard.otlp.corsAllowedOrigins }}"
+        
+        resources:
+          {{- toYaml .Values.aspireDashboard.resources | nindent 10 }}
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: ui
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: ui
+          initialDelaySeconds: 5
+          periodSeconds: 5
+{{- end }}
