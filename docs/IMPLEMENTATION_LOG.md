@@ -254,3 +254,39 @@ Refined the observability stack configuration and updated system documentation t
 ### Verification
 - Verified `platform-observability` Helm chart values match the deployment template expectations.
 - Confirmed ArgoCD application `env/staging/platform/platform-observability-app.yaml` is correctly placed for discovery by the platform root app.
+
+---
+
+## 2024-11-21 - Aspire Dashboard Health Check Fix
+
+Fixed the liveness and readiness probes for the Aspire Dashboard.
+
+### Issue
+The Aspire Dashboard pod was crashing with `CrashLoopBackOff` because the configured health check endpoint `/health` returned 404 Not Found. The standalone Aspire Dashboard image does not expose a dedicated `/health` endpoint on the UI port by default.
+
+### Fix
+- Updated `helm-charts/platform-observability/templates/aspire-dashboard-deployment.yaml` to use the root path `/` for liveness and readiness probes.
+- Since the dashboard is running in `Unsecured` mode, the root path returns 200 OK (or a redirect handled as success), which correctly indicates the application is running.
+
+### Verification
+- The change ensures the kubelet can successfully probe the dashboard and keep the pod running.
+
+---
+
+## 2024-11-21 - OTEL Collector ConfigMap Fix
+
+Fixed the OTEL Collector ConfigMap template to include the `extensions` block.
+
+### Issue
+The OTEL Collector was crashing with `invalid configuration: service::extensions: references extension "health_check" which is not configured`. This happened because although `extensions` were defined in `values.yaml`, the `otel-collector-configmap.yaml` template was not rendering the `extensions` section into the final `config.yaml`.
+
+### Fix
+- Updated `helm-charts/platform-observability/templates/otel-collector-configmap.yaml` to include:
+  ```yaml
+  extensions:
+    {{- toYaml .Values.otelCollector.config.extensions | nindent 6 }}
+  ```
+- This ensures the `health_check` extension definition is present in the configuration file, resolving the reference error.
+
+### Verification
+- The generated ConfigMap will now contain the `extensions` block, allowing the collector to start successfully.
