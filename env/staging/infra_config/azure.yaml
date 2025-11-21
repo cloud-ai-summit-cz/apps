@@ -33,7 +33,7 @@ letsencrypt:
           sectionName: http
       labels:
         acme.cert-manager.io/http01-solver: "true"
-generatedAt: "2025-11-17T18:02:40Z"
+generatedAt: "2025-11-21T14:42:00Z"
 workloadIdentities:
   toy:
     resourceId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-apps/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-appdemo-sedkdx-toy
@@ -49,3 +49,10 @@ workloadIdentities:
     serviceAccountNamespace: toytrip-staging
     serviceAccountName: trip-service
     federatedSubject: system:serviceaccount:toytrip-staging:trip-service
+  otelcollector:
+    resourceId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-apps/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-appdemo-sedkdx-otelcollector
+    clientId: f35a65cf-e251-42f9-b240-c89bcb9f3557
+    principalId: 9ea76a3e-63f7-45ed-a37e-a9987a54dfb6
+    serviceAccountNamespace: observability
+    serviceAccountName: otel-collector
+    federatedSubject: system:serviceaccount:observability:otel-collector
