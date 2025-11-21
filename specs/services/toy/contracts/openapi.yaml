@@ -1,0 +1,325 @@
+openapi: 3.0.3
+info:
+  title: Toy Service API
+  version: 0.1.0
+  description: |
+    Toy Registry & Profiles Service for managing toy profiles (name, avatar, description).
+
+    **Authentication:** All endpoints require a Bearer JWT token from Entra ID.
+
+    **Authorization:**
+    - User tokens must include scope `App.Access` or an appropriate role
+    - System tokens must include role `System.Service`
+    - Create operations: Any authenticated user (becomes owner)
+    - Read operations: Global (any authenticated user/system)
+    - Update/Delete operations: Owner only (token `oid` must match `toy.owner_oid`)
+
+servers:
+  - url: /toy
+    description: Toy service mounted under `/toy` prefix
+
+paths:
+  /:
+    post:
+      summary: Create toy
+      operationId: createToy
+      tags: [Toy]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ToyCreate'
+      responses:
+        '201':
+          description: Toy created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Toy'
+        '400':
+          description: Validation error
+        '403':
+          description: Only end users can create toys
+
+    get:
+      summary: List toys
+      operationId: listToys
+      tags: [Toy]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: owner_oid
+          schema:
+            type: string
+          required: false
+          description: Filter by owner object ID
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 20
+          required: false
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          required: false
+      responses:
+        '200':
+          description: Paged list of toys
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Toy'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+
+  '/{toy_id}':
+    get:
+      summary: Get toy
+      operationId: getToy
+      tags: [Toy]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: toy_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Toy details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Toy'
+        '404':
+          description: Toy not found
+
+    patch:
+      summary: Update toy
+      operationId: updateToy
+      tags: [Toy]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: toy_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ToyUpdate'
+      responses:
+        '200':
+          description: Updated toy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Toy'
+        '403':
+          description: Caller is not owner
+        '404':
+          description: Toy not found
+
+    delete:
+      summary: Delete toy
+      operationId: deleteToy
+      tags: [Toy]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: toy_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Toy deleted
+        '403':
+          description: Caller is not owner
+        '404':
+          description: Toy not found
+
+  '/{toy_id}/avatar':
+    post:
+      summary: Upload avatar
+      operationId: uploadToyAvatar
+      tags: [Toy]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: toy_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Avatar image (JPEG, PNG, or WebP)
+      responses:
+        '200':
+          description: Updated toy with avatar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Toy'
+        '400':
+          description: Invalid file type or content
+        '403':
+          description: Caller is not owner
+        '404':
+          description: Toy not found
+
+    get:
+      summary: Get avatar
+      operationId: getToyAvatar
+      tags: [Toy]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: toy_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Avatar image stream
+          content:
+            image/jpeg: {}
+            image/png: {}
+            image/webp: {}
+        '404':
+          description: Toy or avatar not found
+        '500':
+          description: Failed to retrieve avatar
+
+    delete:
+      summary: Delete avatar
+      operationId: deleteToyAvatar
+      tags: [Toy]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: toy_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Avatar deleted
+        '403':
+          description: Caller is not owner
+        '404':
+          description: Toy or avatar not found
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Toy:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        owner_oid:
+          type: string
+          description: Object ID of the user who owns this toy
+        has_avatar:
+          type: boolean
+          description: Whether the toy currently has an avatar
+        avatar_blob_name:
+          type: string
+          nullable: true
+          description: Internal blob name used for storage
+        created_at:
+          type: string
+          format: date-time
+          description: Registration timestamp (UTC)
+        updated_at:
+          type: string
+          format: date-time
+          description: Last modification timestamp (UTC)
+      required:
+        - id
+        - name
+        - owner_oid
+        - has_avatar
+        - created_at
+        - updated_at
+
+    ToyCreate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Optional client-specified ID; if omitted, server generates one
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+      required:
+        - name
+
+    ToyUpdate:
+      type: object
+      description: Partial update; all fields optional
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+

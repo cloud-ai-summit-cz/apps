@@ -1,0 +1,102 @@
+openapi: 3.0.3
+info:
+  title: Demo Data Init API
+  version: 0.1.0
+  description: |
+    Admin-only service for reseeding demo toys and trips.
+
+servers:
+  - url: /demo-data
+    description: Demo data service mounted under `/demo-data` prefix
+
+paths:
+  /import:
+    post:
+      summary: Trigger demo data import
+      operationId: triggerImport
+      tags: [Demo Data]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportRequest'
+      responses:
+        '200':
+          description: Import completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResponse'
+        '400':
+          description: Invalid request (no datasets selected)
+        '401':
+          description: Missing or invalid bearer token
+        '403':
+          description: Caller lacks required admin role
+        '502':
+          description: Underlying import failed
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ImportRequest:
+      type: object
+      properties:
+        include_toys:
+          type: boolean
+          default: true
+        include_trips:
+          type: boolean
+          default: true
+      required:
+        - include_toys
+        - include_trips
+
+    OperationSummary:
+      type: object
+      properties:
+        toys_processed:
+          type: integer
+        toy_failures:
+          type: integer
+        toy_avatars_uploaded:
+          type: integer
+        trips_processed:
+          type: integer
+        trip_failures:
+          type: integer
+        images_uploaded:
+          type: integer
+      required:
+        - toys_processed
+        - toy_failures
+        - toy_avatars_uploaded
+        - trips_processed
+        - trip_failures
+        - images_uploaded
+
+    ImportResponse:
+      type: object
+      properties:
+        include_toys:
+          type: boolean
+        include_trips:
+          type: boolean
+        summary:
+          $ref: '#/components/schemas/OperationSummary'
+        duration_ms:
+          type: integer
+          minimum: 0
+      required:
+        - include_toys
+        - include_trips
+        - summary
+        - duration_ms

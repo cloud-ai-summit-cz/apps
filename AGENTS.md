@@ -14,11 +14,18 @@ Provide a clear, single reference for implementing, extending, and maintaining A
 
 ## 3. Project‑Wide Conventions
 
-### 3.1 Documentation
+### 3.1 Documentation & Specs Structure
+* **Specs Structure**:
+  * `PRD.md` (root): Product narrative, goals, and success metrics.
+  * `specs/platform/`: Cross-cutting concerns (Architecture, Data Models, Security, Deployment, Observability, Testing).
+  * `specs/platform/decisions/`: Platform-wide Architecture Decision Records (ADRs).
+  * `specs/services/<service>/`: Service-specific specs (ARCHITECTURE, DATA_MODELS, DEPLOYMENT, OBSERVABILITY, SECURITY, TESTING, RUNBOOKS, contracts, decisions).
+  * `specs/services/<service>/decisions/`: Service-specific ADRs.
+  * `specs/services/<service>/contracts/`: OpenAPI/AsyncAPI/Proto/GraphQL and consumer contracts.
 * Primary documentation channel inside code: **docstrings** (revise them whenever code changes behavior or signature).
 * Only add code comments for non‑obvious logic or critical nuances. Never for progress logs, migration notes, or "previous implementation" commentary.
-* Update `docs/IMPLEMENTATION_LOG.md` with meaningful architectural or technical decisions (not micro‑steps) when a feature is completed or a design choice is finalized.
-* Add confirmed recurring pitfalls to `docs/TROUBLESHOOTING.md` (after user confirmation—see Section 6).
+* Use `docs/IMPLEMENTATION_LOG.md` for implementation notes and technical decisions as you work; keep ADRs in `specs/**/decisions/` small and focused.
+* Add confirmed recurring pitfalls to `docs/COMMON_ERRORS.md` (after user confirmation—see Section 6).
 * Each component/service keeps concise run & test instructions in its local `README.md`.
 
 ### 3.2 Refactoring & Improvements
@@ -61,45 +68,45 @@ When investigating complex issues:
 ### 4.5 Ports & Local Dev
 * Assign distinct default ports per service to avoid collisions (document them in the service `README.md`).
 
-## 5. Spec-Driven Development: docs/ Folder
+## 5. Spec-Driven Development: specs/ Folder & PRD
 
-The `docs/` folder is the single source of truth for project specifications, architecture, and planning. All documentation follows uppercase naming with `.md` extension.
+The `specs/` folder (and `PRD.md`) is the single source of truth for project specifications, architecture, and planning.
 
 ### 5.1 Documentation Structure
 
-| Document | Purpose | Update Frequency | Agent Autonomy |
-|----------|---------|------------------|----------------|
-| **REQUIREMENTS.md** | User stories, functional requirements, acceptance criteria | Per feature/sprint | **User-controlled** - agents suggest changes, user approves |
-| **DESIGN.md** | System architecture, technology stack, design patterns, key decisions | When architecture evolves | **User-controlled** - agents propose, user confirms |
-| **DATA_MODELS.md** | Database schemas, message formats, data structures | When data model changes | **User-controlled** - agents suggest, user reviews |
-| **API_REFERENCE.md** | API endpoints, request/response contracts, integration points | When APIs change | **User-controlled** - agents can draft, user approves |
-| **OBSERVABILITY.md** | Monitoring strategy, logging approach, metrics, alerts | During observability setup | **User-controlled** - agents propose, user decides |
-| **TESTING.md** | Testing strategy, test scenarios, coverage requirements | When test approach changes | **User-controlled** - agents suggest, user confirms |
-| **DEPLOYMENT.md** | Deployment procedures, environments, infrastructure | When deployment changes | **User-controlled** - agents draft, user reviews |
-| **IMPLEMENTATION.md** | High-level implementation plan and detailed task checklist | Daily/per task | **User-controlled** - agents update progress after tasks |
-| **IMPLEMENTATION_LOG.md** | Chronological journal of decisions, progress, completed work | After each significant change | **Agent-maintained** - freely updated by agents |
-| **TROUBLESHOOTING.md** | Common errors, solutions, workarounds | When issues are resolved | **Collaborative** - agents suggest after user confirms issue is common |
+| Document | Location | Purpose | Update Frequency | Agent Autonomy |
+|----------|----------|---------|------------------|----------------|
+| **PRD** | `PRD.md` | Product narrative, goals, user stories, success metrics | Per feature/sprint | **User-controlled** - agents suggest changes, user approves |
+| **ARCHITECTURE** | `specs/platform/ARCHITECTURE.md` | System architecture, technology stack, design patterns, key decisions | When architecture evolves | **User-controlled** - agents propose, user confirms |
+| **DATA_MODELS** | `specs/platform/DATA_MODELS.md` | Shared database schemas, message formats, data structures | When data model changes | **User-controlled** - agents suggest, user reviews |
+| **API Contracts** | `specs/services/*/contracts/` | OpenAPI/AsyncAPI definitions | When APIs change | **User-controlled** - agents can draft, user approves |
+| **OBSERVABILITY** | `specs/platform/OBSERVABILITY.md` | Monitoring strategy, logging approach, metrics, alerts | During observability setup | **User-controlled** - agents propose, user decides |
+| **TESTING** | `specs/platform/TESTING.md` | Testing strategy, test scenarios, coverage requirements | When test approach changes | **User-controlled** - agents suggest, user confirms |
+| **DEPLOYMENT** | `specs/platform/DEPLOYMENT.md` | Deployment procedures, environments, infrastructure | When deployment changes | **User-controlled** - agents draft, user reviews |
+| **IMPLEMENTATION** | `docs/IMPLEMENTATION.md` | High-level implementation plan and detailed task checklist | Daily/per task | **User-controlled** - agents update progress after tasks |
+| **IMPLEMENTATION_LOG** | `docs/IMPLEMENTATION_LOG.md` | Chronological journal of decisions, progress, completed work | After each significant change | **Agent-maintained** - freely updated by agents |
+| **TROUBLESHOOTING** | `docs/TROUBLESHOOTING.md` | Common errors, solutions, workarounds | When issues are resolved | **Collaborative** - agents suggest after user confirms issue is common |
 
 ### 5.2 Agent Update Rules
 
 #### Freely Update (No Approval Needed)
-- **IMPLEMENTATION_LOG.md**: Add timestamped entries for completed features, architectural decisions made, technical choices, integration notes.
+- **docs/IMPLEMENTATION_LOG.md**: Add timestamped entries for completed features, architectural decisions made, technical choices, integration notes.
   - Format: `## YYYY-MM-DD - Brief Title\n\nDetails...`
   - Keep entries concise but informative
-  - Reference related tasks from IMPLEMENTATION.md
+  - Reference related tasks from `docs/IMPLEMENTATION.md`
 
 #### Suggest & Wait for Approval
-- **REQUIREMENTS.md**: Propose new requirements or changes to existing ones
-- **DESIGN.md**: Suggest architectural changes or design improvements
-- **DATA_MODELS.md**: Propose schema changes or new data structures
-- **API_REFERENCE.md**: Suggest new endpoints or contract modifications
-- **OBSERVABILITY.md**: Recommend monitoring/logging enhancements
-- **TESTING.md**: Propose new test strategies or coverage improvements
-- **DEPLOYMENT.md**: Suggest deployment procedure changes
-- **IMPLEMENTATION.md**: Update task completion status, add subtasks
+- **PRD.md**: Propose new requirements or changes to existing ones
+- **specs/platform/ARCHITECTURE.md**: Suggest architectural changes or design improvements
+- **specs/platform/DATA_MODELS.md**: Propose schema changes or new data structures
+- **specs/services/*/contracts/**: Suggest new endpoints or contract modifications
+- **specs/platform/OBSERVABILITY.md**: Recommend monitoring/logging enhancements
+- **specs/platform/TESTING.md**: Propose new test strategies or coverage improvements
+- **specs/platform/DEPLOYMENT.md**: Suggest deployment procedure changes
+- **docs/IMPLEMENTATION.md**: Update task completion status, add subtasks
 
 #### Collaborative Process
-- **TROUBLESHOOTING.md**: 
+- **docs/TROUBLESHOOTING.md**: 
   1. When encountering an error, solve it and mention in chat
   2. If user confirms it's a common/recurring issue, add structured entry
   3. Include: problem description, symptoms, root cause, solution, prevention
@@ -108,22 +115,22 @@ The `docs/` folder is the single source of truth for project specifications, arc
 ### 5.3 Documentation Workflow
 
 **When starting a new feature:**
-1. Check `docs/REQUIREMENTS.md` for user stories and acceptance criteria
-2. Review `docs/DESIGN.md` for architectural constraints and patterns
-3. Consult `docs/DATA_MODELS.md` and `docs/API_REFERENCE.md` for contracts
+1. Check `PRD.md` for user stories and acceptance criteria
+2. Review `specs/platform/ARCHITECTURE.md` for architectural constraints and patterns
+3. Consult `specs/platform/DATA_MODELS.md` and service contracts for interfaces
 4. Update `docs/IMPLEMENTATION.md` with task breakdown if needed
 5. Begin implementation with this context
 
 **During implementation:**
-1. Follow design patterns and constraints from `docs/DESIGN.md`
+1. Follow design patterns and constraints from `specs/platform/ARCHITECTURE.md`
 2. Maintain docstrings in code (no progress comments)
 3. Log significant decisions in `docs/IMPLEMENTATION_LOG.md` as you go
-4. If you discover design issues, raise in chat—don't mutate DESIGN.md unilaterally
+4. If you discover design issues, raise in chat—don't mutate `specs/platform/ARCHITECTURE.md` unilaterally
 
 **After completing a feature:**
 1. Update `docs/IMPLEMENTATION_LOG.md` with summary and key decisions
 2. Mark tasks complete in `docs/IMPLEMENTATION.md`
-3. If API/data model changed, propose updates to respective docs
+3. If API/data model changed, propose updates to respective specs
 4. Update component `README.md` if operational changes exist
 
 **When encountering issues:**
@@ -139,7 +146,7 @@ These constraints prevent uncontrolled documentation sprawl and progress leakage
 
 2. **Troubleshooting Workflow**: Only after confirming with the user that an issue is broadly relevant, add it to `docs/TROUBLESHOOTING.md`. Do not create parallel error collections.
 
-3. **Controlled Design Changes**: Architectural or behavioral design alterations should be reflected (after approval) in `docs/DESIGN.md`. Treat DESIGN.md as a guiding artifact; do not mutate it unilaterally.
+3. **Controlled Design Changes**: Architectural or behavioral design alterations should be reflected (after approval) in `specs/platform/ARCHITECTURE.md`. Treat it as a guiding artifact; do not mutate it unilaterally.
 
 4. **Localized Documentation First**: Prefer updating the affected component's `README.md` for usage/run/test changes before touching high‑level design docs.
 
@@ -149,7 +156,7 @@ These constraints prevent uncontrolled documentation sprawl and progress leakage
    - (a) `docs/IMPLEMENTATION_LOG.md` (for technical decisions)
    - (b) chat output (for status updates)
    - (c) component `README.md` (brief operational changes)
-   - (d) `docs/DESIGN.md` (after approval for architectural changes)
+   - (d) `specs/platform/ARCHITECTURE.md` (after approval for architectural changes)
 
 7. **New Doc File Exception**: If a truly new doc artifact is justified, prefix filename with `ADHOC_` and notify user. Expect eventual consolidation or deletion.
 
@@ -177,8 +184,8 @@ Rules:
 ## 9. Quick Reference Checklist
 
 ### Development Flow
-1. Review `docs/REQUIREMENTS.md` and `docs/DESIGN.md` for context
-2. Define/confirm data contract (Pydantic model, update `docs/DATA_MODELS.md` if proposing changes)
+1. Review `PRD.md` and `specs/platform/ARCHITECTURE.md` for context
+2. Define/confirm data contract (Pydantic model, update `specs/platform/DATA_MODELS.md` if proposing changes)
 3. Write/extend tests (failing first where feasible)
 4. Implement feature (docstrings maintained—no progress comments)
 5. Run `pytest` (unit + integration if relevant)
@@ -188,11 +195,11 @@ Rules:
 9. Remove any `adhoc_` artifacts created during exploration
 
 ### Documentation Update Flow
-1. **Need to change architecture?** → Propose in chat, update `docs/DESIGN.md` after approval
+1. **Need to change architecture?** → Propose in chat, update `specs/platform/ARCHITECTURE.md` after approval
 2. **Completed a feature?** → Log in `docs/IMPLEMENTATION_LOG.md` immediately
 3. **Found a recurring issue?** → Solve it, mention in chat, add to `docs/TROUBLESHOOTING.md` if user confirms
-4. **New API endpoint?** → Implement, then propose `docs/API_REFERENCE.md` update
-5. **Schema change?** → Propose `docs/DATA_MODELS.md` update before implementing
+4. **New API endpoint?** → Implement, then propose contract update in `specs/services/*/contracts/`
+5. **Schema change?** → Propose `specs/platform/DATA_MODELS.md` update before implementing
 
 ### Ad‑Hoc Script Flow
 1. Name with `adhoc_` prefix
@@ -204,15 +211,15 @@ Rules:
 
 This `AGENTS.md` centralizes operational & stylistic guidance. If conflicts arise:
 1. Explicit user instruction (chat) overrides this file case‑by‑case
-2. `docs/DESIGN.md` governs architecture (pending approved changes)
-3. `docs/REQUIREMENTS.md` defines what we're building
+2. `specs/platform/ARCHITECTURE.md` governs architecture (pending approved changes)
+3. `PRD.md` defines what we're building
 4. This file governs daily engineering discipline & hygiene
 
 ## 11. Context for AI Agents
 
 When working on this codebase:
-- **Always check `docs/` first** - it contains the authoritative specifications
-- **IMPLEMENTATION_LOG.md is your journal** - update it freely as you work
+- **Always check `specs/` and `PRD.md` first** - they contain the authoritative specifications
+- **docs/IMPLEMENTATION_LOG.md is your journal** - update it freely as you work
 - **Propose, don't assume** - for design/requirement changes, always ask the user first
-- **docs/README.md** - provides an overview and navigation guide for all documentation
+- **specs/platform/README.md** - provides an overview and navigation guide for all documentation
 - The documentation structure supports spec-driven development, enabling you to understand project context before writing code
