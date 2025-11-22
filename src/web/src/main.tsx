@@ -1,5 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+// Import zone.js before anything else to enable async context propagation
+import 'zone.js';
 import './index.css'
 import App from './App.tsx'
 import { initializeTelemetry, shutdownTelemetry } from './config/telemetryConfig'
