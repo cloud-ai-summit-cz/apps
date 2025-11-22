@@ -59,3 +59,7 @@ class AuthContext(BaseModel):
     @property
     def is_system(self) -> bool:
         return isinstance(self.principal, SystemPrincipal) or self.principal.is_system
+
+    @property
+    def is_admin(self) -> bool:
+        return "Admin.FullAccess" in self.principal.roles
