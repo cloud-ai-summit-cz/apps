@@ -18,7 +18,7 @@ COPY services/trip/pyproject.toml ./
 RUN uv pip install --system --no-cache -r pyproject.toml
 
 # Copy shared modules directly to /app so imports work
-COPY shared/auth /app/auth
+COPY shared/auth /app/shared/auth
 COPY shared/observability /app/shared/observability
 
 # Copy application code
