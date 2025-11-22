@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMsal } from '@azure/msal-react';
+import { trace, context, SpanStatusCode } from '@opentelemetry/api';
 import { toyApiClient } from '../services/toyApiClient';
 import { tripApiClient } from '../services/tripApiClient';
 import type { Toy } from '../types/toy';
@@ -106,33 +107,48 @@ function ToyCatalog() {
   };
 
   const loadToys = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await toyApiClient.getAllToys();
-      
-      // Sort toys: user's toys first, then others
-      const sortedToys = data.sort((a, b) => {
-        const aIsOwned = a.owner_oid === userOid;
-        const bIsOwned = b.owner_oid === userOid;
-        if (aIsOwned && !bIsOwned) return -1;
-        if (!aIsOwned && bIsOwned) return 1;
-        return 0;
-      });
-      
-      setToys(sortedToys);
+    const tracer = trace.getTracer('web-frontend');
+    // Start a new span for this logical operation
+    const span = tracer.startSpan('ToyCatalog.loadToys');
 
-      // Load trip counts in parallel (non-blocking)
-      // Using Promise.allSettled to handle failures gracefully
-      const tripCountPromises = sortedToys.map(toy => loadTripCount(toy.id));
-      Promise.allSettled(tripCountPromises).catch(err => {
-        console.error('Error loading trip counts:', err);
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load toys');
-    } finally {
-      setLoading(false);
-    }
+    // Wrap the execution in the span's context
+    await context.with(trace.setSpan(context.active(), span), async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // This fetch will now automatically be a child of 'ToyCatalog.loadToys'
+        const data = await toyApiClient.getAllToys();
+        
+        // Sort toys: user's toys first, then others
+        const sortedToys = data.sort((a, b) => {
+          const aIsOwned = a.owner_oid === userOid;
+          const bIsOwned = b.owner_oid === userOid;
+          if (aIsOwned && !bIsOwned) return -1;
+          if (!aIsOwned && bIsOwned) return 1;
+          return 0;
+        });
+        
+        setToys(sortedToys);
+
+        // Load trip counts in parallel
+        // These fetches will also be children of the span
+        const tripCountPromises = sortedToys.map(toy => loadTripCount(toy.id));
+        Promise.allSettled(tripCountPromises).catch(err => {
+          console.error('Error loading trip counts:', err);
+        });
+        
+        span.setStatus({ code: SpanStatusCode.OK });
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Failed to load toys';
+        span.recordException(err instanceof Error ? err : new Error(errorMsg));
+        span.setStatus({ code: SpanStatusCode.ERROR, message: errorMsg });
+        setError(errorMsg);
+      } finally {
+        setLoading(false);
+        span.end();
+      }
+    });
   };
 
   useEffect(() => {
