@@ -3,7 +3,7 @@
 
 image:
   repository: "crappdemosedkdx.azurecr.io/web" # Set by CI: <acr-login-server>/web
-  tag: "a585541fd1879c46e2df99168a75153f720cc958" # Set by CI: commit SHA
+  tag: "0aec71f52b757aee666c7b88e524e947866f610f" # Set by CI: commit SHA
 replicaCount: 2
 resources:
   limits:
