@@ -283,10 +283,13 @@ def get_azure_metrics_meter():
         description="Total Cosmos DB operations",
         unit="1"
     )
+    # Explicit buckets for subsecond operations (0.005s to 10s)
+    # Optimized for typical database query latencies
     cosmos_duration = meter.create_histogram(
         name="cosmos_operation_duration_seconds",
         description="Duration of Cosmos DB operations",
-        unit="s"
+        unit="s",
+        explicit_bucket_boundaries=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0]
     )
     cosmos_ru = meter.create_counter(
         name="cosmos_request_units_consumed",
@@ -298,10 +301,12 @@ def get_azure_metrics_meter():
         description="Total Blob Storage operations",
         unit="1"
     )
+    # Explicit buckets for blob operations (typically faster than Cosmos)
     blob_duration = meter.create_histogram(
         name="blob_operation_duration_seconds",
         description="Duration of Blob Storage operations",
-        unit="s"
+        unit="s",
+        explicit_bucket_boundaries=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0]
     )
     
     return cosmos_ops, cosmos_duration, cosmos_ru, blob_ops, blob_duration

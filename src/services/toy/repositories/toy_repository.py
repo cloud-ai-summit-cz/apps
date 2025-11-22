@@ -53,7 +53,7 @@ class ToyRepository:
         self.cosmos_duration.record(duration, attrs)
         
         # Log actual duration for debugging metrics issues
-        logger.info(f"Cosmos {operation} took {duration:.4f}s (attrs: {attrs})")
+        logger.debug(f"Cosmos {operation} took {duration:.4f}s (attrs: {attrs})")
 
     async def _ensure_initialized(self) -> ContainerProxy:
         """
