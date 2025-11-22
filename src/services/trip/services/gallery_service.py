@@ -54,6 +54,9 @@ class GalleryService:
         attrs = get_metric_attributes(base_attrs)
         self.blob_ops.add(1, attrs)
         self.blob_duration.record(duration, attrs)
+        
+        # Debug: log actual duration
+        logger.debug(f"Blob {operation} took {duration:.4f}s (recorded with attrs: {attrs})")
 
     async def _ensure_initialized(self):
         """Ensure blob service client and container are initialized."""

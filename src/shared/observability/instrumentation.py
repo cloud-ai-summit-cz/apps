@@ -123,7 +123,12 @@ def setup_instrumentation(
 def _setup_tracing(otlp_endpoint: str, resource: Resource) -> None:
     """Configure distributed tracing with OTLP exporter."""
     trace_exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
-    batch_processor = BatchSpanProcessor(trace_exporter)
+    # Export spans every 5 seconds for faster feedback
+    batch_processor = BatchSpanProcessor(
+        trace_exporter,
+        schedule_delay_millis=5000,  # Export every 5 seconds
+        max_export_batch_size=512
+    )
     
     # Custom processors
     baggage_processor = BaggageSpanProcessor()
@@ -138,7 +143,12 @@ def _setup_tracing(otlp_endpoint: str, resource: Resource) -> None:
 def _setup_metrics(otlp_endpoint: str, resource: Resource) -> None:
     """Configure metrics collection with OTLP exporter."""
     metric_exporter = OTLPMetricExporter(endpoint=otlp_endpoint, insecure=True)
-    metric_reader = PeriodicExportingMetricReader(metric_exporter, export_interval_millis=60000)
+    # Export metrics every 10 seconds for faster feedback
+    metric_reader = PeriodicExportingMetricReader(
+        metric_exporter,
+        export_interval_millis=10000,  # Export every 10 seconds
+        export_timeout_millis=5000
+    )
     
     meter_provider = MeterProvider(resource=resource, metric_readers=[metric_reader])
     metrics.set_meter_provider(meter_provider)

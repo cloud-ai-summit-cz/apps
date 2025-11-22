@@ -53,6 +53,9 @@ class TripRepository:
         attrs = get_metric_attributes(base_attrs)
         self.cosmos_ops.add(1, attrs)
         self.cosmos_duration.record(duration, attrs)
+        
+        # Debug: log actual duration
+        logger.debug(f"Cosmos {operation} took {duration:.4f}s (recorded with attrs: {attrs})")
 
     async def _ensure_initialized(self) -> ContainerProxy:
         """
