@@ -4,7 +4,6 @@ from __future__ import annotations
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from opentelemetry import trace, baggage, context
-from .dependencies import get_auth_context
 
 
 class AuthContextMiddleware(BaseHTTPMiddleware):
