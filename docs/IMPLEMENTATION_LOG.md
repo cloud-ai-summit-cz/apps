@@ -473,3 +473,44 @@ User Action (Browser)
 - [ADR-0001: Frontend Telemetry Security](../specs/services/web/decisions/ADR-0001-frontend-telemetry-security.md)
 - [OpenTelemetry Browser Documentation](https://opentelemetry.io/docs/languages/js/)
 - [OTLP HTTP Specification](https://opentelemetry.io/docs/specs/otlp/#otlphttp)
+
+---
+
+## 2025-11-22 - Frontend Telemetry Authentication Fix
+
+Fixed authentication mechanism for the OTEL proxy endpoint after discovering 401 errors in production.
+
+### Issue
+
+The Nginx proxy was checking for MSAL cookies (`msal.*` pattern) to authenticate telemetry requests, but MSAL is configured to use `sessionStorage` (not cookies), so the authentication check always failed with 401 Unauthorized.
+
+### Solution
+
+Changed authentication mechanism from cookie-based to Referer-based validation:
+- Nginx now validates the `Referer` header to ensure requests originate from the same origin
+- This prevents external sources from submitting telemetry while allowing legitimate frontend requests
+- Simpler and more reliable than cookie-based validation when MSAL uses sessionStorage
+
+### Changes Made
+
+1. **nginx.conf**: Updated authentication check from `$http_cookie !~* "msal"` to `$http_referer !~* "^https?://$host"`
+2. **SECURITY.md**: Updated documentation to reflect Referer-based authentication
+3. **ADR-0001**: Updated architecture decision record with correct security model
+4. **devspace.yaml**: Created DevSpace configuration for web frontend inner loop development
+
+### Verification
+
+Telemetry requests now succeed with 200 OK when:
+- Request has valid Referer header matching the application origin
+- Request is POST to `/otel/v1/traces`
+- Rate limit not exceeded
+
+### DevSpace Inner Loop
+
+Added `devspace.yaml` for fast local development:
+```bash
+cd src/web
+devspace dev
+```
+
+This enables file sync to running Kubernetes pods without rebuilding containers.

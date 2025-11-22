@@ -1,0 +1,36 @@
+version: v2beta1
+name: web-frontend
+
+pipelines:
+  dev:
+    run: |-
+      start_dev web
+
+dev:
+  web:
+    namespace: toytrip-staging
+    labelSelector:
+      app.kubernetes.io/name: web-frontend
+    container: web
+    sync:
+      - path: ./:/app
+        excludePaths:
+          - .git/
+          - node_modules/
+          - dist/
+          - .vite/
+          - devspace.yaml
+        uploadExcludePaths:
+          - node_modules/
+        downloadExcludePaths:
+          - node_modules/
+    terminal:
+      command: /bin/sh
+      workDir: /app
+    ports:
+      - port: 80
+        localPort: 3000
+    # Install dependencies and start dev server on container
+    # This replaces nginx with Vite dev server for hot reload
+    open:
+      - url: http://localhost:3000

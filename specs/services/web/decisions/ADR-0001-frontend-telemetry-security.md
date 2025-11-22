@@ -25,9 +25,9 @@ We implement an **Nginx-based proxy layer** in the web service container that:
 
 ### Security Model
 
-- **Authentication Check:** The Nginx configuration validates that the request contains MSAL session cookies (`msal.*` pattern). This indicates an active authenticated session.
-- **No Direct Token Exposure:** Access tokens are NOT sent with telemetry requests—only session cookies are checked. This avoids exposing bearer tokens in telemetry payloads.
-- **Session-Based Trust:** The presence of a valid session cookie proves the user has authenticated with the application, which is sufficient for telemetry authorization.
+- **Authentication Check:** The Nginx configuration validates the Referer header to ensure requests originate from the same origin (our application).
+- **No Direct Token Exposure:** Access tokens are NOT sent with telemetry requests. This avoids exposing bearer tokens in telemetry payloads.
+- **Origin-Based Trust:** The presence of a valid Referer header proves the request comes from our authenticated application (MSAL uses sessionStorage, not cookies).
 - **Rate Limiting:** Configured at 500 requests/minute per IP with a burst of 1000, preventing DoS attacks.
 - **Network Isolation:** The OTEL Collector remains internal to the cluster and is not exposed externally.
 
@@ -58,9 +58,9 @@ location /otel/v1/traces {
     limit_req_zone $binary_remote_addr zone=otel_limit:10m rate=500r/m;
     limit_req zone=otel_limit burst=1000 nodelay;
     
-    # Authentication check
-    if ($http_cookie !~* "msal") {
-        return 401 "Unauthorized: Valid session required";
+    # Authentication check - validate origin via Referer
+    if ($http_referer !~* "^https?://$host") {
+        return 401 "Unauthorized: Invalid origin";
     }
     
     # Proxy to internal collector
@@ -83,8 +83,8 @@ The frontend uses `@opentelemetry/exporter-trace-otlp-http` to send traces to th
 
 ### Negative
 - Requires maintaining Nginx configuration for telemetry routing.
-- Session cookie validation is less precise than token validation.
-- If MSAL session management changes, this mechanism may need updates.
+- Referer header validation is less precise than token validation (can be spoofed in some scenarios).
+- Relies on browser security (Referer header policy).
 
 ### Neutral
 - Adds minimal latency (one additional hop through Nginx proxy).
