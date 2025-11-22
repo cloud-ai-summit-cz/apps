@@ -108,36 +108,37 @@ class AzureSDKMetricsSpanProcessor(SpanProcessor):
         pass
 
     def on_end(self, span) -> None:
-        # Check if this is an Azure SDK span
-        # Azure SDK spans typically have 'az.namespace' attribute
+        # Check if this is an Azure SDK span using OpenTelemetry semantic conventions
         attributes = span.attributes or {}
-        namespace = attributes.get("az.namespace")
         
-        if not namespace:
-            return
+        # Cosmos DB spans have db.system == "cosmosdb"
+        db_system = attributes.get("db.system")
+        if db_system == "cosmosdb":
+            duration_s = (span.end_time - span.start_time) / 1e9
+            op_type = attributes.get("db.operation") or attributes.get("db.cosmosdb.operation_type") or span.name
             
-        duration_s = (span.end_time - span.start_time) / 1e9
-        
-        if namespace == "Microsoft.Storage":
-            # Blob Storage Operation
-            op_type = attributes.get("graphql.operation.name") or span.name
-            self.blob_ops_counter.add(1, {"operation": op_type})
-            self.blob_duration_histogram.record(duration_s, {"operation": op_type})
-            
-        elif namespace == "Microsoft.DocumentDB":
-            # Cosmos DB Operation
-            op_type = span.name
             self.cosmos_ops_counter.add(1, {"operation": op_type})
             self.cosmos_duration_histogram.record(duration_s, {"operation": op_type})
             
-            # Extract Request Units if available (often in 'x-ms-request-charge' attribute)
-            # Note: Azure SDK might put it in different attributes depending on version
-            ru_charge = attributes.get("x-ms-request-charge")
+            # Extract Request Units from db.cosmosdb.request_charge
+            ru_charge = attributes.get("db.cosmosdb.request_charge")
             if ru_charge:
                 try:
                     self.cosmos_ru_counter.add(float(ru_charge), {"operation": op_type})
                 except (ValueError, TypeError):
                     pass
+            return
+        
+        # Blob Storage spans - check for Azure Storage specific attributes
+        # Azure SDK uses http.url with blob.core.windows.net or span name patterns
+        http_url = attributes.get("http.url") or ""
+        if "blob.core.windows.net" in http_url or span.name.startswith("BlobClient"):
+            duration_s = (span.end_time - span.start_time) / 1e9
+            # Extract operation from span name (e.g., "BlobClient.upload_blob")
+            op_type = span.name.replace("BlobClient.", "").replace("ContainerClient.", "")
+            
+            self.blob_ops_counter.add(1, {"operation": op_type})
+            self.blob_duration_histogram.record(duration_s, {"operation": op_type})
 
     def shutdown(self) -> None:
         pass
