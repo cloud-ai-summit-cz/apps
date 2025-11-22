@@ -553,3 +553,36 @@ Telemetry requests now succeed with 200 OK when:
 - Request originates from same origin (CORS enforced by browser)
 - Request is POST to `/otel/v1/traces`
 - Rate limit not exceeded
+
+---
+
+## 2025-11-22 - Fixed envsubst Variable Substitution for OTEL_COLLECTOR_URL
+
+### Issue
+
+Nginx error: `invalid URL prefix in "/v1/traces"` causing 500 Internal Server Error. The `$otel_backend` variable in nginx.conf was empty, making `proxy_pass $otel_backend/v1/traces` resolve to just `/v1/traces`, which is an invalid URL for proxying.
+
+Root cause: `envsubst` doesn't apply shell default values (`${VAR:-default}`) - it only substitutes variables present in the environment. If `OTEL_COLLECTOR_URL` wasn't set, the template had `${OTEL_COLLECTOR_URL}` which became empty string.
+
+### Fix
+
+Updated `src/web/docker-entrypoint.sh`:
+```bash
+# Export OTEL_COLLECTOR_URL with default value for envsubst
+export OTEL_COLLECTOR_URL="${OTEL_COLLECTOR_URL:-http://otel-collector:4318}"
+
+# Substitute environment variables in nginx.conf
+envsubst '${OTEL_COLLECTOR_URL}' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf
+
+echo "Configured nginx with OTEL_COLLECTOR_URL: ${OTEL_COLLECTOR_URL}"
+```
+
+This ensures the variable is set before `envsubst` runs, so nginx.conf gets proper URL.
+
+### Result
+
+The nginx variable `$otel_backend` now correctly resolves to `http://otel-collector:4318` (or environment-provided value), enabling successful `proxy_pass` to OTEL Collector.
+
+### Verification
+
+POST requests to `/otel/v1/traces` should now return 200 OK (or appropriate backend response) instead of 500.

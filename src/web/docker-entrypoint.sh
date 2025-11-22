@@ -23,8 +23,13 @@ echo "  OTEL_COLLECTOR_URL: ${OTEL_COLLECTOR_URL:-http://otel-collector:4318}"
 echo "  ENVIRONMENT: ${ENVIRONMENT:-development}"
 echo "  SERVICE_VERSION: ${SERVICE_VERSION:-1.0.0}"
 
+# Export OTEL_COLLECTOR_URL with default value for envsubst
+export OTEL_COLLECTOR_URL="${OTEL_COLLECTOR_URL:-http://otel-collector:4318}"
+
 # Substitute environment variables in nginx.conf
 envsubst '${OTEL_COLLECTOR_URL}' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf
+
+echo "Configured nginx with OTEL_COLLECTOR_URL: ${OTEL_COLLECTOR_URL}"
 
 # Execute the main container command (nginx)
 exec "$@"
