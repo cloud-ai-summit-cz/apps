@@ -72,8 +72,9 @@ class AzureSDKMetricsSpanProcessor(SpanProcessor):
     Since Azure SDK tracing only produces spans, this processor observes them
     and updates counters/histograms for Blob Storage and Cosmos DB operations.
     """
-    def __init__(self):
-        meter = metrics.get_meter("shared.observability.azure_metrics")
+    def __init__(self, meter_provider):
+        # Use the provided meter provider instead of the global one
+        meter = meter_provider.get_meter("shared.observability.azure_metrics")
         
         # Blob Storage Metrics
         self.blob_ops_counter = meter.create_counter(
@@ -181,11 +182,11 @@ def setup_instrumentation(
     
     resource = Resource.create(resource_attrs)
     
-    # Setup tracing
-    _setup_tracing(otlp_endpoint, resource)
+    # Setup metrics FIRST (so meter provider is available for span processor)
+    meter_provider = _setup_metrics(otlp_endpoint, resource)
     
-    # Setup metrics
-    _setup_metrics(otlp_endpoint, resource)
+    # Setup tracing (with reference to meter provider)
+    _setup_tracing(otlp_endpoint, resource, meter_provider)
     
     # Setup logging
     _setup_logging(otlp_endpoint, resource, service_name)
@@ -197,14 +198,14 @@ def setup_instrumentation(
     _setup_auto_instrumentation()
 
 
-def _setup_tracing(otlp_endpoint: str, resource: Resource) -> None:
+def _setup_tracing(otlp_endpoint: str, resource: Resource, meter_provider: MeterProvider) -> None:
     """Configure distributed tracing with OTLP exporter."""
     trace_exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
     batch_processor = BatchSpanProcessor(trace_exporter)
     
     # Custom processors
     baggage_processor = BaggageSpanProcessor()
-    metrics_processor = AzureSDKMetricsSpanProcessor()
+    metrics_processor = AzureSDKMetricsSpanProcessor(meter_provider)
     
     tracer_provider = TracerProvider(resource=resource)
     tracer_provider.add_span_processor(batch_processor)
@@ -214,13 +215,14 @@ def _setup_tracing(otlp_endpoint: str, resource: Resource) -> None:
     trace.set_tracer_provider(tracer_provider)
 
 
-def _setup_metrics(otlp_endpoint: str, resource: Resource) -> None:
+def _setup_metrics(otlp_endpoint: str, resource: Resource) -> MeterProvider:
     """Configure metrics collection with OTLP exporter."""
     metric_exporter = OTLPMetricExporter(endpoint=otlp_endpoint, insecure=True)
     metric_reader = PeriodicExportingMetricReader(metric_exporter, export_interval_millis=60000)
     
     meter_provider = MeterProvider(resource=resource, metric_readers=[metric_reader])
     metrics.set_meter_provider(meter_provider)
+    return meter_provider
 
 
 def _setup_logging(otlp_endpoint: str, resource: Resource, service_name: str) -> None:
