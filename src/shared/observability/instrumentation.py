@@ -18,6 +18,7 @@ Usage:
 """
 
 import logging
+from typing import Optional
 from opentelemetry import trace, metrics, baggage
 from opentelemetry.sdk.trace import TracerProvider, SpanProcessor
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
