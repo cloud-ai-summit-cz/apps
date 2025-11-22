@@ -14,6 +14,7 @@ Use this document to capture security controls that every service in the monorep
 ## Data Protection
 - Private endpoints for sensitive data stores (Cosmos DB, Storage) where configured.
 - No public blob URLs or SAS tokens for image access; access via authenticated service proxy endpoints only.
+- **Telemetry**: Frontend telemetry must be sent via a secure reverse proxy (e.g., Nginx sidecar) that enforces authentication. Do not expose OTEL collectors directly to the public internet.
 
 ## Secure Coding & Dependencies
 - Use language-appropriate security linters and dependency scanners.

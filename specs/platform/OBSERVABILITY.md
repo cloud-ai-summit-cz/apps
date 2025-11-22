@@ -38,6 +38,13 @@ All services (toy, trip, addon, geo, story, agent, demo-*) instrumented with:
 * **Metrics:** Counters, gauges, histograms for business and technical metrics
 * **Traces:** Distributed tracing with spans for all significant operations
 
+**Frontend Observability:**
+* **Web (React):**
+  * Uses `@opentelemetry/sdk-trace-web` to generate root spans for user interactions.
+  * Propagates `traceparent` headers to backend API calls for end-to-end correlation.
+  * Sends telemetry to a relative endpoint (`/otel/v1/traces`) proxied by the serving Nginx container.
+  * **Security:** Telemetry ingestion is restricted to authenticated users via the Nginx proxy (see ADR-0001).
+
 ### 3.2 Auto-Instrumentation
 Leverage OpenTelemetry auto-instrumentation libraries for:
 * **FastAPI:** Automatic HTTP request/response tracing, metrics (request count, duration, status codes)

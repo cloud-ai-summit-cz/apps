@@ -1,0 +1,34 @@
+openapi: 3.0.3
+info:
+  title: Web Service OTEL Proxy API
+  version: 1.0.0
+  description: |
+    API definition for the OpenTelemetry proxy endpoints exposed by the Web service (Nginx).
+    These endpoints allow the frontend to securely send telemetry to the internal collector.
+paths:
+  /otel/v1/traces:
+    post:
+      summary: Submit OTLP Traces
+      description: |
+        Proxies OTLP trace data from the browser to the internal OpenTelemetry Collector.
+        Requires a valid user session (cookie).
+      operationId: submitTraces
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: OTLP JSON trace payload
+          application/x-protobuf:
+            schema:
+              type: string
+              format: binary
+              description: OTLP Protobuf trace payload
+      responses:
+        '200':
+          description: Telemetry accepted
+        '401':
+          description: Unauthorized - User session invalid or missing
+        '429':
+          description: Too Many Requests - Rate limit exceeded

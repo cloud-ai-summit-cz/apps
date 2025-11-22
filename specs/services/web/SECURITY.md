@@ -17,3 +17,8 @@ Detail the threat model and controls unique to this service. Align with global r
 
 ## CORS
 - The web app is the **origin**. Backend services must allow this origin in their CORS configuration.
+
+## Telemetry Security
+- **Endpoint**: `/otel/v1/traces` is exposed by Nginx.
+- **Access Control**: Nginx must validate the presence of a valid session (e.g., cookie) before forwarding to the internal collector.
+- **Rate Limiting**: Apply rate limits to this endpoint to prevent DoS attacks on the telemetry infrastructure.
