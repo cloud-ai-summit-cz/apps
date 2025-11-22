@@ -121,6 +121,17 @@ def validate_token(token: str, tenant_id: str, audience: str) -> AuthContext:
     return auth_ctx
 
 
+def validate_token_unverified_claims(token: str) -> dict:
+    """Decode token claims without signature verification.
+    
+    Use ONLY for observability/logging where security is not critical.
+    """
+    try:
+        return jwt.get_unverified_claims(token)
+    except JWTError:
+        return {}
+
+
 def classify_authorization(principal: Principal, toy_owner_oid: Optional[str]) -> bool:
     """Return True if principal can perform owner-only action on provided toy.
 

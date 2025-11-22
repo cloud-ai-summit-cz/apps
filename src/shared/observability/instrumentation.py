@@ -18,10 +18,8 @@ Usage:
 """
 
 import logging
-from typing import Optional
-
-from opentelemetry import trace, metrics
-from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry import trace, metrics, baggage
+from opentelemetry.sdk.trace import TracerProvider, SpanProcessor
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
@@ -32,6 +30,7 @@ from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry._logs import set_logger_provider
+from opentelemetry.context import Context
 
 # Auto-instrumentation imports
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
@@ -40,6 +39,110 @@ from opentelemetry.instrumentation.requests import RequestsInstrumentor
 
 # Azure SDK tracing support
 from azure.core.settings import settings as azure_settings
+
+
+class BaggageSpanProcessor(SpanProcessor):
+    """
+    Span processor that automatically attaches Baggage items as Span attributes.
+    
+    This ensures that context (like user_id, is_admin) propagated via Baggage
+    is visible in every span for querying and filtering.
+    """
+    def on_start(self, span, parent_context: Optional[Context] = None) -> None:
+        # Get all baggage from the current context
+        baggage_items = baggage.get_all(context=parent_context)
+        for key, value in baggage_items.items():
+            span.set_attribute(key, value)
+
+    def on_end(self, span) -> None:
+        pass
+    
+    def shutdown(self) -> None:
+        pass
+    
+    def force_flush(self, timeout_millis: int = 30000) -> bool:
+        return True
+
+
+class AzureSDKMetricsSpanProcessor(SpanProcessor):
+    """
+    Span processor that generates metrics from Azure SDK spans.
+    
+    Since Azure SDK tracing only produces spans, this processor observes them
+    and updates counters/histograms for Blob Storage and Cosmos DB operations.
+    """
+    def __init__(self):
+        meter = metrics.get_meter("shared.observability.azure_metrics")
+        
+        # Blob Storage Metrics
+        self.blob_ops_counter = meter.create_counter(
+            name="blob_operations_total",
+            description="Total Blob Storage operations",
+            unit="1"
+        )
+        self.blob_duration_histogram = meter.create_histogram(
+            name="blob_operation_duration_seconds",
+            description="Duration of Blob Storage operations",
+            unit="s"
+        )
+        
+        # Cosmos DB Metrics
+        self.cosmos_ops_counter = meter.create_counter(
+            name="cosmos_operations_total",
+            description="Total Cosmos DB operations",
+            unit="1"
+        )
+        self.cosmos_duration_histogram = meter.create_histogram(
+            name="cosmos_operation_duration_seconds",
+            description="Duration of Cosmos DB operations",
+            unit="s"
+        )
+        self.cosmos_ru_counter = meter.create_counter(
+            name="cosmos_request_units_consumed",
+            description="Total Request Units (RUs) consumed",
+            unit="1"
+        )
+
+    def on_start(self, span, parent_context: Optional[Context] = None) -> None:
+        pass
+
+    def on_end(self, span) -> None:
+        # Check if this is an Azure SDK span
+        # Azure SDK spans typically have 'az.namespace' attribute
+        attributes = span.attributes or {}
+        namespace = attributes.get("az.namespace")
+        
+        if not namespace:
+            return
+            
+        duration_s = (span.end_time - span.start_time) / 1e9
+        
+        if namespace == "Microsoft.Storage":
+            # Blob Storage Operation
+            op_type = attributes.get("graphql.operation.name") or span.name
+            self.blob_ops_counter.add(1, {"operation": op_type})
+            self.blob_duration_histogram.record(duration_s, {"operation": op_type})
+            
+        elif namespace == "Microsoft.DocumentDB":
+            # Cosmos DB Operation
+            op_type = span.name
+            self.cosmos_ops_counter.add(1, {"operation": op_type})
+            self.cosmos_duration_histogram.record(duration_s, {"operation": op_type})
+            
+            # Extract Request Units if available (often in 'x-ms-request-charge' attribute)
+            # Note: Azure SDK might put it in different attributes depending on version
+            ru_charge = attributes.get("x-ms-request-charge")
+            if ru_charge:
+                try:
+                    self.cosmos_ru_counter.add(float(ru_charge), {"operation": op_type})
+                except (ValueError, TypeError):
+                    pass
+
+    def shutdown(self) -> None:
+        pass
+
+    def force_flush(self, timeout_millis: int = 30000) -> bool:
+        return True
 
 
 def setup_instrumentation(
@@ -95,10 +198,17 @@ def setup_instrumentation(
 def _setup_tracing(otlp_endpoint: str, resource: Resource) -> None:
     """Configure distributed tracing with OTLP exporter."""
     trace_exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
-    span_processor = BatchSpanProcessor(trace_exporter)
+    batch_processor = BatchSpanProcessor(trace_exporter)
+    
+    # Custom processors
+    baggage_processor = BaggageSpanProcessor()
+    metrics_processor = AzureSDKMetricsSpanProcessor()
     
     tracer_provider = TracerProvider(resource=resource)
-    tracer_provider.add_span_processor(span_processor)
+    tracer_provider.add_span_processor(batch_processor)
+    tracer_provider.add_span_processor(baggage_processor)
+    tracer_provider.add_span_processor(metrics_processor)
+    
     trace.set_tracer_provider(tracer_provider)
 
 

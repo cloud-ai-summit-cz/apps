@@ -8,6 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "shared"))
 
 from shared.observability import setup_instrumentation, get_tracer, get_meter
+from shared.auth.middleware import AuthContextMiddleware
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -123,6 +124,9 @@ app.add_middleware(
 
 # Include routers
 app.include_router(trip_routes.router)
+
+# Add observability middleware
+app.add_middleware(AuthContextMiddleware)
 
 
 @app.get("/health")
