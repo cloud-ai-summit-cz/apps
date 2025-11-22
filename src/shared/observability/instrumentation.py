@@ -160,35 +160,42 @@ def _setup_logging(otlp_endpoint: str, resource: Resource, service_name: str) ->
     
     Sets up:
     - OTLP log export for application logs
-    - INFO level for application logger
+    - Respects LOG_LEVEL environment variable (default: INFO)
     - WARNING level for Azure SDK and third-party libraries
     """
+    import os
+    
+    # Get log level from environment variable (default: INFO)
+    log_level_str = os.getenv("LOG_LEVEL", "INFO").upper()
+    log_level = getattr(logging, log_level_str, logging.INFO)
+    
     log_exporter = OTLPLogExporter(endpoint=otlp_endpoint, insecure=True)
     logger_provider = LoggerProvider(resource=resource)
     logger_provider.add_log_record_processor(BatchLogRecordProcessor(log_exporter))
     set_logger_provider(logger_provider)
     
     # Attach OTLP handler to root logger
-    otlp_handler = LoggingHandler(level=logging.INFO, logger_provider=logger_provider)
+    otlp_handler = LoggingHandler(level=log_level, logger_provider=logger_provider)
     
     # Configure root logger
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
+    root_logger.setLevel(log_level)
     root_logger.addHandler(otlp_handler)
     
-    # Set WARNING level for Azure SDK and other verbose libraries
-    logging.getLogger("azure").setLevel(logging.WARNING)
-    logging.getLogger("azure.core").setLevel(logging.WARNING)
-    logging.getLogger("azure.cosmos").setLevel(logging.WARNING)
-    logging.getLogger("azure.storage").setLevel(logging.WARNING)
-    logging.getLogger("azure.identity").setLevel(logging.WARNING)
+    # Set WARNING level for Azure SDK and other verbose libraries (unless DEBUG is requested)
+    azure_log_level = logging.WARNING if log_level > logging.DEBUG else logging.INFO
+    logging.getLogger("azure").setLevel(azure_log_level)
+    logging.getLogger("azure.core").setLevel(azure_log_level)
+    logging.getLogger("azure.cosmos").setLevel(azure_log_level)
+    logging.getLogger("azure.storage").setLevel(azure_log_level)
+    logging.getLogger("azure.identity").setLevel(azure_log_level)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     
-    # Application logger at INFO level
+    # Application logger respects LOG_LEVEL
     app_logger = logging.getLogger(service_name)
-    app_logger.setLevel(logging.INFO)
+    app_logger.setLevel(log_level)
 
 
 def _setup_auto_instrumentation() -> None:
