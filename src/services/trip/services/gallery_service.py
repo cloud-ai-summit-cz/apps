@@ -6,6 +6,7 @@ native async/await support without blocking the event loop.
 """
 import logging
 import mimetypes
+import time
 from io import BytesIO
 from uuid import uuid4
 
@@ -14,6 +15,8 @@ from azure.storage.blob.aio import BlobServiceClient
 from azure.storage.blob import ContentSettings
 from azure.core.exceptions import ServiceRequestError, ClientAuthenticationError  # type: ignore
 from fastapi import UploadFile
+
+from shared.observability.instrumentation import get_azure_metrics_meter
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +40,9 @@ class GalleryService:
         self.container_name = container_name
         self._client: BlobServiceClient | None = None
         self._container_client = None
+        
+        # Azure metrics (manual instrumentation because Python SDK doesn't emit semantic spans)
+        _, _, _, self.blob_ops, self.blob_duration = get_azure_metrics_meter()
 
     async def _ensure_initialized(self):
         """Ensure blob service client and container are initialized."""
@@ -90,21 +96,33 @@ class GalleryService:
         blob_client = self._container_client.get_blob_client(blob_name)
         content_settings = ContentSettings(content_type=content_type)
 
+        start = time.time()
         try:
             await blob_client.upload_blob(
                 data=content,
                 content_settings=content_settings,
                 overwrite=True,
             )
+            
+            # Record metrics
+            duration = time.time() - start
+            self.blob_ops.add(1, {"operation": "upload_blob", "container": self.container_name})
+            self.blob_duration.record(duration, {"operation": "upload_blob", "container": self.container_name})
+            
+            logger.info(f"Uploaded gallery image: {blob_name} ({len(content)} bytes)")
+            return blob_name
         except (ServiceRequestError, ClientAuthenticationError, TimeoutError) as e:  # network / auth layer
+            duration = time.time() - start
+            self.blob_ops.add(1, {"operation": "upload_blob", "container": self.container_name, "status": "error"})
+            self.blob_duration.record(duration, {"operation": "upload_blob", "container": self.container_name})
             logger.error(f"Failed to upload gallery image (network/auth): {e}")
             raise ValueError("Gallery image upload failed due to storage connectivity or authentication issue") from e
         except Exception as e:  # pragma: no cover - unexpected
+            duration = time.time() - start
+            self.blob_ops.add(1, {"operation": "upload_blob", "container": self.container_name, "status": "error"})
+            self.blob_duration.record(duration, {"operation": "upload_blob", "container": self.container_name})
             logger.error(f"Unexpected failure uploading gallery image: {e}")
             raise ValueError("Unexpected error uploading gallery image") from e
-
-        logger.info(f"Uploaded gallery image: {blob_name} ({len(content)} bytes)")
-        return blob_name
 
     async def download_image(self, blob_name: str) -> tuple[bytes, str]:
         """
@@ -123,15 +141,24 @@ class GalleryService:
 
         blob_client = self._container_client.get_blob_client(blob_name)
 
+        start = time.time()
         try:
             download_stream = await blob_client.download_blob()
             content = await download_stream.readall()
             properties = await blob_client.get_blob_properties()
             content_type = properties.content_settings.content_type or "application/octet-stream"
 
+            # Record metrics
+            duration = time.time() - start
+            self.blob_ops.add(1, {"operation": "download_blob", "container": self.container_name})
+            self.blob_duration.record(duration, {"operation": "download_blob", "container": self.container_name})
+
             logger.debug(f"Downloaded gallery image: {blob_name} ({len(content)} bytes)")
             return content, content_type
         except Exception as e:  # noqa: BLE001
+            duration = time.time() - start
+            self.blob_ops.add(1, {"operation": "download_blob", "container": self.container_name, "status": "error"})
+            self.blob_duration.record(duration, {"operation": "download_blob", "container": self.container_name})
             logger.error(f"Failed to download blob {blob_name}: {e}")
             raise FileNotFoundError(f"Gallery image not found: {blob_name}") from e
 
@@ -149,11 +176,21 @@ class GalleryService:
 
         blob_client = self._container_client.get_blob_client(blob_name)
 
+        start = time.time()
         try:
             await blob_client.delete_blob()
+            
+            # Record metrics
+            duration = time.time() - start
+            self.blob_ops.add(1, {"operation": "delete_blob", "container": self.container_name})
+            self.blob_duration.record(duration, {"operation": "delete_blob", "container": self.container_name})
+            
             logger.info(f"Deleted gallery image: {blob_name}")
             return True
         except Exception as e:  # noqa: BLE001
+            duration = time.time() - start
+            self.blob_ops.add(1, {"operation": "delete_blob", "container": self.container_name, "status": "error"})
+            self.blob_duration.record(duration, {"operation": "delete_blob", "container": self.container_name})
             logger.warning(f"Failed to delete blob {blob_name}: {e}")
             return False
 

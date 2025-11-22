@@ -5,6 +5,7 @@ for use with async frameworks like FastAPI. The async SDK provides native async/
 support without blocking the event loop.
 """
 import logging
+import time
 from typing import Any
 from uuid import UUID
 
@@ -13,6 +14,7 @@ from azure.cosmos import exceptions
 from azure.identity.aio import DefaultAzureCredential
 
 from models import Trip, TripDocument, GalleryImage
+from shared.observability.instrumentation import get_azure_metrics_meter
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +37,9 @@ class TripRepository:
         self._client: CosmosClient | None = None
         self._database: DatabaseProxy | None = None
         self._container: ContainerProxy | None = None
+        
+        # Azure metrics (manual instrumentation because Python SDK doesn't emit semantic spans)
+        self.cosmos_ops, self.cosmos_duration, self.cosmos_ru, _, _ = get_azure_metrics_meter()
 
     async def _ensure_initialized(self) -> ContainerProxy:
         """
@@ -85,10 +90,22 @@ class TripRepository:
         item["id"] = str(trip.id)
         item["trip_id"] = str(trip.id)
 
-        created_item = await container.create_item(body=item)
-        logger.info(f"Created trip: {created_item['id']} for toy {trip.toy_id}")
-
-        return TripDocument(**created_item).to_trip()
+        start = time.time()
+        try:
+            created_item = await container.create_item(body=item)
+            
+            # Record metrics
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "create_item", "container": self.container_name})
+            self.cosmos_duration.record(duration, {"operation": "create_item", "container": self.container_name})
+            
+            logger.info(f"Created trip: {created_item['id']} for toy {trip.toy_id}")
+            return TripDocument(**created_item).to_trip()
+        except Exception as e:
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "create_item", "container": self.container_name, "status": "error"})
+            self.cosmos_duration.record(duration, {"operation": "create_item", "container": self.container_name})
+            raise
 
     async def get_by_id(self, trip_id: UUID) -> Trip | None:
         """
@@ -103,12 +120,27 @@ class TripRepository:
         container = await self._ensure_initialized()
         trip_id_str = str(trip_id)
 
+        start = time.time()
         try:
             item = await container.read_item(item=trip_id_str, partition_key=trip_id_str)
+            
+            # Record metrics
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "read_item", "container": self.container_name})
+            self.cosmos_duration.record(duration, {"operation": "read_item", "container": self.container_name})
+            
             return TripDocument(**item).to_trip()
         except exceptions.CosmosResourceNotFoundError:
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "read_item", "container": self.container_name, "status": "not_found"})
+            self.cosmos_duration.record(duration, {"operation": "read_item", "container": self.container_name})
             logger.debug(f"Trip not found: {trip_id_str}")
             return None
+        except Exception as e:
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "read_item", "container": self.container_name, "status": "error"})
+            self.cosmos_duration.record(duration, {"operation": "read_item", "container": self.container_name})
+            raise
 
     async def list_by_toy(self, toy_id: UUID, limit: int = 20, offset: int = 0) -> tuple[list[Trip], int]:
         """
@@ -128,18 +160,30 @@ class TripRepository:
         query = "SELECT * FROM c WHERE c.toy_id = @toy_id ORDER BY c.created_at DESC"
         parameters = [{"name": "@toy_id", "value": toy_id_str}]
 
-        items = [item async for item in container.query_items(
-            query=query,
-            parameters=parameters,
-        )]
+        start = time.time()
+        try:
+            items = [item async for item in container.query_items(
+                query=query,
+                parameters=parameters,
+            )]
+            
+            # Record metrics
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "query_items", "container": self.container_name})
+            self.cosmos_duration.record(duration, {"operation": "query_items", "container": self.container_name})
 
-        total = len(items)
-        paginated_items = items[offset : offset + limit]
+            total = len(items)
+            paginated_items = items[offset : offset + limit]
 
-        trips = [TripDocument(**item).to_trip() for item in paginated_items]
-        logger.debug(f"Listed {len(trips)} trips for toy {toy_id_str} (total: {total})")
+            trips = [TripDocument(**item).to_trip() for item in paginated_items]
+            logger.debug(f"Listed {len(trips)} trips for toy {toy_id_str} (total: {total})")
 
-        return trips, total
+            return trips, total
+        except Exception as e:
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "query_items", "container": self.container_name, "status": "error"})
+            self.cosmos_duration.record(duration, {"operation": "query_items", "container": self.container_name})
+            raise
 
     async def list_by_owner(self, owner_oid: str, limit: int = 20, offset: int = 0) -> tuple[list[Trip], int]:
         """
@@ -158,18 +202,30 @@ class TripRepository:
         query = "SELECT * FROM c WHERE c.owner_oid = @owner_oid ORDER BY c.created_at DESC"
         parameters = [{"name": "@owner_oid", "value": owner_oid}]
 
-        items = [item async for item in container.query_items(
-            query=query,
-            parameters=parameters,
-        )]
+        start = time.time()
+        try:
+            items = [item async for item in container.query_items(
+                query=query,
+                parameters=parameters,
+            )]
+            
+            # Record metrics
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "query_items", "container": self.container_name})
+            self.cosmos_duration.record(duration, {"operation": "query_items", "container": self.container_name})
 
-        total = len(items)
-        paginated_items = items[offset : offset + limit]
+            total = len(items)
+            paginated_items = items[offset : offset + limit]
 
-        trips = [TripDocument(**item).to_trip() for item in paginated_items]
-        logger.debug(f"Listed {len(trips)} trips for owner {owner_oid} (total: {total})")
+            trips = [TripDocument(**item).to_trip() for item in paginated_items]
+            logger.debug(f"Listed {len(trips)} trips for owner {owner_oid} (total: {total})")
 
-        return trips, total
+            return trips, total
+        except Exception as e:
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "query_items", "container": self.container_name, "status": "error"})
+            self.cosmos_duration.record(duration, {"operation": "query_items", "container": self.container_name})
+            raise
 
     async def update(self, trip_id: UUID, updates: dict[str, Any]) -> Trip | None:
         """
@@ -185,6 +241,7 @@ class TripRepository:
         container = await self._ensure_initialized()
         trip_id_str = str(trip_id)
 
+        start = time.time()
         try:
             # Read current item
             item = await container.read_item(item=trip_id_str, partition_key=trip_id_str)
@@ -200,12 +257,26 @@ class TripRepository:
 
             # Replace item
             updated_item = await container.replace_item(item=item, body=item)
+            
+            # Record metrics
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name})
+            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
+            
             logger.info(f"Updated trip: {trip_id_str}")
             return TripDocument(**updated_item).to_trip()
 
         except exceptions.CosmosResourceNotFoundError:
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name, "status": "not_found"})
+            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
             logger.debug(f"Trip not found for update: {trip_id_str}")
             return None
+        except Exception as e:
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name, "status": "error"})
+            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
+            raise
 
     async def delete(self, trip_id: UUID) -> bool:
         """
@@ -220,13 +291,28 @@ class TripRepository:
         container = await self._ensure_initialized()
         trip_id_str = str(trip_id)
 
+        start = time.time()
         try:
             await container.delete_item(item=trip_id_str, partition_key=trip_id_str)
+            
+            # Record metrics
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "delete_item", "container": self.container_name})
+            self.cosmos_duration.record(duration, {"operation": "delete_item", "container": self.container_name})
+            
             logger.info(f"Deleted trip: {trip_id_str}")
             return True
         except exceptions.CosmosResourceNotFoundError:
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "delete_item", "container": self.container_name, "status": "not_found"})
+            self.cosmos_duration.record(duration, {"operation": "delete_item", "container": self.container_name})
             logger.debug(f"Trip not found for deletion: {trip_id_str}")
             return False
+        except Exception as e:
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "delete_item", "container": self.container_name, "status": "error"})
+            self.cosmos_duration.record(duration, {"operation": "delete_item", "container": self.container_name})
+            raise
 
     async def add_gallery_image(self, trip_id: UUID, image: GalleryImage) -> Trip | None:
         """
@@ -242,6 +328,7 @@ class TripRepository:
         container = await self._ensure_initialized()
         trip_id_str = str(trip_id)
 
+        start = time.time()
         try:
             # Read current item
             item = await container.read_item(item=trip_id_str, partition_key=trip_id_str)
@@ -258,12 +345,26 @@ class TripRepository:
 
             # Replace item
             updated_item = await container.replace_item(item=item, body=item)
+            
+            # Record metrics
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name, "method": "add_gallery_image"})
+            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
+            
             logger.info(f"Added gallery image to trip: {trip_id_str}")
             return TripDocument(**updated_item).to_trip()
 
         except exceptions.CosmosResourceNotFoundError:
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name, "status": "not_found"})
+            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
             logger.debug(f"Trip not found for adding gallery image: {trip_id_str}")
             return None
+        except Exception as e:
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name, "status": "error"})
+            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
+            raise
 
     async def remove_gallery_image(self, trip_id: UUID, image_id: UUID) -> Trip | None:
         """
@@ -280,6 +381,7 @@ class TripRepository:
         trip_id_str = str(trip_id)
         image_id_str = str(image_id)
 
+        start = time.time()
         try:
             # Read current item
             item = await container.read_item(item=trip_id_str, partition_key=trip_id_str)
@@ -294,12 +396,26 @@ class TripRepository:
 
             # Replace item
             updated_item = await container.replace_item(item=item, body=item)
+            
+            # Record metrics
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name, "method": "remove_gallery_image"})
+            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
+            
             logger.info(f"Removed gallery image {image_id_str} from trip: {trip_id_str}")
             return TripDocument(**updated_item).to_trip()
 
         except exceptions.CosmosResourceNotFoundError:
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name, "status": "not_found"})
+            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
             logger.debug(f"Trip not found for removing gallery image: {trip_id_str}")
             return None
+        except Exception as e:
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name, "status": "error"})
+            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
+            raise
 
 
 

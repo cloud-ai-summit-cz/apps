@@ -5,6 +5,7 @@ for use with async frameworks like FastAPI. The async SDK provides native async/
 support without blocking the event loop.
 """
 import logging
+import time
 from typing import Any
 from uuid import UUID
 
@@ -13,6 +14,7 @@ from azure.cosmos import PartitionKey, exceptions
 from azure.identity.aio import DefaultAzureCredential
 
 from models import Toy, ToyDocument
+from shared.observability.instrumentation import get_azure_metrics_meter
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +37,9 @@ class ToyRepository:
         self._client: CosmosClient | None = None
         self._database: DatabaseProxy | None = None
         self._container: ContainerProxy | None = None
+        
+        # Azure metrics (manual instrumentation because Python SDK doesn't emit semantic spans)
+        self.cosmos_ops, self.cosmos_duration, self.cosmos_ru, _, _ = get_azure_metrics_meter()
 
     async def _ensure_initialized(self) -> ContainerProxy:
         """
@@ -85,10 +90,22 @@ class ToyRepository:
         item["id"] = str(toy.id)
         item["toy_id"] = str(toy.id)
 
-        created_item = await container.create_item(body=item)
-        logger.info(f"Created toy: {created_item['id']}")
-
-        return ToyDocument(**created_item).to_toy()
+        start = time.time()
+        try:
+            created_item = await container.create_item(body=item)
+            
+            # Record metrics
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "create_item", "container": self.container_name})
+            self.cosmos_duration.record(duration, {"operation": "create_item", "container": self.container_name})
+            
+            logger.info(f"Created toy: {created_item['id']}")
+            return ToyDocument(**created_item).to_toy()
+        except Exception as e:
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "create_item", "container": self.container_name, "status": "error"})
+            self.cosmos_duration.record(duration, {"operation": "create_item", "container": self.container_name})
+            raise
 
     async def get_by_id(self, toy_id: UUID) -> Toy | None:
         """
@@ -103,12 +120,27 @@ class ToyRepository:
         container = await self._ensure_initialized()
         toy_id_str = str(toy_id)
 
+        start = time.time()
         try:
             item = await container.read_item(item=toy_id_str, partition_key=toy_id_str)
+            
+            # Record metrics
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "read_item", "container": self.container_name})
+            self.cosmos_duration.record(duration, {"operation": "read_item", "container": self.container_name})
+            
             return ToyDocument(**item).to_toy()
         except exceptions.CosmosResourceNotFoundError:
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "read_item", "container": self.container_name, "status": "not_found"})
+            self.cosmos_duration.record(duration, {"operation": "read_item", "container": self.container_name})
             logger.debug(f"Toy not found: {toy_id_str}")
             return None
+        except Exception as e:
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "read_item", "container": self.container_name, "status": "error"})
+            self.cosmos_duration.record(duration, {"operation": "read_item", "container": self.container_name})
+            raise
 
     async def list_all(self, owner_oid: str | None = None, limit: int = 20, offset: int = 0) -> tuple[list[Toy], int]:
         """
@@ -126,26 +158,38 @@ class ToyRepository:
 
         # Build query
         # Note: Async client automatically handles cross-partition queries - no enable_cross_partition_query flag needed
-        if owner_oid:
-            query = "SELECT * FROM c WHERE c.owner_oid = @owner_oid ORDER BY c.created_at DESC"
-            parameters = [{"name": "@owner_oid", "value": owner_oid}]
-            items = [item async for item in container.query_items(
-                query=query,
-                parameters=parameters,
-            )]
-        else:
-            query = "SELECT * FROM c ORDER BY c.created_at DESC"
-            items = [item async for item in container.query_items(
-                query=query,
-            )]
-        
-        total = len(items)
-        paginated_items = items[offset : offset + limit]
+        start = time.time()
+        try:
+            if owner_oid:
+                query = "SELECT * FROM c WHERE c.owner_oid = @owner_oid ORDER BY c.created_at DESC"
+                parameters = [{"name": "@owner_oid", "value": owner_oid}]
+                items = [item async for item in container.query_items(
+                    query=query,
+                    parameters=parameters,
+                )]
+            else:
+                query = "SELECT * FROM c ORDER BY c.created_at DESC"
+                items = [item async for item in container.query_items(
+                    query=query,
+                )]
+            
+            # Record metrics
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "query_items", "container": self.container_name})
+            self.cosmos_duration.record(duration, {"operation": "query_items", "container": self.container_name})
+            
+            total = len(items)
+            paginated_items = items[offset : offset + limit]
 
-        toys = [ToyDocument(**item).to_toy() for item in paginated_items]
-        logger.debug(f"Listed {len(toys)} toys (total: {total})")
+            toys = [ToyDocument(**item).to_toy() for item in paginated_items]
+            logger.debug(f"Listed {len(toys)} toys (total: {total})")
 
-        return toys, total
+            return toys, total
+        except Exception as e:
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "query_items", "container": self.container_name, "status": "error"})
+            self.cosmos_duration.record(duration, {"operation": "query_items", "container": self.container_name})
+            raise
 
     async def update(self, toy_id: UUID, updates: dict[str, Any]) -> Toy | None:
         """
@@ -161,6 +205,7 @@ class ToyRepository:
         container = await self._ensure_initialized()
         toy_id_str = str(toy_id)
 
+        start = time.time()
         try:
             # Read current item
             item = await container.read_item(item=toy_id_str, partition_key=toy_id_str)
@@ -177,12 +222,26 @@ class ToyRepository:
 
             # Replace item
             updated_item = await container.replace_item(item=item, body=item)
+            
+            # Record metrics
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name})
+            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
+            
             logger.info(f"Updated toy: {toy_id_str}")
             return ToyDocument(**updated_item).to_toy()
 
         except exceptions.CosmosResourceNotFoundError:
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name, "status": "not_found"})
+            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
             logger.debug(f"Toy not found for update: {toy_id_str}")
             return None
+        except Exception as e:
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name, "status": "error"})
+            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
+            raise
 
     async def delete(self, toy_id: UUID) -> bool:
         """
@@ -197,13 +256,28 @@ class ToyRepository:
         container = await self._ensure_initialized()
         toy_id_str = str(toy_id)
 
+        start = time.time()
         try:
             await container.delete_item(item=toy_id_str, partition_key=toy_id_str)
+            
+            # Record metrics
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "delete_item", "container": self.container_name})
+            self.cosmos_duration.record(duration, {"operation": "delete_item", "container": self.container_name})
+            
             logger.info(f"Deleted toy: {toy_id_str}")
             return True
         except exceptions.CosmosResourceNotFoundError:
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "delete_item", "container": self.container_name, "status": "not_found"})
+            self.cosmos_duration.record(duration, {"operation": "delete_item", "container": self.container_name})
             logger.debug(f"Toy not found for deletion: {toy_id_str}")
             return False
+        except Exception as e:
+            duration = time.time() - start
+            self.cosmos_ops.add(1, {"operation": "delete_item", "container": self.container_name, "status": "error"})
+            self.cosmos_duration.record(duration, {"operation": "delete_item", "container": self.container_name})
+            raise
 
     async def close(self):
         """Close underlying Cosmos DB client if initialized.

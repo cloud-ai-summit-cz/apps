@@ -65,87 +65,9 @@ class BaggageSpanProcessor(SpanProcessor):
         return True
 
 
-class AzureSDKMetricsSpanProcessor(SpanProcessor):
-    """
-    Span processor that generates metrics from Azure SDK spans.
-    
-    Since Azure SDK tracing only produces spans, this processor observes them
-    and updates counters/histograms for Blob Storage and Cosmos DB operations.
-    """
-    def __init__(self, meter_provider):
-        # Use the provided meter provider instead of the global one
-        meter = meter_provider.get_meter("shared.observability.azure_metrics")
-        
-        # Blob Storage Metrics
-        self.blob_ops_counter = meter.create_counter(
-            name="blob_operations_total",
-            description="Total Blob Storage operations",
-            unit="1"
-        )
-        self.blob_duration_histogram = meter.create_histogram(
-            name="blob_operation_duration_seconds",
-            description="Duration of Blob Storage operations",
-            unit="s"
-        )
-        
-        # Cosmos DB Metrics
-        self.cosmos_ops_counter = meter.create_counter(
-            name="cosmos_operations_total",
-            description="Total Cosmos DB operations",
-            unit="1"
-        )
-        self.cosmos_duration_histogram = meter.create_histogram(
-            name="cosmos_operation_duration_seconds",
-            description="Duration of Cosmos DB operations",
-            unit="s"
-        )
-        self.cosmos_ru_counter = meter.create_counter(
-            name="cosmos_request_units_consumed",
-            description="Total Request Units (RUs) consumed",
-            unit="1"
-        )
-
-    def on_start(self, span, parent_context: Optional[Context] = None) -> None:
-        pass
-
-    def on_end(self, span) -> None:
-        # Check if this is an Azure SDK span using OpenTelemetry semantic conventions
-        attributes = span.attributes or {}
-        
-        # Cosmos DB spans have db.system == "cosmosdb"
-        db_system = attributes.get("db.system")
-        if db_system == "cosmosdb":
-            duration_s = (span.end_time - span.start_time) / 1e9
-            op_type = attributes.get("db.operation") or attributes.get("db.cosmosdb.operation_type") or span.name
-            
-            self.cosmos_ops_counter.add(1, {"operation": op_type})
-            self.cosmos_duration_histogram.record(duration_s, {"operation": op_type})
-            
-            # Extract Request Units from db.cosmosdb.request_charge
-            ru_charge = attributes.get("db.cosmosdb.request_charge")
-            if ru_charge:
-                try:
-                    self.cosmos_ru_counter.add(float(ru_charge), {"operation": op_type})
-                except (ValueError, TypeError):
-                    pass
-            return
-        
-        # Blob Storage spans - check for Azure Storage specific attributes
-        # Azure SDK uses http.url with blob.core.windows.net or span name patterns
-        http_url = attributes.get("http.url") or ""
-        if "blob.core.windows.net" in http_url or span.name.startswith("BlobClient"):
-            duration_s = (span.end_time - span.start_time) / 1e9
-            # Extract operation from span name (e.g., "BlobClient.upload_blob")
-            op_type = span.name.replace("BlobClient.", "").replace("ContainerClient.", "")
-            
-            self.blob_ops_counter.add(1, {"operation": op_type})
-            self.blob_duration_histogram.record(duration_s, {"operation": op_type})
-
-    def shutdown(self) -> None:
-        pass
-
-    def force_flush(self, timeout_millis: int = 30000) -> bool:
-        return True
+# Note: Python Azure SDK does NOT emit rich semantic spans like .NET/Java
+# Instead, manually instrument Cosmos DB and Blob Storage operations in repositories/services
+# using the get_azure_metrics_meter() function below.
 
 
 def setup_instrumentation(
@@ -182,11 +104,11 @@ def setup_instrumentation(
     
     resource = Resource.create(resource_attrs)
     
-    # Setup metrics FIRST (so meter provider is available for span processor)
-    meter_provider = _setup_metrics(otlp_endpoint, resource)
+    # Setup metrics
+    _setup_metrics(otlp_endpoint, resource)
     
-    # Setup tracing (with reference to meter provider)
-    _setup_tracing(otlp_endpoint, resource, meter_provider)
+    # Setup tracing
+    _setup_tracing(otlp_endpoint, resource)
     
     # Setup logging
     _setup_logging(otlp_endpoint, resource, service_name)
@@ -198,31 +120,28 @@ def setup_instrumentation(
     _setup_auto_instrumentation()
 
 
-def _setup_tracing(otlp_endpoint: str, resource: Resource, meter_provider: MeterProvider) -> None:
+def _setup_tracing(otlp_endpoint: str, resource: Resource) -> None:
     """Configure distributed tracing with OTLP exporter."""
     trace_exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
     batch_processor = BatchSpanProcessor(trace_exporter)
     
     # Custom processors
     baggage_processor = BaggageSpanProcessor()
-    metrics_processor = AzureSDKMetricsSpanProcessor(meter_provider)
     
     tracer_provider = TracerProvider(resource=resource)
     tracer_provider.add_span_processor(batch_processor)
     tracer_provider.add_span_processor(baggage_processor)
-    tracer_provider.add_span_processor(metrics_processor)
     
     trace.set_tracer_provider(tracer_provider)
 
 
-def _setup_metrics(otlp_endpoint: str, resource: Resource) -> MeterProvider:
+def _setup_metrics(otlp_endpoint: str, resource: Resource) -> None:
     """Configure metrics collection with OTLP exporter."""
     metric_exporter = OTLPMetricExporter(endpoint=otlp_endpoint, insecure=True)
     metric_reader = PeriodicExportingMetricReader(metric_exporter, export_interval_millis=60000)
     
     meter_provider = MeterProvider(resource=resource, metric_readers=[metric_reader])
     metrics.set_meter_provider(meter_provider)
-    return meter_provider
 
 
 def _setup_logging(otlp_endpoint: str, resource: Resource, service_name: str) -> None:
@@ -313,3 +232,55 @@ def get_meter(name: str) -> metrics.Meter:
         toys_viewed.add(1, {"user_id": user_id, "is_admin": is_admin})
     """
     return metrics.get_meter(name)
+
+
+def get_azure_metrics_meter():
+    """
+    Get a meter for Azure SDK metrics (Cosmos DB, Blob Storage).
+    
+    Returns a tuple of (cosmos_counter, cosmos_histogram, cosmos_ru, blob_counter, blob_histogram).
+    
+    Note: Python Azure SDK does NOT emit rich semantic spans like .NET/Java.
+    You must manually call these metrics in your repository/service code.
+    
+    Example:
+        cosmos_ops, cosmos_duration, cosmos_ru, _, _ = get_azure_metrics_meter()
+        
+        start = time.time()
+        result = await container.create_item(item)
+        duration = time.time() - start
+        
+        cosmos_ops.add(1, {"operation": "create_item"})
+        cosmos_duration.record(duration, {"operation": "create_item"})
+        if hasattr(result, '_request_charge'):
+            cosmos_ru.add(result._request_charge, {"operation": "create_item"})
+    """
+    meter = metrics.get_meter("shared.observability.azure_metrics")
+    
+    cosmos_ops = meter.create_counter(
+        name="cosmos_operations_total",
+        description="Total Cosmos DB operations",
+        unit="1"
+    )
+    cosmos_duration = meter.create_histogram(
+        name="cosmos_operation_duration_seconds",
+        description="Duration of Cosmos DB operations",
+        unit="s"
+    )
+    cosmos_ru = meter.create_counter(
+        name="cosmos_request_units_consumed",
+        description="Total Request Units (RUs) consumed",
+        unit="1"
+    )
+    blob_ops = meter.create_counter(
+        name="blob_operations_total",
+        description="Total Blob Storage operations",
+        unit="1"
+    )
+    blob_duration = meter.create_histogram(
+        name="blob_operation_duration_seconds",
+        description="Duration of Blob Storage operations",
+        unit="s"
+    )
+    
+    return cosmos_ops, cosmos_duration, cosmos_ru, blob_ops, blob_duration
