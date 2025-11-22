@@ -7,7 +7,7 @@ from pathlib import Path
 # Add shared module to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "shared"))
 
-from shared.observability import setup_instrumentation, get_tracer, get_meter
+from shared.observability import setup_instrumentation, get_tracer, get_meter, instrument_app
 from shared.auth.middleware import AuthContextMiddleware
 
 from fastapi import FastAPI
@@ -127,6 +127,12 @@ app.include_router(trip_routes.router)
 
 # Add observability middleware
 app.add_middleware(AuthContextMiddleware)
+
+# Explicitly instrument the app to ensure OTEL middleware is the outermost (runs first)
+# This ensures:
+# 1. Trace context is extracted from headers before other middleware runs
+# 2. The Server span is created and active when AuthContextMiddleware runs
+instrument_app(app)
 
 
 @app.get("/health")

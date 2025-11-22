@@ -121,6 +121,16 @@ def setup_instrumentation(
     _setup_auto_instrumentation()
 
 
+def instrument_app(app, excluded_urls: str = "/health") -> None:
+    """
+    Instrument a FastAPI application with OpenTelemetry middleware.
+    
+    Must be called AFTER adding other middleware (like Auth, CORS) to ensure
+    OpenTelemetry runs FIRST (outermost layer) and extracts trace context.
+    """
+    FastAPIInstrumentor.instrument_app(app, excluded_urls=excluded_urls)
+
+
 def _setup_tracing(otlp_endpoint: str, resource: Resource) -> None:
     """Configure distributed tracing with OTLP exporter."""
     trace_exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
@@ -215,11 +225,9 @@ def _setup_logging(otlp_endpoint: str, resource: Resource, service_name: str) ->
 
 def _setup_auto_instrumentation() -> None:
     """Enable auto-instrumentation for common libraries."""
-    # FastAPI auto-instrumentation (instruments all HTTP endpoints)
-    # Exclude health check endpoint from tracing to reduce noise
-    FastAPIInstrumentor().instrument(
-        excluded_urls="/health"
-    )
+    # Note: FastAPI instrumentation is NOT done here automatically anymore.
+    # It must be done manually in the service using instrument_app(app)
+    # to ensure correct middleware ordering (OTEL must run before Auth).
     
     # HTTP client auto-instrumentation
     HTTPXClientInstrumentor().instrument()
