@@ -6,7 +6,12 @@ import { initializeTelemetry, shutdownTelemetry } from './config/telemetryConfig
 
 // Initialize OpenTelemetry as early as possible
 // This ensures all subsequent operations are traced
-initializeTelemetry();
+console.log('[App] Starting telemetry initialization...');
+initializeTelemetry().then(() => {
+  console.log('[App] Telemetry initialization complete');
+}).catch((error) => {
+  console.error('[App] Telemetry initialization failed:', error);
+});
 
 // Register cleanup handler to flush telemetry on page unload
 window.addEventListener('beforeunload', () => {
