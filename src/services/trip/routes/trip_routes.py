@@ -95,7 +95,7 @@ async def verify_toy_ownership(toy_id: UUID, auth_ctx: AuthContext, token: str) 
     if not auth_ctx.is_user:
         raise HTTPException(status_code=403, detail="Only users can create trips")
 
-    from auth.models import UserPrincipal
+    from shared.auth.models import UserPrincipal
 
     user = auth_ctx.principal
     if not isinstance(user, UserPrincipal):
@@ -203,7 +203,7 @@ async def get_trip(
         raise HTTPException(status_code=404, detail="Trip not found")
 
     # Track metric for trip view
-    from auth.models import UserPrincipal
+    from shared.auth.models import UserPrincipal
     user_id = auth_ctx.principal.oid if isinstance(auth_ctx.principal, UserPrincipal) else "system"
     trips_viewed_counter.add(1, {
         "user_id": user_id,
@@ -390,7 +390,7 @@ async def get_gallery_image(
         raise HTTPException(status_code=404, detail="Image not found in gallery")
 
     # Track metric for gallery image view
-    from auth.models import UserPrincipal
+    from shared.auth.models import UserPrincipal
     user_id = auth_ctx.principal.oid if isinstance(auth_ctx.principal, UserPrincipal) else "system"
     gallery_images_viewed_counter.add(1, {
         "trip_id": str(trip_id),

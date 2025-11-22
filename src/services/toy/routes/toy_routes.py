@@ -82,7 +82,7 @@ async def create_toy(
     if not auth_ctx.is_user:
         raise HTTPException(status_code=403, detail="Only users can create toys")
 
-    from auth.models import UserPrincipal
+    from shared.auth.models import UserPrincipal
 
     user = auth_ctx.principal
     if not isinstance(user, UserPrincipal):
@@ -150,7 +150,7 @@ async def get_toy(
         raise HTTPException(status_code=404, detail="Toy not found")
 
     # Track metric for toy view
-    from auth.models import UserPrincipal
+    from shared.auth.models import UserPrincipal
     user_id = auth_ctx.principal.oid if isinstance(auth_ctx.principal, UserPrincipal) else "system"
     toys_viewed_counter.add(1, {
         "user_id": user_id,
