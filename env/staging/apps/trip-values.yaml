@@ -3,7 +3,7 @@
 
 image:
   repository: "crappdemosedkdx.azurecr.io/trip" # Set by CI: <acr-login-server>/trip-service
-  tag: "0de16cb81a971c87949d3db1b41a9c5c17ef9269" # Set by CI: commit SHA
+  tag: "277a346dbed4daf8b6e742887ae2829223e2d754" # Set by CI: commit SHA
 replicaCount: 2
 resources:
   limits:
@@ -42,7 +42,6 @@ env:
   OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector.toytrip-staging.svc.cluster.local:4317"
   OTEL_SERVICE_NAME: "trip-service"
   SERVICE_VERSION: "0de16cb81a971c87949d3db1b41a9c5c17ef9269"
-
 # Kubernetes Downward API for context
 envFieldRef:
   - name: K8S_NAMESPACE
