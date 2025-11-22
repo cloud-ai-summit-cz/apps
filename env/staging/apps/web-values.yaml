@@ -33,3 +33,6 @@ env:
   TRIP_SERVICE_URL: "https://{{ .Values.ingress.publicIpFqdn }}/api/trips"
   DEMO_DATA_API_URL: "https://{{ .Values.ingress.publicIpFqdn }}/api/demo-data"
   MSAL_REDIRECT_URI: "https://{{ .Values.ingress.publicIpFqdn }}"
+  OTEL_COLLECTOR_URL: "http://otel-collector.toytrip-staging.svc.cluster.local:4318"
+  ENVIRONMENT: "staging"
+  SERVICE_VERSION: "{{ .Values.image.tag }}"

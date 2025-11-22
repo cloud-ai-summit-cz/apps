@@ -586,3 +586,59 @@ The nginx variable `$otel_backend` now correctly resolves to `http://otel-collec
 ### Verification
 
 POST requests to `/otel/v1/traces` should now return 200 OK (or appropriate backend response) instead of 500.
+
+---
+
+## 2025-11-22 - Added DNS Resolver for Nginx Proxy Variables
+
+### Issue
+
+After fixing the envsubst substitution, nginx started returning 502 Bad Gateway with error: `no resolver defined to resolve otel-collector`. When using variables in `proxy_pass`, nginx performs DNS resolution at request time (not config load time), requiring an explicit resolver configuration.
+
+### Fix
+
+Updated `src/web/nginx.conf` to add DNS resolver in the `/otel/v1/traces` location:
+```nginx
+# DNS resolver for Kubernetes service discovery
+# kube-dns is at 10.0.0.10 in most AKS clusters
+resolver 10.0.0.10 valid=10s;
+resolver_timeout 5s;
+```
+
+This tells nginx to use Kubernetes DNS (kube-dns at `10.0.0.10`) to resolve service names.
+
+### Configuration Updates
+
+Updated `env/staging/apps/web-values.yaml` to set explicit OTEL Collector FQDN and environment metadata:
+```yaml
+env:
+  OTEL_COLLECTOR_URL: "http://otel-collector.toytrip-staging.svc.cluster.local:4318"
+  ENVIRONMENT: "staging"
+  SERVICE_VERSION: "{{ .Values.image.tag }}"
+```
+
+Using the full Kubernetes service DNS name (`otel-collector.toytrip-staging.svc.cluster.local`) provides explicit namespace qualification and avoids any ambiguity in DNS resolution.
+
+### Technical Notes
+
+- **DNS Resolver Auto-Detection**: Instead of hardcoding the resolver IP (which varies by cluster), the `docker-entrypoint.sh` script reads the first `nameserver` from `/etc/resolv.conf` (automatically configured by Kubernetes)
+- Kubernetes DNS (kube-dns/CoreDNS) typically runs at `10.0.0.10` in AKS, but can differ in other environments
+- `valid=10s` caches DNS results for 10 seconds (balances performance vs. freshness)
+- `resolver_timeout 5s` prevents hanging requests if DNS is slow
+- Using variables in `proxy_pass` enables dynamic resolution but requires resolver directive
+
+### Why Not Hardcode 10.0.0.10?
+
+According to Kubernetes documentation and community best practices:
+- The DNS service IP is cluster-specific and can vary by installation method
+- Reading from `/etc/resolv.conf` is the recommended approach for containers
+- This makes the configuration portable across different Kubernetes distributions (AKS, EKS, GKE, on-prem)
+- Kubernetes automatically populates `/etc/resolv.conf` with the correct nameserver for each pod
+
+### Verification
+
+After rebuild/redeploy:
+- [ ] POST requests to `/otel/v1/traces` return 200 OK (not 502)
+- [ ] No "no resolver defined" errors in nginx logs
+- [ ] Spans successfully reach OTEL Collector and appear in Aspire Dashboard
+- [ ] Check startup logs to confirm detected resolver IP matches cluster DNS
