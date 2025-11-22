@@ -250,10 +250,11 @@ def get_azure_metrics_meter():
         result = await container.create_item(item)
         duration = time.time() - start
         
-        cosmos_ops.add(1, {"operation": "create_item"})
-        cosmos_duration.record(duration, {"operation": "create_item"})
+        attrs = get_metric_attributes({"operation": "create_item"})
+        cosmos_ops.add(1, attrs)
+        cosmos_duration.record(duration, attrs)
         if hasattr(result, '_request_charge'):
-            cosmos_ru.add(result._request_charge, {"operation": "create_item"})
+            cosmos_ru.add(result._request_charge, attrs)
     """
     meter = metrics.get_meter("shared.observability.azure_metrics")
     
@@ -284,3 +285,33 @@ def get_azure_metrics_meter():
     )
     
     return cosmos_ops, cosmos_duration, cosmos_ru, blob_ops, blob_duration
+
+
+def get_metric_attributes(base_attrs: dict) -> dict:
+    """
+    Get metric attributes by merging base attributes with baggage context.
+    
+    This ensures user context (user_id, is_admin, user_role) from baggage
+    is automatically included in all metrics for filtering and analysis.
+    
+    Args:
+        base_attrs: Base attributes (operation, container, etc.)
+        
+    Returns:
+        Combined attributes including baggage items
+        
+    Example:
+        attrs = get_metric_attributes({"operation": "read_item", "container": "toys"})
+        # Returns: {"operation": "read_item", "container": "toys", "user_id": "...", "is_admin": "true"}
+        cosmos_ops.add(1, attrs)
+    """
+    # Start with base attributes
+    attrs = dict(base_attrs)
+    
+    # Add baggage items (user_id, is_admin, user_role, etc.)
+    baggage_items = baggage.get_all()
+    for key, value in baggage_items.items():
+        if key not in attrs:  # Don't override base attributes
+            attrs[key] = value
+    
+    return attrs

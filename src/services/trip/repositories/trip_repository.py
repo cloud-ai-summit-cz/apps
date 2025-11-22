@@ -14,7 +14,7 @@ from azure.cosmos import exceptions
 from azure.identity.aio import DefaultAzureCredential
 
 from models import Trip, TripDocument, GalleryImage
-from shared.observability.instrumentation import get_azure_metrics_meter
+from shared.observability.instrumentation import get_azure_metrics_meter, get_metric_attributes
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,19 @@ class TripRepository:
         
         # Azure metrics (manual instrumentation because Python SDK doesn't emit semantic spans)
         self.cosmos_ops, self.cosmos_duration, self.cosmos_ru, _, _ = get_azure_metrics_meter()
+    
+    def _record_cosmos_metrics(self, operation: str, start_time: float, status: str = "success", method: str = None) -> None:
+        """Record Cosmos DB operation metrics with user context from baggage."""
+        duration = time.time() - start_time
+        base_attrs = {"operation": operation, "container": self.container_name}
+        if status != "success":
+            base_attrs["status"] = status
+        if method:
+            base_attrs["method"] = method
+        
+        attrs = get_metric_attributes(base_attrs)
+        self.cosmos_ops.add(1, attrs)
+        self.cosmos_duration.record(duration, attrs)
 
     async def _ensure_initialized(self) -> ContainerProxy:
         """
@@ -95,16 +108,12 @@ class TripRepository:
             created_item = await container.create_item(body=item)
             
             # Record metrics
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "create_item", "container": self.container_name})
-            self.cosmos_duration.record(duration, {"operation": "create_item", "container": self.container_name})
+            self._record_cosmos_metrics("create_item", start)
             
             logger.info(f"Created trip: {created_item['id']} for toy {trip.toy_id}")
             return TripDocument(**created_item).to_trip()
         except Exception as e:
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "create_item", "container": self.container_name, "status": "error"})
-            self.cosmos_duration.record(duration, {"operation": "create_item", "container": self.container_name})
+            self._record_cosmos_metrics("create_item", start, "error")
             raise
 
     async def get_by_id(self, trip_id: UUID) -> Trip | None:
@@ -125,21 +134,15 @@ class TripRepository:
             item = await container.read_item(item=trip_id_str, partition_key=trip_id_str)
             
             # Record metrics
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "read_item", "container": self.container_name})
-            self.cosmos_duration.record(duration, {"operation": "read_item", "container": self.container_name})
+            self._record_cosmos_metrics("read_item", start)
             
             return TripDocument(**item).to_trip()
         except exceptions.CosmosResourceNotFoundError:
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "read_item", "container": self.container_name, "status": "not_found"})
-            self.cosmos_duration.record(duration, {"operation": "read_item", "container": self.container_name})
+            self._record_cosmos_metrics("read_item", start, "not_found")
             logger.debug(f"Trip not found: {trip_id_str}")
             return None
         except Exception as e:
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "read_item", "container": self.container_name, "status": "error"})
-            self.cosmos_duration.record(duration, {"operation": "read_item", "container": self.container_name})
+            self._record_cosmos_metrics("read_item", start, "error")
             raise
 
     async def list_by_toy(self, toy_id: UUID, limit: int = 20, offset: int = 0) -> tuple[list[Trip], int]:
@@ -168,9 +171,7 @@ class TripRepository:
             )]
             
             # Record metrics
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "query_items", "container": self.container_name})
-            self.cosmos_duration.record(duration, {"operation": "query_items", "container": self.container_name})
+            self._record_cosmos_metrics("query_items", start)
 
             total = len(items)
             paginated_items = items[offset : offset + limit]
@@ -180,9 +181,7 @@ class TripRepository:
 
             return trips, total
         except Exception as e:
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "query_items", "container": self.container_name, "status": "error"})
-            self.cosmos_duration.record(duration, {"operation": "query_items", "container": self.container_name})
+            self._record_cosmos_metrics("query_items", start, "error")
             raise
 
     async def list_by_owner(self, owner_oid: str, limit: int = 20, offset: int = 0) -> tuple[list[Trip], int]:
@@ -210,9 +209,7 @@ class TripRepository:
             )]
             
             # Record metrics
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "query_items", "container": self.container_name})
-            self.cosmos_duration.record(duration, {"operation": "query_items", "container": self.container_name})
+            self._record_cosmos_metrics("query_items", start)
 
             total = len(items)
             paginated_items = items[offset : offset + limit]
@@ -222,9 +219,7 @@ class TripRepository:
 
             return trips, total
         except Exception as e:
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "query_items", "container": self.container_name, "status": "error"})
-            self.cosmos_duration.record(duration, {"operation": "query_items", "container": self.container_name})
+            self._record_cosmos_metrics("query_items", start, "error")
             raise
 
     async def update(self, trip_id: UUID, updates: dict[str, Any]) -> Trip | None:
@@ -259,23 +254,17 @@ class TripRepository:
             updated_item = await container.replace_item(item=item, body=item)
             
             # Record metrics
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name})
-            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
+            self._record_cosmos_metrics("replace_item", start)
             
             logger.info(f"Updated trip: {trip_id_str}")
             return TripDocument(**updated_item).to_trip()
 
         except exceptions.CosmosResourceNotFoundError:
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name, "status": "not_found"})
-            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
+            self._record_cosmos_metrics("replace_item", start, "not_found")
             logger.debug(f"Trip not found for update: {trip_id_str}")
             return None
         except Exception as e:
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name, "status": "error"})
-            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
+            self._record_cosmos_metrics("replace_item", start, "error")
             raise
 
     async def delete(self, trip_id: UUID) -> bool:
@@ -296,22 +285,16 @@ class TripRepository:
             await container.delete_item(item=trip_id_str, partition_key=trip_id_str)
             
             # Record metrics
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "delete_item", "container": self.container_name})
-            self.cosmos_duration.record(duration, {"operation": "delete_item", "container": self.container_name})
+            self._record_cosmos_metrics("delete_item", start)
             
             logger.info(f"Deleted trip: {trip_id_str}")
             return True
         except exceptions.CosmosResourceNotFoundError:
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "delete_item", "container": self.container_name, "status": "not_found"})
-            self.cosmos_duration.record(duration, {"operation": "delete_item", "container": self.container_name})
+            self._record_cosmos_metrics("delete_item", start, "not_found")
             logger.debug(f"Trip not found for deletion: {trip_id_str}")
             return False
         except Exception as e:
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "delete_item", "container": self.container_name, "status": "error"})
-            self.cosmos_duration.record(duration, {"operation": "delete_item", "container": self.container_name})
+            self._record_cosmos_metrics("delete_item", start, "error")
             raise
 
     async def add_gallery_image(self, trip_id: UUID, image: GalleryImage) -> Trip | None:
@@ -347,23 +330,17 @@ class TripRepository:
             updated_item = await container.replace_item(item=item, body=item)
             
             # Record metrics
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name, "method": "add_gallery_image"})
-            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
+            self._record_cosmos_metrics("replace_item", start, method="add_gallery_image")
             
             logger.info(f"Added gallery image to trip: {trip_id_str}")
             return TripDocument(**updated_item).to_trip()
 
         except exceptions.CosmosResourceNotFoundError:
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name, "status": "not_found"})
-            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
+            self._record_cosmos_metrics("replace_item", start, "not_found")
             logger.debug(f"Trip not found for adding gallery image: {trip_id_str}")
             return None
         except Exception as e:
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name, "status": "error"})
-            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
+            self._record_cosmos_metrics("replace_item", start, "error")
             raise
 
     async def remove_gallery_image(self, trip_id: UUID, image_id: UUID) -> Trip | None:
@@ -398,23 +375,17 @@ class TripRepository:
             updated_item = await container.replace_item(item=item, body=item)
             
             # Record metrics
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name, "method": "remove_gallery_image"})
-            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
+            self._record_cosmos_metrics("replace_item", start, method="remove_gallery_image")
             
             logger.info(f"Removed gallery image {image_id_str} from trip: {trip_id_str}")
             return TripDocument(**updated_item).to_trip()
 
         except exceptions.CosmosResourceNotFoundError:
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name, "status": "not_found"})
-            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
+            self._record_cosmos_metrics("replace_item", start, "not_found")
             logger.debug(f"Trip not found for removing gallery image: {trip_id_str}")
             return None
         except Exception as e:
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name, "status": "error"})
-            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
+            self._record_cosmos_metrics("replace_item", start, "error")
             raise
 
 

@@ -14,7 +14,7 @@ from azure.cosmos import PartitionKey, exceptions
 from azure.identity.aio import DefaultAzureCredential
 
 from models import Toy, ToyDocument
-from shared.observability.instrumentation import get_azure_metrics_meter
+from shared.observability.instrumentation import get_azure_metrics_meter, get_metric_attributes
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,17 @@ class ToyRepository:
         
         # Azure metrics (manual instrumentation because Python SDK doesn't emit semantic spans)
         self.cosmos_ops, self.cosmos_duration, self.cosmos_ru, _, _ = get_azure_metrics_meter()
+    
+    def _record_cosmos_metrics(self, operation: str, start_time: float, status: str = "success") -> None:
+        """Record Cosmos DB operation metrics with user context from baggage."""
+        duration = time.time() - start_time
+        base_attrs = {"operation": operation, "container": self.container_name}
+        if status != "success":
+            base_attrs["status"] = status
+        
+        attrs = get_metric_attributes(base_attrs)
+        self.cosmos_ops.add(1, attrs)
+        self.cosmos_duration.record(duration, attrs)
 
     async def _ensure_initialized(self) -> ContainerProxy:
         """
@@ -93,18 +104,11 @@ class ToyRepository:
         start = time.time()
         try:
             created_item = await container.create_item(body=item)
-            
-            # Record metrics
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "create_item", "container": self.container_name})
-            self.cosmos_duration.record(duration, {"operation": "create_item", "container": self.container_name})
-            
+            self._record_cosmos_metrics("create_item", start)
             logger.info(f"Created toy: {created_item['id']}")
             return ToyDocument(**created_item).to_toy()
         except Exception as e:
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "create_item", "container": self.container_name, "status": "error"})
-            self.cosmos_duration.record(duration, {"operation": "create_item", "container": self.container_name})
+            self._record_cosmos_metrics("create_item", start, "error")
             raise
 
     async def get_by_id(self, toy_id: UUID) -> Toy | None:
@@ -123,23 +127,14 @@ class ToyRepository:
         start = time.time()
         try:
             item = await container.read_item(item=toy_id_str, partition_key=toy_id_str)
-            
-            # Record metrics
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "read_item", "container": self.container_name})
-            self.cosmos_duration.record(duration, {"operation": "read_item", "container": self.container_name})
-            
+            self._record_cosmos_metrics("read_item", start)
             return ToyDocument(**item).to_toy()
         except exceptions.CosmosResourceNotFoundError:
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "read_item", "container": self.container_name, "status": "not_found"})
-            self.cosmos_duration.record(duration, {"operation": "read_item", "container": self.container_name})
+            self._record_cosmos_metrics("read_item", start, "not_found")
             logger.debug(f"Toy not found: {toy_id_str}")
             return None
         except Exception as e:
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "read_item", "container": self.container_name, "status": "error"})
-            self.cosmos_duration.record(duration, {"operation": "read_item", "container": self.container_name})
+            self._record_cosmos_metrics("read_item", start, "error")
             raise
 
     async def list_all(self, owner_oid: str | None = None, limit: int = 20, offset: int = 0) -> tuple[list[Toy], int]:
@@ -173,10 +168,7 @@ class ToyRepository:
                     query=query,
                 )]
             
-            # Record metrics
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "query_items", "container": self.container_name})
-            self.cosmos_duration.record(duration, {"operation": "query_items", "container": self.container_name})
+            self._record_cosmos_metrics("query_items", start)
             
             total = len(items)
             paginated_items = items[offset : offset + limit]
@@ -186,9 +178,7 @@ class ToyRepository:
 
             return toys, total
         except Exception as e:
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "query_items", "container": self.container_name, "status": "error"})
-            self.cosmos_duration.record(duration, {"operation": "query_items", "container": self.container_name})
+            self._record_cosmos_metrics("query_items", start, "error")
             raise
 
     async def update(self, toy_id: UUID, updates: dict[str, Any]) -> Toy | None:
@@ -222,25 +212,16 @@ class ToyRepository:
 
             # Replace item
             updated_item = await container.replace_item(item=item, body=item)
-            
-            # Record metrics
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name})
-            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
-            
+            self._record_cosmos_metrics("replace_item", start)
             logger.info(f"Updated toy: {toy_id_str}")
             return ToyDocument(**updated_item).to_toy()
 
         except exceptions.CosmosResourceNotFoundError:
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name, "status": "not_found"})
-            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
+            self._record_cosmos_metrics("replace_item", start, "not_found")
             logger.debug(f"Toy not found for update: {toy_id_str}")
             return None
         except Exception as e:
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "replace_item", "container": self.container_name, "status": "error"})
-            self.cosmos_duration.record(duration, {"operation": "replace_item", "container": self.container_name})
+            self._record_cosmos_metrics("replace_item", start, "error")
             raise
 
     async def delete(self, toy_id: UUID) -> bool:
@@ -259,24 +240,15 @@ class ToyRepository:
         start = time.time()
         try:
             await container.delete_item(item=toy_id_str, partition_key=toy_id_str)
-            
-            # Record metrics
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "delete_item", "container": self.container_name})
-            self.cosmos_duration.record(duration, {"operation": "delete_item", "container": self.container_name})
-            
+            self._record_cosmos_metrics("delete_item", start)
             logger.info(f"Deleted toy: {toy_id_str}")
             return True
         except exceptions.CosmosResourceNotFoundError:
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "delete_item", "container": self.container_name, "status": "not_found"})
-            self.cosmos_duration.record(duration, {"operation": "delete_item", "container": self.container_name})
+            self._record_cosmos_metrics("delete_item", start, "not_found")
             logger.debug(f"Toy not found for deletion: {toy_id_str}")
             return False
         except Exception as e:
-            duration = time.time() - start
-            self.cosmos_ops.add(1, {"operation": "delete_item", "container": self.container_name, "status": "error"})
-            self.cosmos_duration.record(duration, {"operation": "delete_item", "container": self.container_name})
+            self._record_cosmos_metrics("delete_item", start, "error")
             raise
 
     async def close(self):
