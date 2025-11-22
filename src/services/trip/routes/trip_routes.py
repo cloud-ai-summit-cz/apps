@@ -15,8 +15,8 @@ from pathlib import Path
 # Add shared module to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "shared"))
 
-from auth.dependencies import create_auth_dependency, require_owner
-from auth.models import AuthContext
+from shared.auth.dependencies import create_auth_dependency, require_owner
+from shared.auth.models import AuthContext
 
 from models import Trip, TripCreate, TripUpdate, GalleryImage
 from repositories import TripRepository
