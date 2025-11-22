@@ -54,8 +54,8 @@ class TripRepository:
         self.cosmos_ops.add(1, attrs)
         self.cosmos_duration.record(duration, attrs)
         
-        # Debug: log actual duration
-        logger.debug(f"Cosmos {operation} took {duration:.4f}s (recorded with attrs: {attrs})")
+        # Log actual duration for debugging metrics issues
+        logger.info(f"Cosmos {operation} took {duration:.4f}s (attrs: {attrs})")
 
     async def _ensure_initialized(self) -> ContainerProxy:
         """

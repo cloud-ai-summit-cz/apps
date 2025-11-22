@@ -201,7 +201,10 @@ def _setup_logging(otlp_endpoint: str, resource: Resource, service_name: str) ->
 def _setup_auto_instrumentation() -> None:
     """Enable auto-instrumentation for common libraries."""
     # FastAPI auto-instrumentation (instruments all HTTP endpoints)
-    FastAPIInstrumentor().instrument()
+    # Exclude health check endpoint from tracing to reduce noise
+    FastAPIInstrumentor().instrument(
+        excluded_urls="/health"
+    )
     
     # HTTP client auto-instrumentation
     HTTPXClientInstrumentor().instrument()
