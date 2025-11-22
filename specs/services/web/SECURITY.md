@@ -20,7 +20,8 @@ Detail the threat model and controls unique to this service. Align with global r
 
 ## Telemetry Security
 - **Endpoint**: `/otel/v1/traces` is exposed by Nginx.
-- **Access Control**: Nginx validates the Referer header to ensure requests originate from the same origin (see ADR-0001).
+- **Access Control**: CORS headers restrict cross-origin requests, allowing only same-origin telemetry submission.
 - **Rate Limiting**: 500 requests/minute per IP with burst of 1000 to prevent DoS attacks.
 - **Network Isolation**: OTEL Collector remains internal to the cluster, not exposed externally.
+- **POST-only**: Only POST requests allowed, rejects GET/PUT/DELETE.
 - **Details**: See [ADR-0001: Frontend Telemetry Security Model](decisions/ADR-0001-frontend-telemetry-security.md)

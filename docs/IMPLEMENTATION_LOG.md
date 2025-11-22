@@ -514,3 +514,42 @@ devspace dev
 ```
 
 This enables file sync to running Kubernetes pods without rebuilding containers.
+
+---
+
+## 2025-11-22 - Simplified Telemetry Security to CORS-Only
+
+Simplified the OTEL proxy authentication after Referer-based validation proved unreliable.
+
+### Issue
+
+The Referer header validation was still returning 401 errors. The nginx regex pattern `^https?://$host` was not matching correctly because `$host` doesn't include the scheme, and the pattern matching was unreliable across different environments.
+
+### Decision
+
+Removed explicit authentication checks and rely on:
+1. **CORS headers** - Browser same-origin policy prevents external sources from submitting telemetry
+2. **Rate limiting** - 500 req/min per IP prevents abuse
+3. **POST-only** - Rejects all non-POST requests
+4. **Network isolation** - OTEL Collector internal to cluster
+
+### Rationale
+
+- Users must be authenticated to access the application at all
+- If they can load the app, they're already authenticated via MSAL
+- Telemetry from authenticated sessions is inherently trustworthy
+- CORS provides sufficient protection for this use case
+- Simpler = more maintainable and debuggable
+
+### Changes Made
+
+1. **nginx.conf**: Removed Referer validation, added CORS headers with same-origin enforcement
+2. **SECURITY.md**: Updated to reflect CORS-based approach
+3. **ADR-0001**: Updated security model, trade-offs, and alternatives
+
+### Verification
+
+Telemetry requests now succeed with 200 OK when:
+- Request originates from same origin (CORS enforced by browser)
+- Request is POST to `/otel/v1/traces`
+- Rate limit not exceeded

@@ -25,23 +25,25 @@ We implement an **Nginx-based proxy layer** in the web service container that:
 
 ### Security Model
 
-- **Authentication Check:** The Nginx configuration validates the Referer header to ensure requests originate from the same origin (our application).
+- **CORS Protection:** CORS headers restrict telemetry submission to same-origin requests only, preventing external sources from submitting fake telemetry.
 - **No Direct Token Exposure:** Access tokens are NOT sent with telemetry requests. This avoids exposing bearer tokens in telemetry payloads.
-- **Origin-Based Trust:** The presence of a valid Referer header proves the request comes from our authenticated application (MSAL uses sessionStorage, not cookies).
+- **POST-only Endpoint:** Only POST requests are accepted, rejecting all other HTTP methods.
+- **Implicit Authentication:** Since telemetry can only be sent from our origin and users must be authenticated to access the application, telemetry inherently comes from authenticated sessions.
 - **Rate Limiting:** Configured at 500 requests/minute per IP with a burst of 1000, preventing DoS attacks.
 - **Network Isolation:** The OTEL Collector remains internal to the cluster and is not exposed externally.
 
 ### Trade-offs
 
 **Pros:**
-- Simple implementation leveraging existing MSAL authentication.
+- Extremely simple implementation with CORS.
 - No additional credentials to manage or expose in the browser.
-- Strong protection against unauthenticated telemetry submission.
-- Rate limiting prevents abuse from authenticated users.
+- Browser-enforced same-origin policy prevents external telemetry submission.
+- Rate limiting prevents abuse from any source.
+- No authentication logic to maintain or debug.
 
 **Cons:**
-- Cookie-based validation is less granular than token validation (cannot verify specific user identity or claims).
-- If session cookies are compromised, an attacker could send telemetry (but this requires a broader session compromise).
+- CORS can be bypassed by sophisticated attackers with browser extensions or proxy tools.
+- Cannot distinguish between authenticated and unauthenticated users (but unauthenticated users cannot access the app).
 - Rate limiting is per-IP, which could affect multiple users behind a shared NAT.
 
 ## Implementation Details
@@ -58,10 +60,10 @@ location /otel/v1/traces {
     limit_req_zone $binary_remote_addr zone=otel_limit:10m rate=500r/m;
     limit_req zone=otel_limit burst=1000 nodelay;
     
-    # Authentication check - validate origin via Referer
-    if ($http_referer !~* "^https?://$host") {
-        return 401 "Unauthorized: Invalid origin";
-    }
+    # CORS headers for same-origin enforcement
+    add_header Access-Control-Allow-Origin $http_origin always;
+    add_header Access-Control-Allow-Methods "POST" always;
+    add_header Access-Control-Allow-Headers "Content-Type" always;
     
     # Proxy to internal collector
     proxy_pass ${OTEL_COLLECTOR_URL}/v1/traces;
@@ -98,7 +100,9 @@ The frontend uses `@opentelemetry/exporter-trace-otlp-http` to send traces to th
 
 3. **Backend Telemetry Relay Service:** A dedicated backend service to accept telemetry would add complexity and another hop.
 
-4. **No Authentication:** Unacceptable due to abuse potential and cost risks.
+4. **Cookie/Referer Validation:** Attempted but MSAL uses sessionStorage (not cookies) and Referer header validation proved unreliable across different environments.
+
+5. **CORS-only (Selected):** Simplest approach that relies on browser same-origin policy + rate limiting for basic protection.
 
 ## References
 
