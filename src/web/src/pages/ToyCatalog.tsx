@@ -113,6 +113,7 @@ function ToyCatalog() {
 
     // Wrap the execution in the span's context
     await context.with(trace.setSpan(context.active(), span), async () => {
+      console.log('[ToyCatalog] Active TraceId:', span.spanContext().traceId);
       try {
         setLoading(true);
         setError(null);
