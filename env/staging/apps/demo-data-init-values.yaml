@@ -3,7 +3,7 @@
 
 image:
   repository: "crappdemosedkdx.azurecr.io/demo-data-init"
-  tag: "626f9c85df2765406e4e38a2b898e0f6d2ca1210"
+  tag: "c6f526a62287d576e59b02abc60a9b712efff1b9"
 replicaCount: 1
 resources:
   limits:
