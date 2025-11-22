@@ -6,6 +6,9 @@ declare global {
       TRIP_SERVICE_URL?: string;
       DEMO_DATA_API_URL?: string;
       MSAL_REDIRECT_URI?: string;
+      OTEL_COLLECTOR_URL?: string;
+      ENVIRONMENT?: string;
+      SERVICE_VERSION?: string;
     };
   }
 }

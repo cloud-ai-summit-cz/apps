@@ -327,3 +327,149 @@ Services were configured with `OTEL_EXPORTER_OTLP_ENDPOINT` containing the `http
 ### Verification
 - Services should now successfully connect to the OTEL Collector via gRPC.
 - Telemetry should start flowing to the Collector and then to the Aspire Dashboard.
+
+---
+
+## 2025-11-22 - Frontend OpenTelemetry Implementation
+
+Implemented comprehensive OpenTelemetry instrumentation for the web frontend application with secure telemetry ingestion.
+
+### Changes Made
+
+#### 1. OpenTelemetry Dependencies
+Added OpenTelemetry packages to `src/web/package.json`:
+- `@opentelemetry/api`: Core API for tracing
+- `@opentelemetry/sdk-trace-web`: Web-specific trace SDK
+- `@opentelemetry/exporter-trace-otlp-http`: OTLP HTTP exporter
+- `@opentelemetry/instrumentation-*`: Auto-instrumentation for document load, fetch, and user interactions
+- `@opentelemetry/resources`: Resource management for service metadata
+- `@opentelemetry/context-zone`: Zone.js-based context management
+
+#### 2. Telemetry Configuration (`src/web/src/config/telemetryConfig.ts`)
+Created centralized telemetry initialization:
+- **WebTracerProvider**: Configures trace provider with service metadata (name, version, environment)
+- **Sampling Strategy**: 
+  - Production: 10% sampling to reduce volume
+  - Dev/Staging: 100% sampling for debugging
+- **OTLP HTTP Exporter**: Sends traces to `/otel/v1/traces` (proxied by Nginx)
+- **Batch Span Processor**: Efficient batching (5-second interval, max 10 spans per batch)
+- **Auto-Instrumentation**:
+  - Document load performance (Core Web Vitals)
+  - Fetch requests with trace context propagation (`traceparent` header)
+  - User interactions (click, submit events)
+- **CORS Configuration**: Propagates trace headers to backend services (toy, trip, demo-data)
+
+#### 3. Nginx OTEL Proxy with Authentication
+Updated `src/web/nginx.conf` to proxy telemetry with security controls:
+- **Endpoint**: `/otel/v1/traces` (POST-only)
+- **Authentication**: Validates MSAL session cookie presence before forwarding
+- **Rate Limiting**: 100 requests/minute per IP (burst 20) to prevent abuse
+- **Proxy Configuration**: Forwards to internal OTEL Collector (`${OTEL_COLLECTOR_URL}/v1/traces`)
+- **Timeouts**: 5s connect, 10s send/read to prevent resource exhaustion
+- **Buffering**: Optimized for telemetry payload sizes
+
+#### 4. Docker Configuration Updates
+**Dockerfile**: 
+- Changed nginx.conf to template (`default.conf.template`) for environment variable substitution
+
+**docker-entrypoint.sh**:
+- Added `OTEL_COLLECTOR_URL`, `ENVIRONMENT`, `SERVICE_VERSION` to env-config.js
+- Added `envsubst` to substitute `${OTEL_COLLECTOR_URL}` in nginx configuration at runtime
+
+#### 5. Application Integration
+**main.tsx**: 
+- Initialize telemetry before React app render (ensures all operations are traced)
+- Register cleanup handler (`beforeunload`) to flush pending telemetry
+
+**Type Definitions** (`vite-env.d.ts`):
+- Extended `window.ENV_CONFIG` with telemetry-related properties
+
+#### 6. Custom Telemetry Utilities (`src/web/src/utils/telemetry.ts`)
+Created developer-friendly API for manual instrumentation:
+- **withSpan**: Wrap async operations in custom spans with automatic error handling
+- **addSpanAttributes**: Enrich active span with business context (user_id, is_admin, toy_id, etc.)
+- **addSpanEvent**: Record point-in-time events during span execution
+- **setSpanError**: Mark span as error with exception recording
+
+#### 7. Architecture Decision Record
+Created `specs/services/web/decisions/ADR-0001-frontend-telemetry-security.md`:
+- Documented security model (session-based authentication for telemetry)
+- Explained trade-offs (simplicity vs. token-based validation)
+- Covered rate limiting strategy and network isolation
+- Provided implementation details and alternatives considered
+
+#### 8. Documentation Updates
+- **SECURITY.md**: Added reference to ADR-0001 with security details
+- **README.md**: Added OpenTelemetry section with automatic/custom instrumentation examples
+- **OBSERVABILITY.md** (service): Already specified requirements (now implemented)
+
+### Technical Decisions
+
+1. **Session-Based Authentication**: Nginx validates MSAL session cookies instead of bearer tokens
+   - Simpler implementation (no credential exposure in browser)
+   - Sufficient for telemetry authorization (authenticated user = trusted source)
+   - Rate limiting provides additional protection against abuse
+
+2. **Nginx Proxy Layer**: Web container acts as gateway to internal OTEL Collector
+   - Network isolation (collector not exposed externally)
+   - Centralized security enforcement
+   - Single point for rate limiting and authentication
+
+3. **Relative URL for Exporter**: Frontend sends to `/otel/v1/traces` (same-origin)
+   - No CORS complications (proxied through serving container)
+   - Session cookies automatically included by browser
+   - Simplifies deployment configuration
+
+4. **Environment-Based Sampling**: Dynamic sampling rate based on environment
+   - Reduces production telemetry volume (cost optimization)
+   - Full visibility in dev/staging for debugging
+   - Configurable via `ENVIRONMENT` env var
+
+5. **Trace Context Propagation**: `traceparent` header automatically added to backend requests
+   - Enables end-to-end distributed tracing (browser → toy/trip services)
+   - W3C Trace Context standard for interoperability
+   - Correlation of frontend user actions with backend operations
+
+6. **Auto-Instrumentation First**: Leverage OTEL libraries for common patterns
+   - Minimal code changes in application
+   - Comprehensive baseline telemetry out-of-box
+   - Custom spans for business-specific operations only
+
+### Security Considerations
+
+- **No Token Exposure**: Access tokens are NOT sent with telemetry (session cookies only)
+- **Rate Limiting**: Prevents DoS attacks on telemetry infrastructure
+- **Network Isolation**: Collector accessible only within cluster
+- **Session Validation**: Only authenticated users can submit telemetry
+- **Minimal Privilege**: Telemetry endpoint has no write access to application data
+
+### Frontend Telemetry Flow
+
+```
+User Action (Browser) 
+  → OpenTelemetry SDK (traces + attributes)
+  → OTLP HTTP Exporter (batched spans)
+  → POST /otel/v1/traces (with session cookie)
+  → Nginx (validates session + rate limit)
+  → OTEL Collector (internal cluster)
+  → Aspire Dashboard / Azure Monitor
+```
+
+### Next Steps
+
+- Install npm packages (`npm install` in `src/web/`)
+- Test telemetry in local development (verify spans appear in Aspire Dashboard)
+- Add custom spans to critical user flows (toy registration, trip creation, gallery uploads)
+- Configure Helm chart values to set `OTEL_COLLECTOR_URL` env var for web service
+- Monitor rate limiting effectiveness and adjust thresholds if needed
+- Add Core Web Vitals metrics collection (LCP, FID, CLS)
+- Implement custom metrics for business KPIs (page views, interaction rates)
+
+### References
+
+- [Platform Observability Strategy](../specs/platform/OBSERVABILITY.md)
+- [Web Service Observability Plan](../specs/services/web/OBSERVABILITY.md)
+- [Web Service Security Model](../specs/services/web/SECURITY.md)
+- [ADR-0001: Frontend Telemetry Security](../specs/services/web/decisions/ADR-0001-frontend-telemetry-security.md)
+- [OpenTelemetry Browser Documentation](https://opentelemetry.io/docs/languages/js/)
+- [OTLP HTTP Specification](https://opentelemetry.io/docs/specs/otlp/#otlphttp)

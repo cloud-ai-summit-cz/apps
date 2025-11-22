@@ -20,5 +20,7 @@ Detail the threat model and controls unique to this service. Align with global r
 
 ## Telemetry Security
 - **Endpoint**: `/otel/v1/traces` is exposed by Nginx.
-- **Access Control**: Nginx must validate the presence of a valid session (e.g., cookie) before forwarding to the internal collector.
-- **Rate Limiting**: Apply rate limits to this endpoint to prevent DoS attacks on the telemetry infrastructure.
+- **Access Control**: Nginx validates the presence of MSAL session cookies before forwarding to the internal collector (see ADR-0001).
+- **Rate Limiting**: 500 requests/minute per IP with burst of 1000 to prevent DoS attacks.
+- **Network Isolation**: OTEL Collector remains internal to the cluster, not exposed externally.
+- **Details**: See [ADR-0001: Frontend Telemetry Security Model](decisions/ADR-0001-frontend-telemetry-security.md)
