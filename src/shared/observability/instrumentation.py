@@ -24,6 +24,7 @@ from opentelemetry.sdk.trace import TracerProvider, SpanProcessor
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.sdk.metrics.view import View, ExplicitBucketHistogramAggregation
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
@@ -141,7 +142,7 @@ def _setup_tracing(otlp_endpoint: str, resource: Resource) -> None:
 
 
 def _setup_metrics(otlp_endpoint: str, resource: Resource) -> None:
-    """Configure metrics collection with OTLP exporter."""
+    """Configure metrics collection with OTLP exporter and custom histogram buckets."""
     metric_exporter = OTLPMetricExporter(endpoint=otlp_endpoint, insecure=True)
     # Export metrics every 10 seconds for faster feedback
     metric_reader = PeriodicExportingMetricReader(
@@ -150,7 +151,21 @@ def _setup_metrics(otlp_endpoint: str, resource: Resource) -> None:
         export_timeout_millis=5000
     )
     
-    meter_provider = MeterProvider(resource=resource, metric_readers=[metric_reader])
+    # Define custom histogram buckets for subsecond database operations
+    # Buckets: 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s
+    histogram_view = View(
+        instrument_type=metrics.Histogram,
+        instrument_name="*_duration_seconds",  # Match all duration histograms
+        aggregation=ExplicitBucketHistogramAggregation(
+            boundaries=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0]
+        )
+    )
+    
+    meter_provider = MeterProvider(
+        resource=resource, 
+        metric_readers=[metric_reader],
+        views=[histogram_view]
+    )
     metrics.set_meter_provider(meter_provider)
 
 
@@ -283,13 +298,11 @@ def get_azure_metrics_meter():
         description="Total Cosmos DB operations",
         unit="1"
     )
-    # Explicit buckets for subsecond operations (0.005s to 10s)
-    # Optimized for typical database query latencies
+    # Histogram buckets configured via View in _setup_metrics()
     cosmos_duration = meter.create_histogram(
         name="cosmos_operation_duration_seconds",
         description="Duration of Cosmos DB operations",
-        unit="s",
-        explicit_bucket_boundaries=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0]
+        unit="s"
     )
     cosmos_ru = meter.create_counter(
         name="cosmos_request_units_consumed",
@@ -301,12 +314,11 @@ def get_azure_metrics_meter():
         description="Total Blob Storage operations",
         unit="1"
     )
-    # Explicit buckets for blob operations (typically faster than Cosmos)
+    # Histogram buckets configured via View in _setup_metrics()
     blob_duration = meter.create_histogram(
         name="blob_operation_duration_seconds",
         description="Duration of Blob Storage operations",
-        unit="s",
-        explicit_bucket_boundaries=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0]
+        unit="s"
     )
     
     return cosmos_ops, cosmos_duration, cosmos_ru, blob_ops, blob_duration
