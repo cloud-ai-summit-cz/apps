@@ -11,7 +11,7 @@ otelCollector:
   resources:
     requests:
       cpu: 100m
-      memory: 128Mi
+      memory: 256Mi
     limits:
       cpu: 500m
       memory: 512Mi
@@ -88,10 +88,10 @@ aspireDashboard:
   resources:
     requests:
       cpu: 50m
-      memory: 128Mi
+      memory: 196Mi
     limits:
       cpu: 200m
-      memory: 256Mi
+      memory: 512Mi
   
   service:
     type: ClusterIP
