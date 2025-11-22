@@ -3,7 +3,7 @@
 
 image:
   repository: "crappdemosedkdx.azurecr.io/trip" # Set by CI: <acr-login-server>/trip-service
-  tag: "d12d1502bc86cb90f375d64b25623f578e72ebdf" # Set by CI: commit SHA
+  tag: "48cc110675b7b14290cf607990d510633381c610" # Set by CI: commit SHA
 replicaCount: 2
 resources:
   limits:
