@@ -309,3 +309,21 @@ Addressed connectivity issues between OTEL Collector and Aspire Dashboard.
 - The Dashboard pod should now become Ready reliably.
 - The Service will populate with the pod's endpoint.
 - The OTEL Collector should successfully connect to `aspire-dashboard:18889`.
+
+---
+
+## 2024-11-21 - OTEL Endpoint Configuration Fix
+
+Updated service configurations to use correct gRPC endpoint format.
+
+### Issue
+Services were configured with `OTEL_EXPORTER_OTLP_ENDPOINT` containing the `http://` scheme (e.g., `http://otel-collector...:4317`). The Python `opentelemetry-exporter-otlp-proto-grpc` library expects the endpoint to be a `host:port` string when using `insecure=True`, and the `http://` scheme can cause connection failures or be misinterpreted by the underlying gRPC client.
+
+### Fix
+- Updated `env/staging/apps/toy-values.yaml` and `env/staging/apps/trip-values.yaml`.
+- Removed `http://` prefix from `OTEL_EXPORTER_OTLP_ENDPOINT`.
+- The new value is `otel-collector.toytrip-staging.svc.cluster.local:4317`.
+
+### Verification
+- Services should now successfully connect to the OTEL Collector via gRPC.
+- Telemetry should start flowing to the Collector and then to the Aspire Dashboard.
