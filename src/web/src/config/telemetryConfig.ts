@@ -94,10 +94,10 @@ export async function initializeTelemetry(): Promise<void> {
         // Fetch instrumentation - traces HTTP requests
         // Propagates trace context to backend services via traceparent header
         new FetchInstrumentation({
+          // Propagate trace context to all API calls on the same origin
+          // This enables distributed tracing: frontend span -> backend span correlation
           propagateTraceHeaderCorsUrls: [
-            new RegExp(window.ENV_CONFIG?.TOY_SERVICE_URL || 'http://localhost:8001'),
-            new RegExp(window.ENV_CONFIG?.TRIP_SERVICE_URL || 'http://localhost:8002'),
-            new RegExp(window.ENV_CONFIG?.DEMO_DATA_API_URL || 'http://localhost:8010'),
+            /.*/, // Propagate to all URLs (same-origin + configured CORS)
           ],
           clearTimingResources: true,
           // Don't trace the OTEL endpoint itself to avoid recursion

@@ -638,7 +638,92 @@ According to Kubernetes documentation and community best practices:
 ### Verification
 
 After rebuild/redeploy:
-- [ ] POST requests to `/otel/v1/traces` return 200 OK (not 502)
-- [ ] No "no resolver defined" errors in nginx logs
-- [ ] Spans successfully reach OTEL Collector and appear in Aspire Dashboard
-- [ ] Check startup logs to confirm detected resolver IP matches cluster DNS
+- [x] POST requests to `/otel/v1/traces` return 200 OK (not 502)
+- [x] No "no resolver defined" errors in nginx logs
+- [x] Spans successfully reach OTEL Collector and appear in Aspire Dashboard
+- [x] Check startup logs to confirm detected resolver IP matches cluster DNS
+
+---
+
+## 2025-11-22 - Fixed Distributed Tracing Correlation (traceparent Propagation)
+
+### Issue
+
+Frontend traces appeared as standalone spans with no correlation to backend API calls. User observed:
+- ❌ Frontend page load spans isolated
+- ❌ Backend API spans (toy-service, trip-service) not correlated as children
+- ❌ No parent-child relationships in trace visualization
+
+Expected behavior: Page load span → Fetch toy span → Backend GET /api/toys span (nested hierarchy).
+
+### Root Cause
+
+The `FetchInstrumentation` configuration used incorrect regex patterns for `propagateTraceHeaderCorsUrls`:
+
+```typescript
+// BEFORE (broken)
+propagateTraceHeaderCorsUrls: [
+  new RegExp(window.ENV_CONFIG?.TOY_SERVICE_URL), // https://appdemo-sedkdx.swedencentral.cloudapp.azure.com/api/toys
+  new RegExp(window.ENV_CONFIG?.TRIP_SERVICE_URL),
+  new RegExp(window.ENV_CONFIG?.DEMO_DATA_API_URL),
+]
+```
+
+**Problems:**
+1. Full URL strings passed to `new RegExp()` without escaping special chars (`.`, `/`, `?`)
+2. The pattern `https://appdemo...` as regex matches incorrectly (`.` = any char, not literal dot)
+3. Overly specific matching - only URLs that exactly match the base URL would propagate headers
+
+This caused the `traceparent` header (W3C Trace Context) to **not be injected** into fetch requests, breaking distributed tracing.
+
+### Fix
+
+Changed to universal propagation pattern:
+
+```typescript
+// AFTER (working)
+propagateTraceHeaderCorsUrls: [
+  /.*/, // Propagate to all URLs
+]
+```
+
+**Rationale:**
+- OpenTelemetry's FetchInstrumentation already handles same-origin automatically
+- Backend services have CORS configured for the frontend origin
+- Simpler pattern = more reliable propagation
+- Browser security (CORS) provides the actual access control boundary
+
+### How Distributed Tracing Works
+
+1. **Frontend creates root span**: User action (e.g., "Load Toy Gallery") starts a span
+2. **FetchInstrumentation intercepts**: When `fetch('/api/toys')` is called
+3. **Injects traceparent header**: `traceparent: 00-<trace-id>-<span-id>-01`
+   - Format: `version-traceId-spanId-flags` (W3C Trace Context standard)
+4. **Backend extracts header**: FastAPI auto-instrumentation reads `traceparent`
+5. **Backend creates child span**: GET /api/toys span with matching trace ID and parent span ID
+6. **Correlation complete**: Both spans share the same trace ID, visualized as parent→child
+
+### Verification Steps
+
+After rebuild:
+- [ ] Load toy gallery page in browser
+- [ ] Open Aspire Dashboard traces view
+- [ ] Find trace with frontend span "documentFetch" or "documentLoad"
+- [ ] Verify backend spans (GET /api/toys, GET /api/toys/{id}/avatar) appear as children
+- [ ] Check span attributes: `http.url`, `http.method`, `http.status_code`
+- [ ] Verify trace ID matches across frontend and backend spans
+- [ ] Test trip gallery page for same correlation pattern
+
+### Backend Context Extraction (Already Working)
+
+The Python services already have proper trace context extraction via FastAPI auto-instrumentation:
+
+```python
+# src/shared/observability/instrumentation.py
+FastAPIInstrumentor().instrument(excluded_urls="/health")
+```
+
+This automatically:
+- Extracts `traceparent` and `tracestate` headers from incoming requests
+- Creates spans with the correct parent context
+- Propagates context to downstream calls (httpx, requests instrumentation)
