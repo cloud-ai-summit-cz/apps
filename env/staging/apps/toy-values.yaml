@@ -3,7 +3,7 @@
 
 image:
   repository: "crappdemosedkdx.azurecr.io/toy" # Set by CI: <acr-login-server>/toy-service
-  tag: "277a346dbed4daf8b6e742887ae2829223e2d754" # Set by CI: commit SHA
+  tag: "24c9f5f68ad08a07774aa326adb47ca9d6ef5f5e" # Set by CI: commit SHA
 replicaCount: 2
 resources:
   limits:
