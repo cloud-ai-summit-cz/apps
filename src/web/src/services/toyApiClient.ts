@@ -1,6 +1,7 @@
 import { msalInstance, tokenRequest } from '../config/authConfig';
 import { API_CONFIG } from '../config/apiConfig';
 import type { Toy, CreateToyRequest, UpdateToyRequest } from '../types/toy';
+import { trace, context } from '@opentelemetry/api';
 
 class ToyApiClient {
   private baseUrl: string;
@@ -31,8 +32,21 @@ class ToyApiClient {
   }
 
   private async fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
+    const span = trace.getSpan(context.active());
+    console.log('[Telemetry] [ToyApiClient] fetchWithAuth start', {
+      traceId: span?.spanContext().traceId,
+      spanId: span?.spanContext().spanId
+    });
+
     const token = await this.getAccessToken();
     
+    const spanAfterToken = trace.getSpan(context.active());
+    console.log('[Telemetry] [ToyApiClient] fetchWithAuth after token', {
+      traceId: spanAfterToken?.spanContext().traceId,
+      spanId: spanAfterToken?.spanContext().spanId,
+      contextLost: span?.spanContext().traceId !== spanAfterToken?.spanContext().traceId
+    });
+
     const headers = {
       ...options.headers,
       'Authorization': `Bearer ${token}`,
