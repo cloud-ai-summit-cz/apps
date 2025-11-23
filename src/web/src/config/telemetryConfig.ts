@@ -102,6 +102,15 @@ export async function initializeTelemetry(): Promise<void> {
           clearTimingResources: true,
           // Don't trace the OTEL endpoint itself to avoid recursion
           ignoreUrls: [/\/otel\/v1\/traces/],
+          applyCustomAttributesOnSpan: (span) => {
+            // Log to debug context propagation
+            // We use a dynamic import or global to access trace/context if needed, 
+            // but here we just want to see what the span looks like.
+            console.log('[Telemetry] [FetchInstrumentation] Span created', {
+              traceId: span.spanContext().traceId,
+              spanId: span.spanContext().spanId,
+            });
+          }
         }),
         
         // User interaction instrumentation - traces clicks and other interactions

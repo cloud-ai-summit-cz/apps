@@ -113,13 +113,22 @@ function ToyCatalog() {
 
     // Wrap the execution in the span's context
     await context.with(trace.setSpan(context.active(), span), async () => {
-      console.log('[ToyCatalog] Active TraceId:', span.spanContext().traceId);
+      const activeSpan = trace.getSpan(context.active());
+      console.log('[Telemetry] [ToyCatalog] Inside context.with', {
+        parentSpanId: span.spanContext().spanId,
+        activeTraceId: activeSpan?.spanContext().traceId,
+        activeSpanId: activeSpan?.spanContext().spanId,
+        isSameSpan: activeSpan === span
+      });
+
       try {
         setLoading(true);
         setError(null);
         
+        console.log('[Telemetry] [ToyCatalog] About to call getAllToys');
         // This fetch will now automatically be a child of 'ToyCatalog.loadToys'
         const data = await toyApiClient.getAllToys();
+        console.log('[Telemetry] [ToyCatalog] getAllToys returned');
         
         // Sort toys: user's toys first, then others
         const sortedToys = data.sort((a, b) => {
