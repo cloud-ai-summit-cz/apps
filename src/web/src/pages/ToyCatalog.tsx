@@ -143,7 +143,15 @@ function ToyCatalog() {
 
         // Load trip counts in parallel
         // These fetches will also be children of the span
-        const tripCountPromises = sortedToys.map(toy => loadTripCount(toy.id));
+        // We explicitly bind the context here because the previous await (getAllToys) 
+        // might have lost the zone context due to MSAL internal behavior.
+        const activeContext = trace.setSpan(context.active(), span);
+        console.log('[Telemetry] [ToyCatalog] Starting trip count loads with re-bound context');
+        
+        const tripCountPromises = sortedToys.map(toy => 
+          context.with(activeContext, () => loadTripCount(toy.id))
+        );
+
         Promise.allSettled(tripCountPromises).catch(err => {
           console.error('Error loading trip counts:', err);
         });
