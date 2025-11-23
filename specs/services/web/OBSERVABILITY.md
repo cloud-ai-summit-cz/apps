@@ -21,6 +21,7 @@ Describe the metrics, logs, and traces that prove this service is healthy. Inher
   - **Correlation**: Generates root spans for user interactions (e.g., "View Gallery") and injects `traceparent` headers into API calls.
   - **Transport**: Sends OTLP traces to `/otel/v1/traces` (proxied by Nginx to internal collector).
   - **Sampling**: 100% in Dev/Staging, 10% in Production (configurable).
+  - **Auth Integration**: Implements manual context propagation (Capture/Restore pattern) in API clients to maintain trace continuity across MSAL token acquisition calls.
 
 ## Alerts
 - **Availability**: Synthetic probe against `/` endpoint.

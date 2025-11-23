@@ -727,3 +727,30 @@ This automatically:
 - Extracts `traceparent` and `tracestate` headers from incoming requests
 - Creates spans with the correct parent context
 - Propagates context to downstream calls (httpx, requests instrumentation)
+
+---
+
+## 2025-11-23 - Frontend Tracing Context Fix
+
+Resolved critical issue where OpenTelemetry trace context was lost during MSAL authentication, causing fragmented traces.
+
+### Changes Made
+
+#### 1. API Client Context Propagation
+- Updated `ToyApiClient` and `TripApiClient` to implement the "Capture and Restore" pattern.
+- **Problem**: `await msalInstance.acquireTokenSilent()` breaks the `zone.js` async context chain, causing subsequent `fetch` calls to lose their parent span.
+- **Fix**: 
+  1. Capture `context.active()` before calling `getAccessToken()`.
+  2. Wrap the `fetch` call in `context.with(parentContext, ...)` to explicitly restore the trace hierarchy.
+
+#### 2. ToyCatalog Parallel Loading
+- Updated `ToyCatalog.tsx` to explicitly bind context when launching parallel `loadTripCount` promises.
+- Ensures that even if the main `loadToys` function context is fragile, the parallel operations inherit the correct `ToyCatalog.loadToys` parent span.
+
+#### 3. Dependency Management
+- Downgraded `zone.js` to `0.14.10` in `src/web/package.json`.
+- Resolves a conflict between newer `zone.js` versions and `@opentelemetry/instrumentation-user-interaction` that caused build failures.
+
+### Verification
+- Confirmed via browser logs that `traceId` is preserved across auth calls (`restored: true`).
+- Verified in Aspire Dashboard that `ToyCatalog.loadToys` now correctly contains children spans for `getAllToys` and multiple `getTripCount` calls.
