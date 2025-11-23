@@ -22,7 +22,7 @@ from typing import Optional
 from opentelemetry import trace, metrics, baggage
 from opentelemetry.sdk.trace import TracerProvider, SpanProcessor
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.sdk.trace.sampling import Sampler, SamplingResult, Decision, ParentBased, AlwaysOnSampler
+from opentelemetry.sdk.trace.sampling import Sampler, SamplingResult, Decision, ParentBased, ALWAYS_ON
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.metrics.view import View, ExplicitBucketHistogramAggregation
@@ -179,7 +179,7 @@ def _setup_tracing(otlp_endpoint: str, resource: Resource) -> None:
     
     # Configure sampling to drop noisy ASGI spans
     # We wrap the default ParentBased(AlwaysOn) sampler
-    base_sampler = ParentBased(root=AlwaysOnSampler())
+    base_sampler = ParentBased(root=ALWAYS_ON)
     sampler = NameFilteringSampler(
         delegate=base_sampler,
         ignored_substrings=["http send", "http receive"]
