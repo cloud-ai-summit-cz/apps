@@ -32,7 +32,10 @@ class ToyApiClient {
   }
 
   private async fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
-    const span = trace.getSpan(context.active());
+    // Capture the current context (which should contain the parent span)
+    const parentContext = context.active();
+    const span = trace.getSpan(parentContext);
+    
     console.log('[Telemetry] [ToyApiClient] fetchWithAuth start', {
       traceId: span?.spanContext().traceId,
       spanId: span?.spanContext().spanId
@@ -40,24 +43,29 @@ class ToyApiClient {
 
     const token = await this.getAccessToken();
     
-    const spanAfterToken = trace.getSpan(context.active());
-    console.log('[Telemetry] [ToyApiClient] fetchWithAuth after token', {
-      traceId: spanAfterToken?.spanContext().traceId,
-      spanId: spanAfterToken?.spanContext().spanId,
-      contextLost: span?.spanContext().traceId !== spanAfterToken?.spanContext().traceId
+    // Re-wrap the fetch call in the original context
+    // This ensures that even if context was lost during await getAccessToken(),
+    // the fetch instrumentation will see the correct parent.
+    return context.with(parentContext, async () => {
+      const spanAfterToken = trace.getSpan(context.active());
+      console.log('[Telemetry] [ToyApiClient] fetchWithAuth inside context.with', {
+        traceId: spanAfterToken?.spanContext().traceId,
+        spanId: spanAfterToken?.spanContext().spanId,
+        restored: span?.spanContext().traceId === spanAfterToken?.spanContext().traceId
+      });
+
+      const headers = {
+        ...options.headers,
+        'Authorization': `Bearer ${token}`,
+      };
+
+      const response = await fetch(url, {
+        ...options,
+        headers,
+      });
+
+      return response;
     });
-
-    const headers = {
-      ...options.headers,
-      'Authorization': `Bearer ${token}`,
-    };
-
-    const response = await fetch(url, {
-      ...options,
-      headers,
-    });
-
-    return response;
   }
 
   async getAllToys(): Promise<Toy[]> {
