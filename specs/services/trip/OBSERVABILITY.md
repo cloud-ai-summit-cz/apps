@@ -13,6 +13,7 @@ Describe the metrics, logs, and traces that prove this service is healthy. Inher
 ## Traces
 - **trip.create:** Trip creation (user validation, destination lookup, storage)
 - **trip.gallery.upload:** Gallery image upload (blob storage, metadata update)
+- **Filtering:** Low-level ASGI spans (`http send`, `http receive`) are filtered out to reduce noise during image streaming.
 
 ## Alerts
 - Alert on high failure rate for `trip.create`.

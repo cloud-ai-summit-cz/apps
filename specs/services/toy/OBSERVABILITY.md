@@ -14,6 +14,7 @@ Document log fields and PII rules for toy requests.
 ## Traces
 Detail spans like toy.register and avatar upload flows.
 - **toy.register:** Toy registration flow (validation, storage, avatar upload)
+- **Filtering:** Low-level ASGI spans (`http send`, `http receive`) are filtered out to reduce noise during avatar streaming.
 
 ## Alerts
 Capture any toy-specific alerts (e.g., persistent 5xx on create or avatar operations).

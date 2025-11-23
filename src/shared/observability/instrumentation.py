@@ -22,6 +22,7 @@ from typing import Optional
 from opentelemetry import trace, metrics, baggage
 from opentelemetry.sdk.trace import TracerProvider, SpanProcessor
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.sdk.trace.sampling import Sampler, SamplingResult, Decision, ParentBased, AlwaysOnSampler
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.metrics.view import View, ExplicitBucketHistogramAggregation
@@ -64,6 +65,38 @@ class BaggageSpanProcessor(SpanProcessor):
     
     def force_flush(self, timeout_millis: int = 30000) -> bool:
         return True
+
+
+class NameFilteringSampler(Sampler):
+    """
+    Sampler that drops spans with specific names (e.g. noisy ASGI events).
+    
+    Used to filter out high-volume, low-value spans like 'http send'/'http receive'
+    generated during streaming responses.
+    """
+    def __init__(self, delegate: Sampler, ignored_substrings: list[str]):
+        self._delegate = delegate
+        self._ignored_substrings = ignored_substrings
+
+    def should_sample(
+        self,
+        parent_context: Optional[Context],
+        trace_id: int,
+        name: str,
+        kind=None,
+        attributes=None,
+        links=None,
+        trace_state=None,
+    ) -> SamplingResult:
+        for ignored in self._ignored_substrings:
+            if ignored in name:
+                return SamplingResult(Decision.DROP, attributes, trace_state)
+        return self._delegate.should_sample(
+            parent_context, trace_id, name, kind, attributes, links, trace_state
+        )
+
+    def get_description(self) -> str:
+        return f"NameFilteringSampler({self._delegate.get_description()})"
 
 
 # Note: Python Azure SDK does NOT emit rich semantic spans like .NET/Java
@@ -144,7 +177,15 @@ def _setup_tracing(otlp_endpoint: str, resource: Resource) -> None:
     # Custom processors
     baggage_processor = BaggageSpanProcessor()
     
-    tracer_provider = TracerProvider(resource=resource)
+    # Configure sampling to drop noisy ASGI spans
+    # We wrap the default ParentBased(AlwaysOn) sampler
+    base_sampler = ParentBased(root=AlwaysOnSampler())
+    sampler = NameFilteringSampler(
+        delegate=base_sampler,
+        ignored_substrings=["http send", "http receive"]
+    )
+    
+    tracer_provider = TracerProvider(resource=resource, sampler=sampler)
     tracer_provider.add_span_processor(batch_processor)
     tracer_provider.add_span_processor(baggage_processor)
     
