@@ -1,6 +1,7 @@
 import { msalInstance, tokenRequest } from '../config/authConfig';
 import { API_CONFIG } from '../config/apiConfig';
 import type { Trip, TripCreate, TripUpdate, TripListResponse } from '../types/trip';
+import { trace, context } from '@opentelemetry/api';
 
 class TripApiClient {
   private baseUrl: string;
@@ -31,19 +32,40 @@ class TripApiClient {
   }
 
   private async fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
-    const token = await this.getAccessToken();
+    // Capture the current context (which should contain the parent span)
+    const parentContext = context.active();
+    const span = trace.getSpan(parentContext);
     
-    const headers = {
-      ...options.headers,
-      'Authorization': `Bearer ${token}`,
-    };
-
-    const response = await fetch(url, {
-      ...options,
-      headers,
+    console.log('[Telemetry] [TripApiClient] fetchWithAuth start', {
+      traceId: span?.spanContext().traceId,
+      spanId: span?.spanContext().spanId
     });
 
-    return response;
+    const token = await this.getAccessToken();
+    
+    // Re-wrap the fetch call in the original context
+    // This ensures that even if context was lost during await getAccessToken(),
+    // the fetch instrumentation will see the correct parent.
+    return context.with(parentContext, async () => {
+      const spanAfterToken = trace.getSpan(context.active());
+      console.log('[Telemetry] [TripApiClient] fetchWithAuth inside context.with', {
+        traceId: spanAfterToken?.spanContext().traceId,
+        spanId: spanAfterToken?.spanContext().spanId,
+        restored: span?.spanContext().traceId === spanAfterToken?.spanContext().traceId
+      });
+
+      const headers = {
+        ...options.headers,
+        'Authorization': `Bearer ${token}`,
+      };
+
+      const response = await fetch(url, {
+        ...options,
+        headers,
+      });
+
+      return response;
+    });
   }
 
   async createTrip(data: TripCreate): Promise<Trip> {
