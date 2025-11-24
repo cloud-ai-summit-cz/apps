@@ -176,6 +176,7 @@ resource dcra 'Microsoft.Insights/dataCollectionRuleAssociations@2022-06-01' = i
 resource aksSafeguardsPolicyAssignment 'Microsoft.Authorization/policyAssignments@2022-06-01' = {
   name: 'aks-deployment-safeguards-policy-assignment'
   scope: aks
+  location: location
   properties: {
     displayName: 'AKS Deployment Safeguards Policy Assignment'
     description: 'Deployment safeguards should help guide developers towards AKS recommended best practices'
