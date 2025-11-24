@@ -233,6 +233,7 @@ resource aksSafeguardsPolicyAssignment 'Microsoft.Authorization/policyAssignment
           'gatekeeper-system'
           'azure-arc'
           'argocd'
+          'aks-command'
           'calico-system'
           'tigera-system'
           'azappconfig-system'
