@@ -227,6 +227,27 @@ resource aksSafeguardsPolicyAssignment 'Microsoft.Authorization/policyAssignment
           'CriticalAddonsOnly'
         ]
       }
+      excludedNamespaces: {
+        value: [
+          'kube-system'
+          'gatekeeper-system'
+          'azure-arc'
+          'argocd'
+          'calico-system'
+          'tigera-system'
+          'azappconfig-system'
+          'azureml'
+          'dapr-system'
+          'dataprotection-microsoft'
+          'flux-system'
+          'acstor'
+          'sc-system'
+          'azure-extensions-usage-system'
+          'toytrip-staging'
+          'toytrip-prod'
+          'toytrip'
+        ]
+      }
     }
   }
 }
