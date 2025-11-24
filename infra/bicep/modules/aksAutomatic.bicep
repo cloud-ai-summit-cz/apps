@@ -191,6 +191,42 @@ resource aksSafeguardsPolicyAssignment 'Microsoft.Authorization/policyAssignment
       effectForMutationPolicies: {
         value: 'Disabled'
       }
+      allowedUsers: {
+        value: [
+          'nodeclient'
+          'system:serviceaccount:kube-system:aci-connector-linux'
+          'system:serviceaccount:kube-system:node-controller'
+          'acsService'
+          'aksService'
+          'system:serviceaccount:kube-system:cloud-node-manager'
+          'system:serviceaccount:kube-system:cilium-operator'
+        ]
+      }
+      allowedGroups: {
+        value: [
+          'system:node'
+          'system:serviceaccounts:kube-system'
+        ]
+      }
+      cpuLimit: {
+        value: '5'
+      }
+      memoryLimit: {
+        value: '5Gi'
+      }
+      labels: {
+        value: [
+          'kubernetes.azure.com'
+        ]
+      }
+      allowedContainerImagesRegex: {
+        value: '.*'
+      }
+      reservedTaints: {
+        value: [
+          'CriticalAddonsOnly'
+        ]
+      }
     }
   }
 }
