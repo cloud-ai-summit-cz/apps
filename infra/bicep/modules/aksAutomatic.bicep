@@ -173,6 +173,27 @@ resource dcra 'Microsoft.Insights/dataCollectionRuleAssociations@2022-06-01' = i
   }
 }
 
+resource aksSafeguardsPolicyAssignment 'Microsoft.Authorization/policyAssignments@2022-06-01' = {
+  name: 'aks-deployment-safeguards-policy-assignment'
+  scope: aks
+  properties: {
+    displayName: 'AKS Deployment Safeguards Policy Assignment'
+    description: 'Deployment safeguards should help guide developers towards AKS recommended best practices'
+    policyDefinitionId: '/providers/Microsoft.Authorization/policySetDefinitions/c047ea8e-9c78-49b2-958b-37e56d291a44'
+    parameters: {
+      warn: {
+        value: true
+      }
+      effect: {
+        value: 'Audit'
+      }
+      effectForMutationPolicies: {
+        value: 'Disabled'
+      }
+    }
+  }
+}
+
 output aksClusterId string = aks.id
 output aksClusterName string = aks.name
 output aksFqdn string = aks.properties.fqdn
