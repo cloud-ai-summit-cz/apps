@@ -7,13 +7,17 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
-  source:
-    repoURL: https://github.com/cloud-ai-summit-cz/apps.git
-    targetRevision: main
-    path: helm-charts/platform-observability
-    helm:
-      valueFiles:
-        - values.yaml
+  sources:
+    - repoURL: https://github.com/cloud-ai-summit-cz/apps.git
+      targetRevision: main
+      ref: repo
+    - repoURL: https://github.com/cloud-ai-summit-cz/apps.git
+      targetRevision: main
+      path: helm-charts/platform-observability
+      helm:
+        valueFiles:
+          - values.yaml
+          - $repo/env/staging/infra_config/azure.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: toytrip-staging

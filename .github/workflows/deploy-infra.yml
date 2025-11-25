@@ -83,6 +83,7 @@ jobs:
           yq '.letsencrypt.solver.type = "gateway"' | \
           yq '.letsencrypt.solver.gateway.parentRefs = [{"name": strenv(GATEWAY_NAME), "namespace": strenv(GATEWAY_NAMESPACE), "sectionName": "http"}]' | \
           yq '.letsencrypt.solver.gateway.labels."acme.cert-manager.io/http01-solver" = "true"' | \
+          yq '.otelCollector.azureMonitor.connectionString = strenv(APP_INSIGHTS_CONN_STRING)' | \
           yq '.generatedAt = strenv(TIMESTAMP)' > env/staging/infra_config/azure.yaml
         env:
           ACR_NAME: ${{ steps.deployment.outputs.acrName }}
@@ -95,6 +96,7 @@ jobs:
           COSMOS_ACCOUNT_ID: ${{ steps.deployment.outputs.cosmosAccountId }}
           COSMOS_ACCOUNT_NAME: ${{ steps.deployment.outputs.cosmosAccountName }}
           COSMOS_ENDPOINT: https://${{ steps.deployment.outputs.cosmosAccountName }}.documents.azure.com:443/
+          APP_INSIGHTS_CONN_STRING: ${{ steps.deployment.outputs.applicationInsightsConnectionString }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           APP_ID_URI: ${{ secrets.APP_ID_URI }}
           INGRESS_PUBLIC_IP_NAME: ${{ steps.deployment.outputs.ingressPublicIpName }}
@@ -134,6 +136,10 @@ jobs:
             yq -i ".workloadIdentities.\"${name}\".serviceAccountNamespace = \"${saNamespace}\"" env/staging/infra_config/azure.yaml
             yq -i ".workloadIdentities.\"${name}\".serviceAccountName = \"${saName}\"" env/staging/infra_config/azure.yaml
             yq -i ".workloadIdentities.\"${name}\".federatedSubject = \"${federatedSubject}\"" env/staging/infra_config/azure.yaml
+
+            if [ "$name" == "otelcollector" ]; then
+               yq -i ".otelCollector.azureMonitor.clientId = \"${clientId}\"" env/staging/infra_config/azure.yaml
+            fi
           done <<< "$identities"
 
       - name: Update service workload identity values
