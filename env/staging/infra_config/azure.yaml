@@ -4,7 +4,7 @@ acr:
   loginServer: crappdemosedkdx.azurecr.io
 aks:
   name: aks-appdemo-sedkdx
-  oidcIssuerUrl: https://swedencentral.oic.prod-aks.azure.com/6ce4f237-667f-43f5-aafd-cbef954adf97/afae9176-695f-45b0-b127-b11dbd4051c3/
+  oidcIssuerUrl: https://swedencentral.oic.prod-aks.azure.com/6ce4f237-667f-43f5-aafd-cbef954adf97/503c846f-c19f-4bde-990b-6b304e0de8a3/
 storage:
   accountId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-apps/providers/Microsoft.Storage/storageAccounts/stappdemosedkdx
   accountName: stappdemosedkdx
@@ -33,7 +33,7 @@ letsencrypt:
           sectionName: http
       labels:
         acme.cert-manager.io/http01-solver: "true"
-generatedAt: "2025-11-25T06:38:26Z"
+generatedAt: "2025-11-25T09:49:10Z"
 workloadIdentities:
   toy:
     resourceId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-apps/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-appdemo-sedkdx-toy
