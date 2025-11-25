@@ -41,10 +41,6 @@ otelCollector:
     extensions:
       health_check:
         endpoint: 0.0.0.0:13133
-      # Azure Monitor authentication extension
-      # This uses the default Azure credential chain (Environment, Workload Identity, Managed Identity)
-      azure_monitor_auth:
-        authenticator: azure_identity
 
     receivers:
       otlp:
@@ -74,15 +70,13 @@ otelCollector:
       azuremonitor:
         endpoint: "https://dc.services.visualstudio.com/v2/track"
         connection_string: "${env:APPLICATIONINSIGHTS_CONNECTION_STRING}"
-        auth:
-          authenticator: azure_monitor_auth
       
       # Debug exporter for troubleshooting (logs to collector stdout)
       debug:
         verbosity: basic
     
     service:
-      extensions: [health_check, azure_monitor_auth]
+      extensions: [health_check]
       pipelines:
         traces:
           receivers: [otlp]
