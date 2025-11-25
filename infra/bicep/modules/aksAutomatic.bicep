@@ -33,7 +33,7 @@ resource aks 'Microsoft.ContainerService/managedClusters@2025-06-02-preview' = {
   name: 'aks-${baseName}'
   location: location
   sku: {
-    name: 'Automatic'
+    name: 'Base'
     tier: 'Standard'
   }
   identity: {
@@ -170,86 +170,6 @@ resource dcra 'Microsoft.Insights/dataCollectionRuleAssociations@2022-06-01' = i
   properties: {
     dataCollectionRuleId: dataCollectionRuleId
     description: 'Association of Prometheus Data Collection Rule with AKS cluster'
-  }
-}
-
-resource aksSafeguardsPolicyAssignment 'Microsoft.Authorization/policyAssignments@2022-06-01' = {
-  name: 'aks-deployment-safeguards-policy-assignment'
-  scope: aks
-  location: location
-  properties: {
-    displayName: 'AKS Deployment Safeguards Policy Assignment'
-    description: 'Deployment safeguards should help guide developers towards AKS recommended best practices'
-    policyDefinitionId: '/providers/Microsoft.Authorization/policySetDefinitions/c047ea8e-9c78-49b2-958b-37e56d291a44'
-    parameters: {
-      warn: {
-        value: false
-      }
-      effect: {
-        value: 'Disabled'
-      }
-      effectForMutationPolicies: {
-        value: 'Disabled'
-      }
-      allowedUsers: {
-        value: [
-          'nodeclient'
-          'system:serviceaccount:kube-system:aci-connector-linux'
-          'system:serviceaccount:kube-system:node-controller'
-          'acsService'
-          'aksService'
-          'system:serviceaccount:kube-system:cloud-node-manager'
-          'system:serviceaccount:kube-system:cilium-operator'
-        ]
-      }
-      allowedGroups: {
-        value: [
-          'system:node'
-          'system:serviceaccounts:kube-system'
-        ]
-      }
-      cpuLimit: {
-        value: '5'
-      }
-      memoryLimit: {
-        value: '5Gi'
-      }
-      labels: {
-        value: [
-          'kubernetes.azure.com'
-        ]
-      }
-      allowedContainerImagesRegex: {
-        value: '.*'
-      }
-      reservedTaints: {
-        value: [
-          'CriticalAddonsOnly'
-        ]
-      }
-      excludedNamespaces: {
-        value: [
-          'kube-system'
-          'gatekeeper-system'
-          'azure-arc'
-          'argocd'
-          'aks-command'
-          'calico-system'
-          'tigera-system'
-          'azappconfig-system'
-          'azureml'
-          'dapr-system'
-          'dataprotection-microsoft'
-          'flux-system'
-          'acstor'
-          'sc-system'
-          'azure-extensions-usage-system'
-          'toytrip-staging'
-          'toytrip-prod'
-          'toytrip'
-        ]
-      }
-    }
   }
 }
 
