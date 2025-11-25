@@ -410,6 +410,7 @@ output logAnalyticsWorkspaceName string = monitoring.outputs.logAnalyticsWorkspa
 output logAnalyticsWorkspaceCustomerId string = monitoring.outputs.logAnalyticsWorkspaceCustomerId
 output applicationInsightsId string = monitoring.outputs.applicationInsightsId
 output applicationInsightsName string = monitoring.outputs.applicationInsightsName
+output applicationInsightsConnectionString string = monitoring.outputs.applicationInsightsConnectionString
 // Application Insights ingestion endpoint (safe to store in Git - used with AAD auth)
 output applicationInsightsIngestionEndpoint string = monitoring.outputs.applicationInsightsIngestionEndpoint
 output azureMonitorWorkspaceId string = monitoring.outputs.azureMonitorWorkspaceId

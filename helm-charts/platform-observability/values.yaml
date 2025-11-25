@@ -31,7 +31,7 @@ otelCollector:
   
   # Azure Monitor configuration
   azureMonitor:
-    enabled: false
+    enabled: true
     connectionString: ""
     # Client ID of the User Assigned Managed Identity
     clientId: ""
