@@ -43,6 +43,7 @@ resource aks 'Microsoft.ContainerService/managedClusters@2025-06-02-preview' = {
     }
   }
   properties: {
+    dnsPrefix: 'aks-${baseName}'
     agentPoolProfiles: [
       {
         name: 'systempool'
