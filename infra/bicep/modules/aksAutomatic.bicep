@@ -183,10 +183,10 @@ resource aksSafeguardsPolicyAssignment 'Microsoft.Authorization/policyAssignment
     policyDefinitionId: '/providers/Microsoft.Authorization/policySetDefinitions/c047ea8e-9c78-49b2-958b-37e56d291a44'
     parameters: {
       warn: {
-        value: true
+        value: false
       }
       effect: {
-        value: 'Audit'
+        value: 'Disabled'
       }
       effectForMutationPolicies: {
         value: 'Disabled'
