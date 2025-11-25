@@ -21,16 +21,25 @@ spec:
       labels:
         app.kubernetes.io/name: otel-collector
         app.kubernetes.io/component: collector
+        azure.workload.identity/use: "true"
         {{- with .Values.commonLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/otel-collector-configmap.yaml") . | sha256sum }}
     spec:
+      serviceAccountName: {{ .Values.otelCollector.serviceAccount.name }}
       containers:
       - name: otel-collector
         image: "{{ .Values.otelCollector.image.repository }}:{{ .Values.otelCollector.image.tag }}"
         imagePullPolicy: {{ .Values.otelCollector.image.pullPolicy }}
+        env:
+        - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+          value: {{ .Values.otelCollector.azureMonitor.connectionString | quote }}
+        {{- if .Values.otelCollector.azureMonitor.clientId }}
+        - name: AZURE_CLIENT_ID
+          value: {{ .Values.otelCollector.azureMonitor.clientId | quote }}
+        {{- end }}
         command:
           - /otelcol-contrib
           - --config=/etc/otel-collector/config.yaml

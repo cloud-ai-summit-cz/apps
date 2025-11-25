@@ -8,6 +8,12 @@ otelCollector:
   
   replicas: 1
   
+  # Service Account configuration for Workload Identity
+  serviceAccount:
+    create: true
+    name: "otel-collector"
+    annotations: {}
+  
   resources:
     requests:
       cpu: 100m
@@ -23,11 +29,22 @@ otelCollector:
     # OTLP HTTP receiver
     httpPort: 4318
   
+  # Azure Monitor configuration
+  azureMonitor:
+    enabled: false
+    connectionString: ""
+    # Client ID of the User Assigned Managed Identity
+    clientId: ""
+
   # ConfigMap will be created with OTEL collector config
   config:
     extensions:
       health_check:
         endpoint: 0.0.0.0:13133
+      # Azure Monitor authentication extension
+      # This uses the default Azure credential chain (Environment, Workload Identity, Managed Identity)
+      azure_monitor_auth:
+        authenticator: azure_identity
 
     receivers:
       otlp:
@@ -53,27 +70,34 @@ otelCollector:
         tls:
           insecure: true
       
+      # Azure Monitor exporter
+      azuremonitor:
+        endpoint: "https://dc.services.visualstudio.com/v2/track"
+        connection_string: "${env:APPLICATIONINSIGHTS_CONNECTION_STRING}"
+        auth:
+          authenticator: azure_monitor_auth
+      
       # Debug exporter for troubleshooting (logs to collector stdout)
       debug:
         verbosity: basic
     
     service:
-      extensions: [health_check]
+      extensions: [health_check, azure_monitor_auth]
       pipelines:
         traces:
           receivers: [otlp]
           processors: [memory_limiter, batch]
-          exporters: [otlp, debug]
+          exporters: [otlp, debug, azuremonitor]
         
         metrics:
           receivers: [otlp]
           processors: [memory_limiter, batch]
-          exporters: [otlp, debug]
+          exporters: [otlp, debug, azuremonitor]
         
         logs:
           receivers: [otlp]
           processors: [memory_limiter, batch]
-          exporters: [otlp, debug]
+          exporters: [otlp, debug, azuremonitor]
 
 # Aspire Dashboard configuration
 aspireDashboard:
