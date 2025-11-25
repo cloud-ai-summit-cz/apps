@@ -68,7 +68,6 @@ otelCollector:
       
       # Azure Monitor exporter
       azuremonitor:
-        endpoint: "https://dc.services.visualstudio.com/v2/track"
         connection_string: "${env:APPLICATIONINSIGHTS_CONNECTION_STRING}"
       
       # Debug exporter for troubleshooting (logs to collector stdout)
