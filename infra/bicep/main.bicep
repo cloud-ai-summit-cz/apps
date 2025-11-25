@@ -115,6 +115,7 @@ var roleDefinitions = {
   AksRbacClusterAdmin: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b')
   MonitoringMetricsPublisher: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '3913510d-42f4-4e42-8a64-420c390055eb')
   MonitoringReader: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '43d0d8ad-25c7-4714-9337-8ba259a9fe05')
+  LogAnalyticsContributor: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '92aaf0da-9dab-42b6-94a3-d43ce8d16293')
   GrafanaAdmin: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '22926164-76b3-42b3-bc55-97df8dab3e41')
 }
 
@@ -299,6 +300,16 @@ resource otelCollectorMetricsPublisher 'Microsoft.Authorization/roleAssignments@
   name: guid(resourceGroup().id, 'otelcollector', baseNameDash, roleDefinitions.MonitoringMetricsPublisher)
   properties: {
     roleDefinitionId: roleDefinitions.MonitoringMetricsPublisher
+    principalId: workloadUserAssignedIdentities[otelCollectorIdentityIndex].properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// OTEL Collector: Log Analytics Contributor role (required for ingestion when Local Auth is disabled)
+resource otelCollectorLogAnalyticsContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, 'otelcollector', baseNameDash, roleDefinitions.LogAnalyticsContributor)
+  properties: {
+    roleDefinitionId: roleDefinitions.LogAnalyticsContributor
     principalId: workloadUserAssignedIdentities[otelCollectorIdentityIndex].properties.principalId
     principalType: 'ServicePrincipal'
   }
