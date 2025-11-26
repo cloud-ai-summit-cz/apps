@@ -90,15 +90,16 @@ otelCollector:
       # Transforms HTTP-level spans from azure-core Python SDK into proper database spans
       # This enables Application Insights to recognize Cosmos DB as a database dependency
       # Reference: https://opentelemetry.io/docs/specs/semconv/database/cosmosdb/
-      # Note: Dynamic URL parsing for db.namespace/db.collection.name requires OTTL functions
-      # not available in nested set() calls. Using static enrichment for now.
+      # Note: We set both db.system (old) and db.system.name (new) for compatibility
       transform/cosmosdb-enrichment:
         error_mode: ignore
         trace_statements:
           - context: span
             statements:
-              # Identify Cosmos DB spans by URL pattern and set db.system
-              # This is the key attribute that App Insights uses to categorize dependencies
+              # Identify Cosmos DB spans by URL pattern and set db.system attributes
+              # db.system.name is the new semantic convention used by OTEL Collector azuremonitor exporter
+              # db.system is the old convention for backward compatibility
+              - set(attributes["db.system.name"], "cosmosdb") where attributes["http.url"] != nil and IsMatch(attributes["http.url"], ".*\\.documents\\.azure\\.com.*")
               - set(attributes["db.system"], "cosmosdb") where attributes["http.url"] != nil and IsMatch(attributes["http.url"], ".*\\.documents\\.azure\\.com.*")
               
               # Derive operation names from HTTP method and resource type
