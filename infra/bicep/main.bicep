@@ -30,7 +30,7 @@ var workloadIdentities = [
   }
   {
     name: 'otelcollector'
-    serviceAccountNamespace: 'observability'
+    serviceAccountNamespace: 'toytrip-staging'
     serviceAccountName: 'otel-collector'
   }
 ]

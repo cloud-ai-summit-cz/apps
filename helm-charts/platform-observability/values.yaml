@@ -35,12 +35,21 @@ otelCollector:
     connectionString: ""
     # Client ID of the User Assigned Managed Identity
     clientId: ""
+    # Tenant ID for Workload Identity
+    tenantId: ""
 
   # ConfigMap will be created with OTEL collector config
   config:
     extensions:
       health_check:
         endpoint: 0.0.0.0:13133
+      
+      # Azure AD authentication extension for Workload Identity
+      azureauth:
+        workload_identity:
+          client_id: "${env:AZURE_CLIENT_ID}"
+          tenant_id: "${env:AZURE_TENANT_ID}"
+          federated_token_file: "/var/run/secrets/azure/tokens/azure-identity-token"
 
     receivers:
       otlp:
@@ -66,9 +75,11 @@ otelCollector:
         tls:
           insecure: true
       
-      # Azure Monitor exporter
+      # Azure Monitor exporter with AAD authentication
       azuremonitor:
         connection_string: "${env:APPLICATIONINSIGHTS_CONNECTION_STRING}"
+        auth:
+          authenticator: azureauth
       
       # Debug exporter for troubleshooting (logs to collector stdout)
       debug:
@@ -78,7 +89,7 @@ otelCollector:
       telemetry:
         logs:
           level: debug
-      extensions: [health_check]
+      extensions: [health_check, azureauth]
       pipelines:
         traces:
           receivers: [otlp]

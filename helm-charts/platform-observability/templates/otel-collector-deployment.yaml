@@ -40,6 +40,10 @@ spec:
         - name: AZURE_CLIENT_ID
           value: {{ .Values.otelCollector.azureMonitor.clientId | quote }}
         {{- end }}
+        {{- if .Values.otelCollector.azureMonitor.tenantId }}
+        - name: AZURE_TENANT_ID
+          value: {{ .Values.otelCollector.azureMonitor.tenantId | quote }}
+        {{- end }}
         command:
           - /otelcol-contrib
           - --config=/etc/otel-collector/config.yaml
