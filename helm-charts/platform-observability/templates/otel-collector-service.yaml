@@ -16,10 +16,11 @@ spec:
     app.kubernetes.io/name: otel-collector
     app.kubernetes.io/component: collector
   ports:
-  - name: otlp-grpc
+  - name: grpc-otlp
     port: {{ .Values.otelCollector.service.grpcPort }}
     targetPort: otlp-grpc
     protocol: TCP
+    appProtocol: grpc
   - name: otlp-http
     port: {{ .Values.otelCollector.service.httpPort }}
     targetPort: otlp-http
