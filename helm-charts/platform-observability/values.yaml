@@ -76,6 +76,15 @@ otelCollector:
       memory_limiter:
         check_interval: 1s
         limit_mib: 400
+      
+      # Filter out noisy/internal traces
+      filter/drop-otel-traces:
+        error_mode: ignore
+        traces:
+          span:
+            # Drop Istio gateway spans for OTEL collector paths (tracing the traces)
+            - 'attributes["http.url"] != nil and IsMatch(attributes["http.url"], ".*/otel/.*")'
+            - 'attributes["url.path"] != nil and IsMatch(attributes["url.path"], ".*/otel/.*")'
     
     exporters:
       # Export to Aspire Dashboard via OTLP
@@ -113,7 +122,7 @@ otelCollector:
       pipelines:
         traces:
           receivers: [otlp]
-          processors: [memory_limiter, batch]
+          processors: [memory_limiter, filter/drop-otel-traces, batch]
           exporters: [otlp, debug, azuremonitor]
         
         metrics:
