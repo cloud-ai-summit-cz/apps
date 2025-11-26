@@ -37,8 +37,8 @@ otelCollector:
   azureMonitor:
     connectionString: InstrumentationKey=981db5b4-0ab9-4798-8ecf-9193b1793ea8;IngestionEndpoint=https://swedencentral-0.in.applicationinsights.azure.com/;LiveEndpoint=https://swedencentral.livediagnostics.monitor.azure.com/;ApplicationId=86fc6fa1-9979-40dc-8515-6ebc0fad967a
   prometheus:
-    remoteWriteEndpoint: https://dce-appdemo-sedkdx-syyf.swedencentral-1.metrics.ingest.monitor.azure.com/dataCollectionRules//subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-apps/providers/Microsoft.Insights/dataCollectionRules/dcr-appdemo-sedkdx-prometheus/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24
-generatedAt: "2025-11-26T16:31:05Z"
+    remoteWriteEndpoint: https://dce-appdemo-sedkdx-syyf.swedencentral-1.metrics.ingest.monitor.azure.com/dataCollectionRules/dcr-84b442cf4b8240a386d2aef37cb5b5c7/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24
+generatedAt: "2025-11-26T17:05:35Z"
 workloadIdentities:
   toy:
     resourceId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-apps/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-appdemo-sedkdx-toy
