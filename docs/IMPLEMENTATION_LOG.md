@@ -4,6 +4,87 @@ Chronological journal of implementation decisions, progress, and completed work.
 
 ---
 
+## 2025-11-26 - Azure Monitor AAD Authentication for OTEL Collector
+
+Implemented Azure AD (Entra ID) authentication for the OTEL Collector to send telemetry to Application Insights with `DisableLocalAuth=true`.
+
+### Problem
+
+Traces appeared in Aspire Dashboard but not in Azure Application Insights. Root cause: App Insights had `DisableLocalAuth: true` which blocks connection string authentication. The collector was silently failing with 401 errors.
+
+### Investigation Journey
+
+1. **Initial symptom**: Traces in Aspire, nothing in App Insights
+2. **First discovery**: App Insights `DisableLocalAuth=true` requires AAD auth
+3. **Attempted fix**: Added `azureauthextension` config, but collector v0.115.1 didn't support it
+4. **Research**: Found PR #41107 merged in v0.139.0 adding `auth.authenticator` support to azuremonitor exporter
+5. **Upgraded collector**: Changed to v0.140.1
+6. **Still failing**: Extension started but no data flowing
+7. **Final discovery**: Missing `scopes` configuration in azureauthextension
+
+### Changes Made
+
+#### 1. Bicep - Application Insights (`infra/bicep/modules/monitoring.bicep`)
+- Set `DisableLocalAuth: true` for security best practice
+- Added comment explaining azureauthextension requirement
+
+#### 2. OTEL Collector Configuration (`helm-charts/platform-observability/values.yaml`)
+- Upgraded image to `otel/opentelemetry-collector-contrib:0.140.1`
+- Added `azureauthextension` with workload identity:
+  ```yaml
+  azureauth:
+    scopes:
+      - https://monitor.azure.com/.default  # CRITICAL!
+    workload_identity:
+      client_id: ${env:AZURE_CLIENT_ID}
+      tenant_id: ${env:AZURE_TENANT_ID}
+      federated_token_file: /var/run/secrets/azure/tokens/azure-identity-token
+  ```
+- Configured azuremonitor exporter with `auth.authenticator: azureauth`
+- Added `azureauth` to `service.extensions`
+
+#### 3. Deployment Template (`helm-charts/platform-observability/templates/otel-collector-deployment.yaml`)
+- Added `AZURE_CLIENT_ID` and `AZURE_TENANT_ID` environment variables
+- Values sourced from `workloadIdentities.otelcollector` in azure.yaml
+
+#### 4. Workflow Simplification (`.github/workflows/deploy-infra.yml`)
+- Removed separate "Update service workload identity values" step
+- All services now reference `workloadIdentities.<name>` from azure.yaml
+- Reduced workflow by ~35 lines
+
+#### 5. Helm Chart Standardization
+- Updated toy/trip charts to use `workloadIdentities.toy/trip.clientId`
+- Removed redundant `workloadIdentity` sections from values files
+- Consistent pattern across all services
+
+### Key Learnings
+
+1. **`scopes` is required**: The azureauthextension won't request tokens without explicit scopes
+2. **Version matters**: Need OTEL Collector v0.139.0+ for azuremonitor auth support
+3. **Silent failures**: Azure Monitor exporter doesn't log auth failures clearly at INFO level
+4. **Workload Identity standard path**: AKS injects token at `/var/run/secrets/azure/tokens/azure-identity-token`
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `infra/bicep/modules/monitoring.bicep` | `DisableLocalAuth: true` |
+| `helm-charts/platform-observability/values.yaml` | v0.140.1, azureauthextension with scopes |
+| `helm-charts/platform-observability/templates/otel-collector-deployment.yaml` | AZURE_CLIENT_ID/TENANT_ID env vars |
+| `.github/workflows/deploy-infra.yml` | Removed service values injection step |
+| `helm-charts/toy/values.yaml` | Reference workloadIdentities.toy |
+| `helm-charts/trip/values.yaml` | Reference workloadIdentities.trip |
+| `env/staging/apps/toy-values.yaml` | Removed workloadIdentity section |
+| `env/staging/apps/trip-values.yaml` | Removed workloadIdentity section |
+
+### Verification
+
+- OTEL Collector logs show `Extension started` for both `health_check` and `azureauth`
+- Traces now appear in both Aspire Dashboard AND Azure Application Insights
+- No 401 errors in collector logs
+
+---
+
 ## 2024-11-21 - OpenTelemetry Instrumentation Implementation
 
 Implemented comprehensive OpenTelemetry (OTEL) instrumentation for toy and trip services following the observability strategy defined in specs/platform/OBSERVABILITY.md.
