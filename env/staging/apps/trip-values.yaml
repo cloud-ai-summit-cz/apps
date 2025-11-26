@@ -50,3 +50,7 @@ envFieldRef:
     fieldPath: metadata.name
   - name: K8S_NODE_NAME
     fieldPath: spec.nodeName
+# Workload Identity for Azure authentication
+workloadIdentity:
+  enabled: true
+  clientId: "{{ .Values.workloadIdentities.trip.clientId }}"

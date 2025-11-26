@@ -15,6 +15,10 @@ serviceAccount:
   annotations: {}
   name: ""
 
+workloadIdentity:
+  enabled: false
+  clientId: ""
+
 service:
   type: ClusterIP
   port: 80
