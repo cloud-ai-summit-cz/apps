@@ -163,14 +163,14 @@ otelCollector:
           level: info
       extensions: [health_check, azureauth]
       pipelines:
-      traces:
-        receivers: [otlp]
-        processors: [memory_limiter, transform/cosmosdb-enrichment, filter/drop-otel-traces, batch]
-        exporters: [otlp, debug, azuremonitor]        metrics:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, transform/cosmosdb-enrichment, filter/drop-otel-traces, batch]
+          exporters: [otlp, debug, azuremonitor]
+        metrics:
           receivers: [otlp]
           processors: [memory_limiter, batch]
           exporters: [otlp, debug, azuremonitor, prometheusremotewrite/azuremonitor]
-        
         logs:
           receivers: [otlp]
           processors: [memory_limiter, batch]
