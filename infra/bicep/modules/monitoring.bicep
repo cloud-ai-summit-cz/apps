@@ -135,6 +135,7 @@ output azureMonitorWorkspaceIngestionEndpoint string = azureMonitorWorkspace.pro
 
 // Data Collection Rule outputs
 output dataCollectionRuleId string = dataCollectionRule.id
+output dataCollectionRuleImmutableId string = dataCollectionRule.properties.immutableId
 output dataCollectionRuleName string = dataCollectionRule.name
 output dataCollectionEndpointId string = dataCollectionEndpoint.id
 output dataCollectionEndpointIngestionEndpoint string = dataCollectionEndpoint.properties.metricsIngestion.endpoint

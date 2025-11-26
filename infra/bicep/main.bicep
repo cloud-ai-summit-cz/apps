@@ -431,6 +431,7 @@ output azureMonitorWorkspaceQueryEndpoint string = monitoring.outputs.azureMonit
 output azureMonitorWorkspaceIngestionEndpoint string = monitoring.outputs.azureMonitorWorkspaceIngestionEndpoint
 output dataCollectionEndpointIngestionEndpoint string = monitoring.outputs.dataCollectionEndpointIngestionEndpoint
 output dataCollectionRuleId string = monitoring.outputs.dataCollectionRuleId
+output dataCollectionRuleImmutableId string = monitoring.outputs.dataCollectionRuleImmutableId
 output dataCollectionRuleName string = monitoring.outputs.dataCollectionRuleName
 output grafanaId string = grafana.outputs.grafanaId
 output grafanaName string = grafana.outputs.grafanaName

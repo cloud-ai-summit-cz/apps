@@ -98,8 +98,8 @@ jobs:
           COSMOS_ACCOUNT_NAME: ${{ steps.deployment.outputs.cosmosAccountName }}
           COSMOS_ENDPOINT: https://${{ steps.deployment.outputs.cosmosAccountName }}.documents.azure.com:443/
           APP_INSIGHTS_CONN_STRING: ${{ steps.deployment.outputs.applicationInsightsConnectionString }}
-          # Prometheus Remote Write endpoint constructed from DCE metrics ingestion endpoint and DCR ID
-          PROMETHEUS_REMOTE_WRITE_ENDPOINT: ${{ steps.deployment.outputs.dataCollectionEndpointIngestionEndpoint }}/dataCollectionRules/${{ steps.deployment.outputs.dataCollectionRuleId }}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24
+          # Prometheus Remote Write endpoint constructed from DCE metrics ingestion endpoint and DCR immutable ID
+          PROMETHEUS_REMOTE_WRITE_ENDPOINT: ${{ steps.deployment.outputs.dataCollectionEndpointIngestionEndpoint }}/dataCollectionRules/${{ steps.deployment.outputs.dataCollectionRuleImmutableId }}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           APP_ID_URI: ${{ secrets.APP_ID_URI }}
           INGRESS_PUBLIC_IP_NAME: ${{ steps.deployment.outputs.ingressPublicIpName }}
