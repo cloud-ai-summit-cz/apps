@@ -101,10 +101,10 @@ otelCollector:
               
               # Extract database name from URL path: /dbs/{database}/
               # Uses regex capture group to dynamically extract the database name
-              - set(attributes["db.namespace"], replace_pattern(attributes["http.url"], "^.*/dbs/([^/]+)/.*$$", "$$1")) where attributes["http.url"] != nil and IsMatch(attributes["http.url"], ".*/dbs/[^/]+/.*")
+              - set(attributes["db.namespace"], Replace_pattern(attributes["http.url"], "^.*/dbs/([^/]+)/.*$$", "$$1")) where attributes["http.url"] != nil and IsMatch(attributes["http.url"], ".*/dbs/[^/]+/.*")
               
               # Extract collection/container name from URL path: /colls/{container}/
-              - set(attributes["db.collection.name"], replace_pattern(attributes["http.url"], "^.*/colls/([^/]+)/.*$$", "$$1")) where attributes["http.url"] != nil and IsMatch(attributes["http.url"], ".*/colls/[^/]+/.*")
+              - set(attributes["db.collection.name"], Replace_pattern(attributes["http.url"], "^.*/colls/([^/]+)/.*$$", "$$1")) where attributes["http.url"] != nil and IsMatch(attributes["http.url"], ".*/colls/[^/]+/.*")
               
               # Derive operation names from HTTP method and resource type
               # Document operations (most common)
