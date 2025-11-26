@@ -49,6 +49,3 @@ envFieldRef:
     fieldPath: metadata.name
   - name: K8S_NODE_NAME
     fieldPath: spec.nodeName
-workloadIdentity:
-  enabled: true
-  clientId: "6ab480ab-2418-4df3-b2f1-aa481a6a0e9e" # Set when workload identity is configured

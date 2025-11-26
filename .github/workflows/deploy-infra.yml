@@ -84,7 +84,6 @@ jobs:
           yq '.letsencrypt.solver.gateway.parentRefs = [{"name": strenv(GATEWAY_NAME), "namespace": strenv(GATEWAY_NAMESPACE), "sectionName": "http"}]' | \
           yq '.letsencrypt.solver.gateway.labels."acme.cert-manager.io/http01-solver" = "true"' | \
           yq '.otelCollector.azureMonitor.connectionString = strenv(APP_INSIGHTS_CONN_STRING)' | \
-          yq '.otelCollector.azureMonitor.tenantId = strenv(AZURE_TENANT_ID)' | \
           yq '.generatedAt = strenv(TIMESTAMP)' > env/staging/infra_config/azure.yaml
         env:
           ACR_NAME: ${{ steps.deployment.outputs.acrName }}
@@ -137,44 +136,6 @@ jobs:
             yq -i ".workloadIdentities.\"${name}\".serviceAccountNamespace = \"${saNamespace}\"" env/staging/infra_config/azure.yaml
             yq -i ".workloadIdentities.\"${name}\".serviceAccountName = \"${saName}\"" env/staging/infra_config/azure.yaml
             yq -i ".workloadIdentities.\"${name}\".federatedSubject = \"${federatedSubject}\"" env/staging/infra_config/azure.yaml
-
-            if [ "$name" == "otelcollector" ]; then
-               yq -i ".otelCollector.azureMonitor.clientId = \"${clientId}\"" env/staging/infra_config/azure.yaml
-            fi
-          done <<< "$identities"
-
-      - name: Update service workload identity values
-        if: ${{ steps.deployment.outputs.workloadIdentities != '' }}
-        env:
-          WORKLOAD_IDENTITIES: ${{ steps.deployment.outputs.workloadIdentities }}
-        run: |
-          set -euo pipefail
-          identities=$(echo "$WORKLOAD_IDENTITIES" | jq -c '.[]')
-          if [ -z "$identities" ]; then
-            echo "No workload identities returned"
-            exit 0
-          fi
-
-          while IFS= read -r item; do
-            _jq() { echo "$item" | jq -r "$1"; }
-            name=$(_jq '.name')
-            clientId=$(_jq '.clientId')
-
-            case "$name" in
-              toy)
-                file="env/staging/apps/toy-values.yaml"
-                ;;
-              trip)
-                file="env/staging/apps/trip-values.yaml"
-                ;;
-              *)
-                echo "Skipping unknown workload identity: $name"
-                continue
-                ;;
-            esac
-
-            yq -i '.workloadIdentity.enabled = true' "$file"
-            yq -i ".workloadIdentity.clientId = \"${clientId}\"" "$file"
           done <<< "$identities"
 
       - name: Commit azure.yaml if changed
@@ -182,8 +143,6 @@ jobs:
         with:
           add: |
             env/staging/infra_config/azure.yaml
-            env/staging/apps/toy-values.yaml
-            env/staging/apps/trip-values.yaml
           message: 'Automation - Infrastructure config'
           default_author: github_actions
 

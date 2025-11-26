@@ -13,7 +13,7 @@ spec:
     metadata:
       labels:
         {{- include "trip.selectorLabels" . | nindent 8 }}
-        {{- if .Values.workloadIdentity.enabled }}
+        {{- if .Values.workloadIdentities.trip }}
         azure.workload.identity/use: "true"
         {{- end }}
     spec:

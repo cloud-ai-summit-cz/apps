@@ -31,8 +31,12 @@ resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
 }
 
 // =============================================================================
-// Application Insights with AAD Authentication
+// Application Insights
 // =============================================================================
+// DisableLocalAuth is set to true for security (blocks connection string auth).
+// OTEL Collector uses azureauthextension (v0.123.0+) with workload identity
+// to authenticate via AAD/Entra when sending telemetry.
+// The otelcollector managed identity requires "Monitoring Metrics Publisher" role.
 
 resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   name: 'appi-${baseNameDash}'

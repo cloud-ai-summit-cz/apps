@@ -13,7 +13,7 @@ spec:
     metadata:
       labels:
         {{- include "toy.selectorLabels" . | nindent 8 }}
-        {{- if .Values.workloadIdentity.enabled }}
+        {{- if .Values.workloadIdentities.toy }}
         azure.workload.identity/use: "true"
         {{- end }}
     spec:

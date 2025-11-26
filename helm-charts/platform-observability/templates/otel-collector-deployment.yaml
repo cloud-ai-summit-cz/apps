@@ -36,14 +36,12 @@ spec:
         env:
         - name: APPLICATIONINSIGHTS_CONNECTION_STRING
           value: {{ .Values.otelCollector.azureMonitor.connectionString | quote }}
-        {{- if .Values.otelCollector.azureMonitor.clientId }}
+        # Workload Identity environment variables for azureauthextension
+        # Reads from shared workloadIdentities exported by infrastructure workflow
         - name: AZURE_CLIENT_ID
-          value: {{ .Values.otelCollector.azureMonitor.clientId | quote }}
-        {{- end }}
-        {{- if .Values.otelCollector.azureMonitor.tenantId }}
+          value: {{ .Values.workloadIdentities.otelcollector.clientId | quote }}
         - name: AZURE_TENANT_ID
-          value: {{ .Values.otelCollector.azureMonitor.tenantId | quote }}
-        {{- end }}
+          value: {{ .Values.auth.tenantId | quote }}
         command:
           - /otelcol-contrib
           - --config=/etc/otel-collector/config.yaml
