@@ -54,7 +54,21 @@ Leverage OpenTelemetry auto-instrumentation libraries for:
 
 Auto-instrumentation provides baseline observability with minimal code changes.
 
-### 3.3 Context Propagation
+### 3.3 Istio Gateway Tracing
+AKS managed Istio addon configured to emit traces via OpenTelemetry:
+* **MeshConfig:** Defines `otel-tracing` extension provider pointing to OTEL Collector (gRPC on port 4317)
+* **Telemetry API:** 100% sampling enabled for the gateway namespace
+* Traces flow: Istio Gateway → OTEL Collector → Azure Monitor / Aspire Dashboard
+
+### 3.4 Cosmos DB Span Enrichment
+Azure Cosmos DB Python SDK emits HTTP-level spans without database semantic conventions. The OTEL Collector transform processor enriches these spans:
+* **Detection:** Identifies Cosmos DB spans by URL pattern (`*.documents.azure.com`)
+* **Attributes Added:**
+  * `db.system.name` / `db.system`: Set to `cosmosdb` for proper classification in Azure Monitor
+  * `db.operation.name`: Derived from HTTP method and URL path (e.g., `create_item`, `read_item`, `query_items`)
+* **Result:** Cosmos DB dependencies appear with database icon and proper type in Application Insights instead of generic "HTTP" or "Other"
+
+### 3.5 Context Propagation
 * W3C Trace Context standard for trace propagation across service boundaries
 * Correlation IDs maintained through synchronous REST calls and asynchronous message flows
 * Trace context automatically injected into logs for correlation
