@@ -231,7 +231,7 @@ module grafana 'modules/azureManagedGrafana.bicep' = {
 var sameIdentity = !empty(userObjectId) && !empty(gitHubWorkflowIdentityObjectId) && userObjectId == gitHubWorkflowIdentityObjectId
 
 resource aksKubeletAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, 'aksKubeletAcrPull')
+  name: guid(resourceGroup().id, aksKubeletIdentity.id, roleDefinitions.AcrPull)
   properties: {
     roleDefinitionId: roleDefinitions.AcrPull
     principalId: aksKubeletIdentity.properties.principalId
@@ -240,7 +240,7 @@ resource aksKubeletAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' 
 }
 
 resource aksClusterNetworkContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, 'aksClusterNetworkContributor')
+  name: guid(resourceGroup().id, aksClusterIdentity.id, roleDefinitions.NetworkContributor)
   properties: {
     roleDefinitionId: roleDefinitions.NetworkContributor
     principalId: aksClusterIdentity.properties.principalId
@@ -249,7 +249,7 @@ resource aksClusterNetworkContributor 'Microsoft.Authorization/roleAssignments@2
 }
 
 resource userStorageBlobAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(userObjectId)) {
-  name: guid(resourceGroup().id, 'userStorageBlobAssignment')
+  name: guid(resourceGroup().id, userObjectId, roleDefinitions.StorageBlobDataContributor)
   properties: {
     roleDefinitionId: roleDefinitions.StorageBlobDataContributor
     principalId: userObjectId
