@@ -85,6 +85,49 @@ otelCollector:
             # Drop Istio gateway spans for OTEL collector paths (tracing the traces)
             - 'attributes["http.url"] != nil and IsMatch(attributes["http.url"], ".*/otel/.*")'
             - 'attributes["url.path"] != nil and IsMatch(attributes["url.path"], ".*/otel/.*")'
+      
+      # Enrich Azure Cosmos DB spans with database semantic conventions
+      # Transforms HTTP-level spans from azure-core Python SDK into proper database spans
+      # This enables Application Insights to recognize Cosmos DB as a database dependency
+      # Reference: https://opentelemetry.io/docs/specs/semconv/database/cosmosdb/
+      transform/cosmosdb-enrichment:
+        error_mode: ignore
+        trace_statements:
+          - context: span
+            statements:
+              # Identify Cosmos DB spans by URL pattern and set db.system
+              # This is the key attribute that App Insights uses to categorize dependencies
+              - set(attributes["db.system"], "cosmosdb") where attributes["http.url"] != nil and IsMatch(attributes["http.url"], ".*\\.documents\\.azure\\.com.*")
+              
+              # Extract database name from URL path: /dbs/{database}/
+              # Uses regex capture group to dynamically extract the database name
+              - set(attributes["db.namespace"], replace_pattern(attributes["http.url"], "^.*/dbs/([^/]+)/.*$$", "$$1")) where attributes["http.url"] != nil and IsMatch(attributes["http.url"], ".*/dbs/[^/]+/.*")
+              
+              # Extract collection/container name from URL path: /colls/{container}/
+              - set(attributes["db.collection.name"], replace_pattern(attributes["http.url"], "^.*/colls/([^/]+)/.*$$", "$$1")) where attributes["http.url"] != nil and IsMatch(attributes["http.url"], ".*/colls/[^/]+/.*")
+              
+              # Derive operation names from HTTP method and resource type
+              # Document operations (most common)
+              - set(attributes["db.operation.name"], "create_item") where attributes["db.system"] == "cosmosdb" and attributes["http.method"] == "POST" and IsMatch(attributes["http.url"], ".*/docs/$$")
+              - set(attributes["db.operation.name"], "read_item") where attributes["db.system"] == "cosmosdb" and attributes["http.method"] == "GET" and IsMatch(attributes["http.url"], ".*/docs/[^/]+$$")
+              - set(attributes["db.operation.name"], "replace_item") where attributes["db.system"] == "cosmosdb" and attributes["http.method"] == "PUT" and IsMatch(attributes["http.url"], ".*/docs/.*")
+              - set(attributes["db.operation.name"], "delete_item") where attributes["db.system"] == "cosmosdb" and attributes["http.method"] == "DELETE" and IsMatch(attributes["http.url"], ".*/docs/.*")
+              - set(attributes["db.operation.name"], "patch_item") where attributes["db.system"] == "cosmosdb" and attributes["http.method"] == "PATCH" and IsMatch(attributes["http.url"], ".*/docs/.*")
+              
+              # Container operations
+              - set(attributes["db.operation.name"], "query_containers") where attributes["db.system"] == "cosmosdb" and attributes["http.method"] == "GET" and IsMatch(attributes["http.url"], ".*/colls$$")
+              - set(attributes["db.operation.name"], "create_container") where attributes["db.system"] == "cosmosdb" and attributes["http.method"] == "POST" and IsMatch(attributes["http.url"], ".*/colls$$")
+              - set(attributes["db.operation.name"], "read_container") where attributes["db.system"] == "cosmosdb" and attributes["http.method"] == "GET" and IsMatch(attributes["http.url"], ".*/colls/[^/]+$$")
+              - set(attributes["db.operation.name"], "delete_container") where attributes["db.system"] == "cosmosdb" and attributes["http.method"] == "DELETE" and IsMatch(attributes["http.url"], ".*/colls/[^/]+$$")
+              
+              # Database operations
+              - set(attributes["db.operation.name"], "query_databases") where attributes["db.system"] == "cosmosdb" and attributes["http.method"] == "GET" and IsMatch(attributes["http.url"], ".*/dbs$$")
+              - set(attributes["db.operation.name"], "create_database") where attributes["db.system"] == "cosmosdb" and attributes["http.method"] == "POST" and IsMatch(attributes["http.url"], ".*/dbs$$")
+              - set(attributes["db.operation.name"], "read_database") where attributes["db.system"] == "cosmosdb" and attributes["http.method"] == "GET" and IsMatch(attributes["http.url"], ".*/dbs/[^/]+$$")
+              - set(attributes["db.operation.name"], "delete_database") where attributes["db.system"] == "cosmosdb" and attributes["http.method"] == "DELETE" and IsMatch(attributes["http.url"], ".*/dbs/[^/]+$$")
+              
+              # Stored procedure operations
+              - set(attributes["db.operation.name"], "execute_stored_procedure") where attributes["db.system"] == "cosmosdb" and attributes["http.method"] == "POST" and IsMatch(attributes["http.url"], ".*/sprocs/.*")
     
     exporters:
       # Export to Aspire Dashboard via OTLP
@@ -120,12 +163,10 @@ otelCollector:
           level: info
       extensions: [health_check, azureauth]
       pipelines:
-        traces:
-          receivers: [otlp]
-          processors: [memory_limiter, filter/drop-otel-traces, batch]
-          exporters: [otlp, debug, azuremonitor]
-        
-        metrics:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, transform/cosmosdb-enrichment, filter/drop-otel-traces, batch]
+        exporters: [otlp, debug, azuremonitor]        metrics:
           receivers: [otlp]
           processors: [memory_limiter, batch]
           exporters: [otlp, debug, azuremonitor, prometheusremotewrite/azuremonitor]
