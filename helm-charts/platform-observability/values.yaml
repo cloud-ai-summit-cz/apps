@@ -165,6 +165,43 @@ aspireDashboard:
     # Primary endpoint for receiving telemetry
     primaryEndpoint: http://0.0.0.0:18889
 
+# Istio observability configuration
+# Enables tracing via OpenTelemetry and metrics via ama-metrics Prometheus scraping
+istio:
+  enabled: true
+  # Istio addon revision (check with: kubectl get configmap -n aks-istio-system)
+  revision: "asm-1-26"
+  
+  # Tracing configuration
+  tracing:
+    enabled: true
+    # 100% sampling - all requests traced
+    samplingPercentage: 100
+    # OTEL collector service name (in same namespace)
+    collectorService: otel-collector
+    # OTEL gRPC port
+    collectorPort: 4317
+    # Resource detectors for enriching trace data
+    resourceDetectors:
+      environment: {}
+    # Custom tags added to all trace spans
+    customTags:
+      environment: "staging"
+  
+  # Metrics configuration for ama-metrics (Azure Monitor Prometheus)
+  metrics:
+    enabled: true
+    # Namespaces to scrape via pod annotations
+    # - aks-istio-system: Istio control plane (istiod)
+    # - aks-istio-ingress: Managed Istio ingress gateway
+    # - toytrip-staging: Application namespace
+    scrapeNamespaces:
+      - aks-istio-system
+      - aks-istio-ingress
+      - toytrip-staging
+    # Scrape interval for metrics collection
+    scrapeInterval: "30s"
+
 # Common labels applied to all resources
 commonLabels:
   app.kubernetes.io/part-of: platform-observability

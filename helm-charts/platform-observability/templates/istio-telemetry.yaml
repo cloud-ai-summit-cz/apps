@@ -1,0 +1,31 @@
+{{- if .Values.istio.enabled }}
+# Istio Telemetry API resource for mesh-wide tracing configuration
+# Applied in aks-istio-system namespace for mesh-wide scope
+# Reference: https://learn.microsoft.com/en-us/azure/aks/istio-telemetry
+apiVersion: telemetry.istio.io/v1
+kind: Telemetry
+metadata:
+  name: mesh-default-tracing
+  namespace: aks-istio-system
+  labels:
+    app.kubernetes.io/name: istio-telemetry
+    app.kubernetes.io/component: tracing
+    {{- with .Values.commonLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  # No selector = mesh-wide configuration
+  tracing:
+  - providers:
+    - name: otel-tracing
+    # Sampling percentage (100 = trace all requests)
+    randomSamplingPercentage: {{ .Values.istio.tracing.samplingPercentage }}
+    {{- if .Values.istio.tracing.customTags }}
+    customTags:
+      {{- range $key, $value := .Values.istio.tracing.customTags }}
+      {{ $key }}:
+        literal:
+          value: {{ $value | quote }}
+      {{- end }}
+    {{- end }}
+{{- end }}

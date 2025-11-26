@@ -1,6 +1,6 @@
 # Platform Observability Helm Chart
 
-OpenTelemetry Collector and Aspire Dashboard for centralized observability.
+OpenTelemetry Collector, Aspire Dashboard, and Istio service mesh observability for centralized monitoring.
 
 ## Overview
 
@@ -8,29 +8,62 @@ This Helm chart deploys the observability stack for the platform:
 
 1. **OpenTelemetry Collector** - Receives telemetry from all services via OTLP (gRPC/HTTP)
 2. **Aspire Dashboard** - Developer-focused UI for visualizing logs, metrics, and traces
+3. **Istio Tracing** - Distributed tracing for Istio ingress gateway and mesh traffic
+4. **Istio Metrics** - Prometheus metrics scraping via Azure Monitor (ama-metrics)
 
 ## Architecture
 
 ```
-Services (toy, trip, etc.)
-    |
-    | OTLP gRPC (port 4317)
-    v
-OpenTelemetry Collector
-    |
-    | OTLP (port 18889)
-    v
-Aspire Dashboard (UI on port 18888)
+                                    ┌─────────────────────────┐
+                                    │    Azure Monitor        │
+                                    │  ┌─────────────────┐   │
+                                    │  │ App Insights    │   │
+                                    │  │ (traces, logs)  │   │
+                                    │  └────────▲────────┘   │
+                                    │           │            │
+                                    │  ┌────────┴────────┐   │
+                                    │  │ Managed Prom    │   │
+                                    │  │ (Istio metrics) │   │
+                                    │  └────────▲────────┘   │
+                                    └───────────┼────────────┘
+                                                │
+         ┌──────────────────────────────────────┼──────────────────────┐
+         │                                      │                      │
+         │  ┌───────────┐    ┌──────────────────┴───────┐              │
+         │  │ ama-metrics│◄───│ Istio Proxies (Envoy)   │              │
+         │  │  (scrape)  │    │ prometheus.io/* annot.  │              │
+         │  └───────────┘    └──────────────────────────┘              │
+         │                                                             │
+┌────────┼─────────────────────────────────────────────────────────────┼─┐
+│ Istio  │                                                             │ │
+│ Ingress│  ┌─────────────────────────────────────────────────────────┐│ │
+│ Gateway│  │                    OTEL Collector                        ││ │
+│   │    │  │  ┌──────────┐   ┌───────────┐   ┌────────────────────┐  ││ │
+│   │    │  │  │ Receivers│──▶│ Processors│──▶│      Exporters     │  ││ │
+│   │    │  │  │OTLP 4317 │   │  batch    │   │ - Aspire Dashboard │  ││ │
+│   │    │  │  │OTLP 4318 │   │ mem_limit │   │ - Azure Monitor    │  ││ │
+│   │    │  │  └──────────┘   └───────────┘   │ - Prom RemoteWrite │  ││ │
+│   │    │  │                                  └────────────────────┘  ││ │
+│   │    │  └─────────────────────────────────────────────────────────┘│ │
+│   │    │                         ▲                    │              │ │
+│   │    │     OTLP (traces)       │                    │ OTLP         │ │
+│   │    └─────────────────────────┤                    ▼              │ │
+│   │                              │          ┌─────────────────────┐  │ │
+│   │        Services (toy, trip)──┘          │  Aspire Dashboard   │  │ │
+│   │                                         │   (UI port 18888)   │  │ │
+│   ▼                                         └─────────────────────┘  │ │
+│ Internet                                                             │ │
+└──────────────────────────────────────────────────────────────────────┘ │
 ```
 
 ## Components
 
 ### OpenTelemetry Collector
 
-- **Image**: `otel/opentelemetry-collector-contrib:0.115.1`
+- **Image**: `otel/opentelemetry-collector-contrib:0.140.1`
 - **Receivers**: OTLP gRPC (4317), OTLP HTTP (4318)
 - **Processors**: batch, memory_limiter
-- **Exporters**: OTLP (to Aspire Dashboard), debug (stdout)
+- **Exporters**: OTLP (to Aspire Dashboard), Azure Monitor, Prometheus RemoteWrite, debug
 - **Service**: `otel-collector.toytrip-staging.svc.cluster.local`
 
 ### Aspire Dashboard
@@ -39,6 +72,19 @@ Aspire Dashboard (UI on port 18888)
 - **UI Port**: 18888 (HTTP)
 - **OTLP Port**: 18889 (gRPC receiver)
 - **Authentication**: Unsecured (dev mode) - can be changed to BrowserToken
+
+### Istio Tracing (via OpenTelemetry)
+
+- **MeshConfig**: Defines OTEL extension provider pointing to collector
+- **Telemetry API**: Enables 100% sampling for all Istio-managed traffic
+- **Destination**: OTEL Collector → Azure Monitor Application Insights
+
+### Istio Metrics (via ama-metrics)
+
+- **ConfigMap**: `ama-metrics-settings-configmap` in `kube-system`
+- **Scraping**: Pod annotation-based scraping (`prometheus.io/*` annotations)
+- **Namespaces**: `aks-istio-system`, `aks-istio-ingress`, `toytrip-staging`
+- **Destination**: Azure Monitor Managed Prometheus
 
 ## Installation
 
@@ -95,6 +141,23 @@ aspireDashboard:
     otlpPort: 18889 # OTLP receiver
   frontend:
     authMode: Unsecured  # or BrowserToken for token-based auth
+
+# Istio Observability
+istio:
+  enabled: true
+  revision: "asm-1-26"  # Match your AKS Istio addon revision
+  tracing:
+    enabled: true
+    samplingPercentage: 100  # 100% = trace all requests
+    collectorService: otel-collector
+    collectorPort: 4317
+  metrics:
+    enabled: true
+    scrapeNamespaces:
+      - aks-istio-system
+      - aks-istio-ingress
+      - toytrip-staging
+    scrapeInterval: "30s"
 ```
 
 ### Authentication Modes
@@ -233,3 +296,28 @@ kubectl run -n toytrip-staging test-curl --image=curlimages/curl --rm -it -- \
 - [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/)
 - [Aspire Dashboard](https://learn.microsoft.com/en-us/dotnet/aspire/fundamentals/dashboard/overview)
 - [OTLP Specification](https://opentelemetry.io/docs/specs/otlp/)
+- [AKS Istio MeshConfig](https://learn.microsoft.com/en-us/azure/aks/istio-meshconfig)
+- [AKS Istio Telemetry API](https://learn.microsoft.com/en-us/azure/aks/istio-telemetry)
+- [Collect Istio Metrics with Managed Prometheus](https://learn.microsoft.com/en-us/azure/azure-monitor/containers/prometheus-istio-integration)
+
+## Istio Metrics Available
+
+Once configured, the following Istio metrics are scraped by ama-metrics:
+
+| Metric | Description |
+|--------|-------------|
+| `istio_requests_total` | Total requests (by source, destination, response code) |
+| `istio_request_duration_milliseconds` | Request latency histogram |
+| `istio_request_bytes` | Request body size histogram |
+| `istio_response_bytes` | Response body size histogram |
+| `istio_tcp_connections_opened_total` | TCP connections opened |
+| `istio_tcp_connections_closed_total` | TCP connections closed |
+| `istio_tcp_sent_bytes_total` | TCP bytes sent |
+| `istio_tcp_received_bytes_total` | TCP bytes received |
+
+### Grafana Dashboards for Istio
+
+Import these dashboards in Azure Managed Grafana:
+
+- [Istio Control Plane Dashboard (ID 7645)](https://grafana.com/grafana/dashboards/7645-istio-control-plane-dashboard/)
+- [Istio Service SLO Demo (ID 21793)](https://grafana.com/grafana/dashboards/21793-service-slo/)

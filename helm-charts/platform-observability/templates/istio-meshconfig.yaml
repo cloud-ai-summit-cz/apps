@@ -1,0 +1,37 @@
+{{- if .Values.istio.enabled }}
+# Istio Shared ConfigMap for OpenTelemetry tracing extension provider
+# This ConfigMap is merged with the default Istio ConfigMap by the managed addon
+# Reference: https://learn.microsoft.com/en-us/azure/aks/istio-meshconfig
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: istio-shared-configmap-{{ .Values.istio.revision }}
+  namespace: aks-istio-system
+  labels:
+    app.kubernetes.io/name: istio-meshconfig
+    app.kubernetes.io/component: mesh-configuration
+    {{- with .Values.commonLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+data:
+  mesh: |-
+    # Enable tracing globally
+    enableTracing: true
+    
+    # Define OpenTelemetry extension provider
+    extensionProviders:
+    - name: otel-tracing
+      opentelemetry:
+        # Point to our OTEL collector service
+        service: {{ .Values.istio.tracing.collectorService }}.{{ .Release.Namespace }}.svc.cluster.local
+        port: {{ .Values.istio.tracing.collectorPort }}
+        {{- if .Values.istio.tracing.resourceDetectors }}
+        resource_detectors:
+          {{- toYaml .Values.istio.tracing.resourceDetectors | nindent 10 }}
+        {{- end }}
+    
+    # Set default tracing provider
+    defaultProviders:
+      tracing:
+      - otel-tracing
+{{- end }}
