@@ -84,6 +84,7 @@ jobs:
           yq '.letsencrypt.solver.gateway.parentRefs = [{"name": strenv(GATEWAY_NAME), "namespace": strenv(GATEWAY_NAMESPACE), "sectionName": "http"}]' | \
           yq '.letsencrypt.solver.gateway.labels."acme.cert-manager.io/http01-solver" = "true"' | \
           yq '.otelCollector.azureMonitor.connectionString = strenv(APP_INSIGHTS_CONN_STRING)' | \
+          yq '.otelCollector.prometheus.remoteWriteEndpoint = strenv(PROMETHEUS_REMOTE_WRITE_ENDPOINT)' | \
           yq '.generatedAt = strenv(TIMESTAMP)' > env/staging/infra_config/azure.yaml
         env:
           ACR_NAME: ${{ steps.deployment.outputs.acrName }}
@@ -97,6 +98,8 @@ jobs:
           COSMOS_ACCOUNT_NAME: ${{ steps.deployment.outputs.cosmosAccountName }}
           COSMOS_ENDPOINT: https://${{ steps.deployment.outputs.cosmosAccountName }}.documents.azure.com:443/
           APP_INSIGHTS_CONN_STRING: ${{ steps.deployment.outputs.applicationInsightsConnectionString }}
+          # Prometheus Remote Write endpoint constructed from DCE metrics ingestion endpoint and DCR ID
+          PROMETHEUS_REMOTE_WRITE_ENDPOINT: ${{ steps.deployment.outputs.dataCollectionEndpointIngestionEndpoint }}/dataCollectionRules/${{ steps.deployment.outputs.dataCollectionRuleId }}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           APP_ID_URI: ${{ secrets.APP_ID_URI }}
           INGRESS_PUBLIC_IP_NAME: ${{ steps.deployment.outputs.ingressPublicIpName }}

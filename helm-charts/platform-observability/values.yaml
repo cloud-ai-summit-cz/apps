@@ -34,6 +34,12 @@ otelCollector:
   azureMonitor:
     enabled: true
     connectionString: ""
+  
+  # Prometheus Remote Write configuration for Azure Monitor Workspace
+  prometheus:
+    enabled: true
+    # Constructed as: <DCE_ENDPOINT>/dataCollectionRules/<DCR_ID>/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24
+    remoteWriteEndpoint: ""
 
   # ConfigMap will be created with OTEL collector config
   # Uses azureauthextension for AAD authentication when DisableLocalAuth=true
@@ -88,6 +94,16 @@ otelCollector:
       # Debug exporter for troubleshooting (logs to collector stdout)
       debug:
         verbosity: basic
+      
+      # Prometheus Remote Write to Azure Monitor Workspace
+      # Uses azureauthextension for AAD authentication (same as azuremonitor exporter)
+      prometheusremotewrite/azuremonitor:
+        endpoint: "${env:PROMETHEUS_REMOTE_WRITE_ENDPOINT}"
+        auth:
+          authenticator: azureauth
+        resource_to_telemetry_conversion:
+          enabled: true
+        add_metric_suffixes: true
     
     service:
       telemetry:
@@ -103,7 +119,7 @@ otelCollector:
         metrics:
           receivers: [otlp]
           processors: [memory_limiter, batch]
-          exporters: [otlp, debug, azuremonitor]
+          exporters: [otlp, debug, azuremonitor, prometheusremotewrite/azuremonitor]
         
         logs:
           receivers: [otlp]

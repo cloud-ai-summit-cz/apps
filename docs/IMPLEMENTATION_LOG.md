@@ -4,6 +4,71 @@ Chronological journal of implementation decisions, progress, and completed work.
 
 ---
 
+## 2025-11-26 - Prometheus Remote Write to Azure Monitor Workspace
+
+Added Prometheus remote write capability to the OTEL Collector to send metrics to Azure Monitor Workspace for Prometheus.
+
+### Background
+
+The infrastructure already had:
+- Azure Monitor Workspace (`amw-*`) for Prometheus metrics
+- Data Collection Endpoint (DCE) for metrics ingestion
+- Data Collection Rule (DCR) configured for Prometheus forwarding
+- OTEL Collector with workload identity and `azureauthextension` for AAD auth
+
+### Implementation
+
+#### 1. Values Configuration (`helm-charts/platform-observability/values.yaml`)
+
+Added new `prometheus` section and `prometheusremotewrite/azuremonitor` exporter:
+
+```yaml
+otelCollector:
+  prometheus:
+    enabled: true
+    remoteWriteEndpoint: ""  # Populated from azure.yaml
+
+exporters:
+  prometheusremotewrite/azuremonitor:
+    endpoint: "${env:PROMETHEUS_REMOTE_WRITE_ENDPOINT}"
+    auth:
+      authenticator: azureauth  # Reuses existing azureauthextension
+    resource_to_telemetry_conversion:
+      enabled: true
+    add_metric_suffixes: true
+```
+
+Updated metrics pipeline to include the new exporter:
+```yaml
+pipelines:
+  metrics:
+    exporters: [otlp, debug, azuremonitor, prometheusremotewrite/azuremonitor]
+```
+
+#### 2. Deployment Template (`helm-charts/platform-observability/templates/otel-collector-deployment.yaml`)
+
+Added `PROMETHEUS_REMOTE_WRITE_ENDPOINT` environment variable sourced from values.
+
+#### 3. Workflow (`.github/workflows/deploy-infra.yml`)
+
+Added Prometheus remote write endpoint construction to azure.yaml generation:
+- URL format: `<DCE_ENDPOINT>/dataCollectionRules/<DCR_ID>/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24`
+- Uses `dataCollectionEndpointIngestionEndpoint` and `dataCollectionRuleId` outputs from Bicep
+
+### Key Technical Details
+
+- **Authentication**: Uses same `azureauthextension` with scope `https://monitor.azure.com/.default`
+- **Role**: OTEL Collector identity already has "Monitoring Metrics Publisher" role at RG level
+- **Endpoint Format**: Azure-specific URL structure with DCR ID and stream name
+
+### References
+
+- [Azure Monitor Prometheus Remote Write](https://learn.microsoft.com/azure/azure-monitor/essentials/prometheus-remote-write)
+- [OTEL prometheusremotewriteexporter](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/exporter/prometheusremotewriteexporter)
+- [OTEL azureauthextension](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/azureauthextension)
+
+---
+
 ## 2025-11-26 - Azure Monitor AAD Authentication for OTEL Collector
 
 Implemented Azure AD (Entra ID) authentication for the OTEL Collector to send telemetry to Application Insights with `DisableLocalAuth=true`.

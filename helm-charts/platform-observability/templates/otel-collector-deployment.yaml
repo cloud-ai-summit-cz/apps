@@ -42,6 +42,9 @@ spec:
           value: {{ .Values.workloadIdentities.otelcollector.clientId | quote }}
         - name: AZURE_TENANT_ID
           value: {{ .Values.auth.tenantId | quote }}
+        # Prometheus Remote Write endpoint for Azure Monitor Workspace
+        - name: PROMETHEUS_REMOTE_WRITE_ENDPOINT
+          value: {{ .Values.otelCollector.prometheus.remoteWriteEndpoint | quote }}
         command:
           - /otelcol-contrib
           - --config=/etc/otel-collector/config.yaml
