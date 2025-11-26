@@ -36,9 +36,7 @@ letsencrypt:
 otelCollector:
   azureMonitor:
     connectionString: InstrumentationKey=981db5b4-0ab9-4798-8ecf-9193b1793ea8;IngestionEndpoint=https://swedencentral-0.in.applicationinsights.azure.com/;LiveEndpoint=https://swedencentral.livediagnostics.monitor.azure.com/;ApplicationId=86fc6fa1-9979-40dc-8515-6ebc0fad967a
-    tenantId: 6ce4f237-667f-43f5-aafd-cbef954adf97
-    clientId: f35a65cf-e251-42f9-b240-c89bcb9f3557
-generatedAt: "2025-11-26T12:01:13Z"
+generatedAt: "2025-11-26T15:47:12Z"
 workloadIdentities:
   toy:
     resourceId: /subscriptions/673af34d-6b28-41dc-bc7b-f507418045e6/resourceGroups/rg-apps/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-appdemo-sedkdx-toy
