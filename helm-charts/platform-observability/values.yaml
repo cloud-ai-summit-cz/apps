@@ -198,6 +198,20 @@ aspireDashboard:
     # OTLP gRPC receiver port
     otlpPort: 18889
   
+  # HTTPRoute configuration for Gateway API
+  httpRoute:
+    enabled: false
+    parentRefs: []
+    hosts:
+      - host: ""
+        paths:
+          - path: /aspire
+            pathType: PathPrefix
+            rewrite:
+              path:
+                type: ReplacePrefixMatch
+                replacePrefixMatch: /
+  
   # Dashboard frontend authentication
   # Options: Unsecured, BrowserToken
   # BrowserToken generates a login token displayed in logs
