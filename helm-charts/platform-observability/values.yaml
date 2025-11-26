@@ -45,6 +45,9 @@ otelCollector:
       # Azure AD authentication extension using workload identity
       # This acquires AAD tokens for Azure Monitor ingestion
       azureauth:
+        # Required: specify the scope for Azure Monitor
+        scopes:
+          - https://monitor.azure.com/.default
         workload_identity:
           client_id: "${env:AZURE_CLIENT_ID}"
           tenant_id: "${env:AZURE_TENANT_ID}"
