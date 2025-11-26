@@ -90,6 +90,8 @@ otelCollector:
       # Transforms HTTP-level spans from azure-core Python SDK into proper database spans
       # This enables Application Insights to recognize Cosmos DB as a database dependency
       # Reference: https://opentelemetry.io/docs/specs/semconv/database/cosmosdb/
+      # Note: Dynamic URL parsing for db.namespace/db.collection.name requires OTTL functions
+      # not available in nested set() calls. Using static enrichment for now.
       transform/cosmosdb-enrichment:
         error_mode: ignore
         trace_statements:
@@ -99,20 +101,14 @@ otelCollector:
               # This is the key attribute that App Insights uses to categorize dependencies
               - set(attributes["db.system"], "cosmosdb") where attributes["http.url"] != nil and IsMatch(attributes["http.url"], ".*\\.documents\\.azure\\.com.*")
               
-              # Extract database name from URL path: /dbs/{database}/
-              # Uses regex capture group to dynamically extract the database name
-              - set(attributes["db.namespace"], Replace_pattern(attributes["http.url"], "^.*/dbs/([^/]+)/.*$$", "$$1")) where attributes["http.url"] != nil and IsMatch(attributes["http.url"], ".*/dbs/[^/]+/.*")
-              
-              # Extract collection/container name from URL path: /colls/{container}/
-              - set(attributes["db.collection.name"], Replace_pattern(attributes["http.url"], "^.*/colls/([^/]+)/.*$$", "$$1")) where attributes["http.url"] != nil and IsMatch(attributes["http.url"], ".*/colls/[^/]+/.*")
-              
               # Derive operation names from HTTP method and resource type
               # Document operations (most common)
-              - set(attributes["db.operation.name"], "create_item") where attributes["db.system"] == "cosmosdb" and attributes["http.method"] == "POST" and IsMatch(attributes["http.url"], ".*/docs/$$")
+              - set(attributes["db.operation.name"], "create_item") where attributes["db.system"] == "cosmosdb" and attributes["http.method"] == "POST" and IsMatch(attributes["http.url"], ".*/docs$$")
               - set(attributes["db.operation.name"], "read_item") where attributes["db.system"] == "cosmosdb" and attributes["http.method"] == "GET" and IsMatch(attributes["http.url"], ".*/docs/[^/]+$$")
               - set(attributes["db.operation.name"], "replace_item") where attributes["db.system"] == "cosmosdb" and attributes["http.method"] == "PUT" and IsMatch(attributes["http.url"], ".*/docs/.*")
               - set(attributes["db.operation.name"], "delete_item") where attributes["db.system"] == "cosmosdb" and attributes["http.method"] == "DELETE" and IsMatch(attributes["http.url"], ".*/docs/.*")
               - set(attributes["db.operation.name"], "patch_item") where attributes["db.system"] == "cosmosdb" and attributes["http.method"] == "PATCH" and IsMatch(attributes["http.url"], ".*/docs/.*")
+              - set(attributes["db.operation.name"], "query_items") where attributes["db.system"] == "cosmosdb" and attributes["http.method"] == "POST" and IsMatch(attributes["http.url"], ".*/docs$$") and attributes["http.request.header.x-ms-documentdb-isquery"] != nil
               
               # Container operations
               - set(attributes["db.operation.name"], "query_containers") where attributes["db.system"] == "cosmosdb" and attributes["http.method"] == "GET" and IsMatch(attributes["http.url"], ".*/colls$$")
