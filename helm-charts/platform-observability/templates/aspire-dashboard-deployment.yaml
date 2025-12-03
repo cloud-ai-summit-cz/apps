@@ -37,12 +37,6 @@ spec:
           containerPort: 18889
           protocol: TCP
         env:
-        # Path base for serving under a subpath (e.g., /aspire)
-        {{- if .Values.aspireDashboard.pathBase }}
-        - name: ASPNETCORE_PATHBASE
-          value: {{ .Values.aspireDashboard.pathBase | quote }}
-        {{- end }}
-        
         # Dashboard frontend authentication mode
         - name: DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS
           value: "{{ eq .Values.aspireDashboard.frontend.authMode "Unsecured" | ternary "true" "false" }}"

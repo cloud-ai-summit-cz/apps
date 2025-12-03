@@ -1,4 +1,6 @@
-# apps
+# Cloud and AI summit 2025 Czech - apps demo
+
+## Setup instructions
 
 1. **Resource group** – Create the target Azure resource group
 2. **Managed identity** – Create a managed identity (ideally outside that group) and grant it the Owner role on the resource group.
@@ -8,3 +10,9 @@
 6. **ArgoCD repo token** – Create a fine-grained PAT with `Contents` read-only access and store it as `ARGOCD_REPO_TOKEN`.
 7. **Entra app registration** – Create the app, set SPA redirect URIs under *Authentication → Single-page application* (`http://localhost:3000`, `http://localhost:3000/auth/callback`, `https://appdemo-eniwvl.swedencentral.cloudapp.azure.com`), then save its scope (e.g., `api://5163cc2b-3d50-4278-8fbc-c13f3f0de588`) in `APP_ID_URI`.
 8. **Managed Gateway preview** – Register the AKS Managed Gateway API feature with `az feature register --namespace Microsoft.ContainerService --name ManagedGatewayAPIPreview` before deploying infra.
+
+## Demo flow
+
+- Rapid prototyping using GitHub Copilot Spark demo
+- Proper specs-driven "vibecoding" with Copilot demo
+- More autonomy for agents demo - defer to agent, assign to agent, agent code review, AgentHQ
