@@ -5,7 +5,7 @@ import { tripApiClient } from '../services/tripApiClient';
 import type { Trip, GalleryImage } from '../types/trip';
 
 function TripGallery() {
-  const { tripId } = useParams<{ tripId: string }>();
+  const { tripId, imageId } = useParams<{ tripId: string; imageId?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const { accounts } = useMsal();
@@ -19,6 +19,8 @@ function TripGallery() {
   const [selectedImage, setSelectedImage] = useState<GalleryImage | null>(null);
   const [galleryBlobUrls, setGalleryBlobUrls] = useState<Map<string, string>>(new Map());
   const [loadingImages, setLoadingImages] = useState<Set<string>>(new Set());
+  // Track if user came directly to an image (for back button behavior)
+  const [cameDirectToImage] = useState<boolean>(!!imageId);
   
   // Upload form state
   const [uploadLandmark, setUploadLandmark] = useState('');
@@ -43,6 +45,34 @@ function TripGallery() {
       galleryBlobUrls.forEach(url => URL.revokeObjectURL(url));
     };
   }, [trip?.id]);
+
+  // Auto-select image if imageId is provided in URL
+  useEffect(() => {
+    if (trip && imageId) {
+      const image = trip.gallery.find(img => img.image_id === imageId);
+      if (image) {
+        setSelectedImage(image);
+      }
+    }
+  }, [trip, imageId]);
+
+  // Handle closing modal - navigate back appropriately
+  const handleCloseModal = () => {
+    if (cameDirectToImage) {
+      // User came directly from trip detail - go back to trip page
+      navigate(`/trip/${tripId}${location.search}`);
+    } else {
+      // User opened image from gallery grid - just close modal and update URL
+      setSelectedImage(null);
+      navigate(`/trip/${tripId}/gallery${location.search}`, { replace: true });
+    }
+  };
+
+  // Handle selecting an image - update URL
+  const handleSelectImage = (image: GalleryImage) => {
+    setSelectedImage(image);
+    navigate(`/trip/${tripId}/gallery/${image.image_id}${location.search}`, { replace: true });
+  };
 
   const loadTrip = async () => {
     if (!tripId) return;
@@ -276,7 +306,7 @@ function TripGallery() {
             return (
               <div
                 key={image.image_id}
-                onClick={() => !isLoading && setSelectedImage(image)}
+                onClick={() => !isLoading && handleSelectImage(image)}
                 className="aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity relative group"
               >
                 {isLoading ? (
@@ -315,10 +345,10 @@ function TripGallery() {
       {selectedImage && (
         <div
           className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4"
-          onClick={() => setSelectedImage(null)}
+          onClick={handleCloseModal}
         >
           <button
-            onClick={() => setSelectedImage(null)}
+            onClick={handleCloseModal}
             className="absolute top-4 right-4 text-white hover:text-gray-300 z-10"
           >
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">

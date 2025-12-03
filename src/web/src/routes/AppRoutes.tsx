@@ -55,6 +55,7 @@ function AppRoutes() {
         <Route path="toy/:toyId/trip/create" element={<CreateTrip />} />
         <Route path="trip/:tripId" element={<TripDetail />} />
         <Route path="trip/:tripId/gallery" element={<TripGallery />} />
+        <Route path="trip/:tripId/gallery/:imageId" element={<TripGallery />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

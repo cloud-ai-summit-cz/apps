@@ -326,7 +326,7 @@ function TripDetail() {
                   return (
                     <div
                       key={image.image_id}
-                      onClick={() => navigate(`/trip/${tripId}/gallery${location.search}`)}
+                      onClick={() => navigate(`/trip/${tripId}/gallery/${image.image_id}${location.search}`)}
                       className="aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
                     >
                       {blobUrl ? (
