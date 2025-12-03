@@ -176,6 +176,9 @@ otelCollector:
 # Aspire Dashboard configuration
 aspireDashboard:
   enabled: true
+  # Path base for serving under a subpath (e.g., /aspire)
+  # Set this when exposing via HTTPRoute with a path prefix
+  pathBase: ""
   image:
     repository: mcr.microsoft.com/dotnet/aspire-dashboard
     tag: "9.0"

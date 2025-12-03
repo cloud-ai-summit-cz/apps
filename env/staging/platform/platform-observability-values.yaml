@@ -2,6 +2,8 @@
 # Enables Aspire Dashboard external access via HTTPRoute
 
 aspireDashboard:
+  # Serve dashboard under /aspire path
+  pathBase: /aspire
   httpRoute:
     enabled: true
     parentRefs:
@@ -15,7 +17,3 @@ aspireDashboard:
         paths:
           - path: /aspire
             pathType: PathPrefix
-            rewrite:
-              path:
-                type: ReplacePrefixMatch
-                replacePrefixMatch: /
