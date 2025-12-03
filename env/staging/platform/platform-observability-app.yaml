@@ -18,6 +18,7 @@ spec:
         valueFiles:
           - values.yaml
           - $repo/env/staging/infra_config/azure.yaml
+          - $repo/env/staging/platform/platform-observability-values.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: toytrip-staging

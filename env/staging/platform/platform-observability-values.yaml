@@ -1,0 +1,21 @@
+# Platform Observability - Staging Environment Values
+# Enables Aspire Dashboard external access via HTTPRoute
+
+aspireDashboard:
+  httpRoute:
+    enabled: true
+    parentRefs:
+      - group: gateway.networking.k8s.io
+        kind: Gateway
+        name: toytrip-gateway
+        namespace: toytrip-staging
+        sectionName: https
+    hosts:
+      - host:
+        paths:
+          - path: /aspire
+            pathType: PathPrefix
+            rewrite:
+              path:
+                type: ReplacePrefixMatch
+                replacePrefixMatch: /
