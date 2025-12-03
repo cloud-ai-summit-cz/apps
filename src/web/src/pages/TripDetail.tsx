@@ -294,7 +294,7 @@ function TripDetail() {
                 Gallery ({trip.gallery.length})
               </h2>
               <button
-                onClick={() => navigate(`/trip/${tripId}/gallery`)}
+                onClick={() => navigate(`/trip/${tripId}/gallery${location.search}`)}
                 className="text-gray-600 hover:text-gray-900 text-sm flex items-center gap-1"
               >
                 View All
@@ -312,7 +312,7 @@ function TripDetail() {
                 <p>No photos yet</p>
                 {isOwner && (
                   <button
-                    onClick={() => navigate(`/trip/${tripId}/gallery`)}
+                    onClick={() => navigate(`/trip/${tripId}/gallery${location.search}`)}
                     className="mt-3 text-gray-900 hover:text-gray-700 text-sm font-medium"
                   >
                     Upload Photos
@@ -326,7 +326,7 @@ function TripDetail() {
                   return (
                     <div
                       key={image.image_id}
-                      onClick={() => navigate(`/trip/${tripId}/gallery`)}
+                      onClick={() => navigate(`/trip/${tripId}/gallery${location.search}`)}
                       className="aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
                     >
                       {blobUrl ? (
@@ -398,7 +398,7 @@ function TripDetail() {
             <h3 className="font-semibold text-gray-900 mb-3">Quick Actions</h3>
             <div className="space-y-2">
               <button
-                onClick={() => navigate(`/trip/${tripId}/gallery`)}
+                onClick={() => navigate(`/trip/${tripId}/gallery${location.search}`)}
                 className="w-full px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800 text-sm"
               >
                 View Gallery

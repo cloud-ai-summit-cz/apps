@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useMsal } from '@azure/msal-react';
 import { tripApiClient } from '../services/tripApiClient';
 import type { Trip, GalleryImage } from '../types/trip';
@@ -7,6 +7,7 @@ import type { Trip, GalleryImage } from '../types/trip';
 function TripGallery() {
   const { tripId } = useParams<{ tripId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { accounts } = useMsal();
   const userOid = accounts[0]?.idTokenClaims?.oid as string | undefined;
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -166,7 +167,7 @@ function TripGallery() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <button
-        onClick={() => navigate(`/trip/${tripId}`)}
+        onClick={() => navigate(`/trip/${tripId}${location.search}`)}
         className="text-gray-600 hover:text-gray-900 mb-6 flex items-center gap-2"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
