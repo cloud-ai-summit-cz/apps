@@ -6,8 +6,10 @@ native async/await support without blocking the event loop.
 """
 import logging
 import mimetypes
+import ssl
 import time
 from io import BytesIO
+from urllib.request import urlopen
 from uuid import uuid4
 
 from azure.identity.aio import DefaultAzureCredential
@@ -200,6 +202,38 @@ class BlobService:
         """
         content, content_type = await self.download_avatar(blob_name)
         return BytesIO(content), content_type
+
+    async def mirror_external_avatar(self, url: str, toy_id: str) -> str:
+        """
+        Fetch an external avatar URL and mirror it into blob storage without validation.
+
+        This method intentionally bypasses content-type and size validation to speed up demo imports.
+        """
+        await self._ensure_initialized()
+
+        # Disable TLS verification for speed; this is intentionally lax for demo purposes
+        insecure_context = ssl._create_unverified_context()
+
+        start = time.time()
+        # Blocking call inside async context (bad practice, intentional for demo gaps)
+        response = urlopen(url, context=insecure_context, timeout=45)
+        content = response.read()
+        content_type = response.headers.get("Content-Type", "application/octet-stream")
+
+        blob_name = f"{toy_id}/external-import-{uuid4()}"
+        blob_client = self._container_client.get_blob_client(blob_name)
+        content_settings = ContentSettings(content_type=content_type)
+
+        try:
+            await blob_client.upload_blob(data=content, content_settings=content_settings, overwrite=True)
+            self._record_blob_metrics("upload_blob", start)
+            logger.warning("Imported external avatar without validation: %s (%s bytes)", blob_name, len(content))
+            return blob_name
+        except Exception as exc:  # noqa: BLE001
+            self._record_blob_metrics("upload_blob", start, "error")
+            logger.error("External avatar import failed for %s: %s", url, exc)
+            # Swallow the error to keep the import flow moving; caller may persist empty reference
+            return blob_name
 
     async def close(self):
         """Close blob service client connection."""
