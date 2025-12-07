@@ -294,30 +294,30 @@ az provider register --namespace Microsoft.ContainerService
 ## Demo flow
 1. Discuss **specs-driven development** and point to [https://github.com/tkubica12/gh-copilot-constitution](https://github.com/tkubica12/gh-copilot-constitution) with our constitution, guidelines, spec templates and so on.
 
-Use Copilot Space to work on product requirements with context from one or more repositories and no IDE needed.
+2. Use **Copilot Space** to work on product requirements with context from one or more repositories and no IDE needed.
 
 ```
 I want to create PRD for my idea - company that sells trip for rich people toys. They take them to the place customer wants, send photos of toys, share stories, real time location and users can order experiences or accessories on the trip.
 ```
 
-Showcase Copilot Spark for rapid prototyping by pasting your PRD to it.
+3. Showcase **Copilot Spark** for rapid prototyping by pasting your PRD to it.
 
-Go to IDE and discuss GitHub Copilot agent mode.
+4. Go to IDE and discuss **GitHub Copilot agent mode**.
 
-Show resulting running application
+5. Show resulting running application
 
-More autonomy for agents demo - defer to agent, assign to agent, agent code review, AgentHQ
+6. More autonomy for agents demo - defer to agent, **assign Issue to agent**, agent **code review**, **AgentHQ**
 
-Automation in GitHub Actions demo: container builds, Bicep for IaC, bridge between IaC and Argo and Argo bootstrap, Argo to deploy Kubernetes objects
+7. Automation in **GitHub Actions** demo: container builds, Bicep for IaC, bridge between IaC and Argo and Argo bootstrap, Argo to deploy Kubernetes objects
 
-Authentication - using entra users, authorization roles, app registrations 
+8. **Authentication and Authorization with Entra** - using entra users, authorization roles, app registrations 
 
-But what about background processes or microservices accessing Azure services such as Blob storage or Cosmos DB? Managed identities and federation advantages.
+9. Accessing Azure services such as storage and databases with **managed identities and federation**.
 
-When we talk about security - let's review network protection for our services, what else can we do to enhance security even further?
+10. **Azure security** - let's review network protection for our services, what else can we do to enhance security even further? Could **Azure Copilot** help us with questions<>
 
-Focus on Azure Kubernetes Service - node autoprovisioning, auth, security and how bundled all that under AKS Automatic
+11. **Azure Kubernetes Service** in Kubernetes Center - node **autoprovisioning**, auth, **namespace as a service**, **fleet**, security and how bundled all that under **AKS Automatic**
 
-Observability with OpenTelemetry instrumentation - from quick Aspire dashboard to Azure services (Azure Monitor for Prometheus, Application Insights, Log Analytics, ...)
+12. **Observability** with **OpenTelemetry** instrumentation - from quick Aspire dashboard to Azure services (Azure Monitor for Prometheus, Application Insights, Log Analytics, ...)
 
-Future of ops with SRE agents helping with incidents and identifying issues
+13. Future of ops with **SRE agents** helping with incidents and identifying issues
