@@ -292,15 +292,32 @@ az provider register --namespace Microsoft.ContainerService
 </details>
 
 ## Demo flow
+1. Discuss **specs-driven development** and point to [https://github.com/tkubica12/gh-copilot-constitution](https://github.com/tkubica12/gh-copilot-constitution) with our constitution, guidelines, spec templates and so on.
 
-- Rapid prototyping using GitHub Copilot Spark demo
-- Proper specs-driven "vibecoding" with Copilot demo
-- Show resulting running application
-- More autonomy for agents demo - defer to agent, assign to agent, agent code review, AgentHQ
-- Automation in GitHub Actions demo: container builds, Bicep for IaC, bridge between IaC and Argo and Argo bootstrap, Argo to deploy Kubernetes objects
-- Authentication - using entra users, authorization roles, app registrations 
-- But what about background processes or microservices accessing Azure services such as Blob storage or Cosmos DB? Managed identities and federation advantages.
-- When we talk about security - let's review network protection for our services, what else can we do to enhance security even further?
-- Focus on Azure Kubernetes Service - node autoprovisioning, auth, security and how bundled all that under AKS Automatic
-- Observability with OpenTelemetry instrumentation - from quick Aspire dashboard to Azure services (Azure Monitor for Prometheus, Application Insights, Log Analytics, ...)
-- Future of ops with SRE agents helping with incidents and identifying issues
+Use Copilot Space to work on product requirements with context from one or more repositories and no IDE needed.
+
+```
+I want to create PRD for my idea - company that sells trip for rich people toys. They take them to the place customer wants, send photos of toys, share stories, real time location and users can order experiences or accessories on the trip.
+```
+
+Showcase Copilot Spark for rapid prototyping by pasting your PRD to it.
+
+Go to IDE and discuss GitHub Copilot agent mode.
+
+Show resulting running application
+
+More autonomy for agents demo - defer to agent, assign to agent, agent code review, AgentHQ
+
+Automation in GitHub Actions demo: container builds, Bicep for IaC, bridge between IaC and Argo and Argo bootstrap, Argo to deploy Kubernetes objects
+
+Authentication - using entra users, authorization roles, app registrations 
+
+But what about background processes or microservices accessing Azure services such as Blob storage or Cosmos DB? Managed identities and federation advantages.
+
+When we talk about security - let's review network protection for our services, what else can we do to enhance security even further?
+
+Focus on Azure Kubernetes Service - node autoprovisioning, auth, security and how bundled all that under AKS Automatic
+
+Observability with OpenTelemetry instrumentation - from quick Aspire dashboard to Azure services (Azure Monitor for Prometheus, Application Insights, Log Analytics, ...)
+
+Future of ops with SRE agents helping with incidents and identifying issues
