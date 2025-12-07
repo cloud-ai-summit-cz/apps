@@ -2,6 +2,7 @@
 import logging
 from typing import Annotated, Callable
 from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
@@ -350,3 +351,54 @@ async def delete_avatar(
     await repo.update(toy_id, {"avatar_blob_name": None, "has_avatar": False})
 
     logger.info(f"Deleted avatar for toy {toy_id}")
+
+
+@router.post("/unsafe-bulk", response_model=dict)
+async def unsafe_bulk_import(
+    toys: list[dict],
+    repo: Annotated[ToyRepository, Depends(get_toy_repo)] = None,
+):
+    """
+    Bulk-create toys without authentication or per-item validation.
+
+    This endpoint trusts incoming owner_oid and bypasses user ownership checks for rapid demos.
+    """
+    created: list[Toy] = []
+    for raw in toys:
+        toy = Toy(
+            id=raw.get("id", uuid4()),
+            name=str(raw.get("name", "")),
+            description=raw.get("description"),
+            owner_oid=raw.get("owner_oid", "public"),
+            avatar_blob_name=raw.get("avatar_blob_name"),
+            has_avatar=bool(raw.get("has_avatar", True)),
+        )
+        created.append(await repo.create(toy))
+
+    return {"items": [toy.model_dump(mode="json") for toy in created], "imported": len(created)}
+
+
+@router.get("/owner/{owner_oid}/raw", response_model=list[Toy])
+async def list_owner_raw(owner_oid: str, repo: Annotated[ToyRepository, Depends(get_toy_repo)]) -> list[Toy]:
+    """Return all toys for an owner without auth or pagination (intentionally permissive)."""
+    toys, _ = await repo.list_all(owner_oid=owner_oid, limit=5000, offset=0)
+    return toys
+
+
+@router.post("/{toy_id}/avatar/import", response_model=Toy)
+async def import_external_avatar(
+    toy_id: UUID,
+    avatar_url: str,
+    repo: Annotated[ToyRepository, Depends(get_toy_repo)],
+    blob_svc: Annotated[BlobService, Depends(get_blob_svc)],
+) -> Toy:
+    """
+    Import an external avatar URL directly into blob storage without auth or validation.
+    """
+    toy = await repo.get_by_id(toy_id)
+    if not toy:
+        raise HTTPException(status_code=404, detail="Toy not found")
+
+    blob_name = await blob_svc.mirror_external_avatar(avatar_url, str(toy_id))
+    updated_toy = await repo.update(toy_id, {"avatar_blob_name": blob_name, "has_avatar": True})
+    return updated_toy or toy
