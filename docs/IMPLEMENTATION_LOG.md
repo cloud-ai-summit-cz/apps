@@ -4,6 +4,101 @@ Chronological journal of implementation decisions, progress, and completed work.
 
 ---
 
+## 2025-12-07 - Story Service Implementation
+
+Implemented the Story service according to specifications in `specs/services/story/`.
+
+### Architecture
+
+Built a complete microservice for AI-powered story generation with the following components:
+
+1. **REST API** (FastAPI)
+   - `POST /api/stories/{tripId}/generate` - Generate story for a trip
+   - `GET /api/stories/{tripId}` - List stories for a trip
+   - `GET /api/stories/{tripId}/{storyId}` - Get specific story
+   - Health check endpoints `/health` and `/healthz`
+
+2. **Worker** (Service Bus consumer)
+   - Processes messages from `story-jobs` queue
+   - Generates stories asynchronously
+   - Supports KEDA auto-scaling based on queue length
+
+3. **Data Layer**
+   - Cosmos DB container `stories` with hierarchical partition key (ownerId, tripId)
+   - StoryRepository with create, update, get, and list operations
+
+4. **AI Integration**
+   - Azure OpenAI integration using Managed Identity
+   - Context fetching from Trip, Toy, and Geo services
+   - Prompt assembly and story generation
+   - Retry logic with exponential backoff for rate limits
+
+### Key Technical Decisions
+
+1. **Hierarchical Partition Key**: Used (ownerId, tripId) for Cosmos DB to ensure owner isolation and prevent hot partitions while maintaining query efficiency.
+
+2. **Idempotency**: Stories are identified by `story_{date}` and the API checks for existing stories before generation, making the endpoint idempotent per (tripId, storyDate).
+
+3. **Observability**: Integrated OpenTelemetry for:
+   - Custom metrics: `story_compositions_requested_total`, `stories_viewed_total`, `story_generation_duration_seconds`, `story_jobs_pending`
+   - Distributed tracing for generation flow
+   - Structured logging with owner_id, trip_id, story_id fields
+
+4. **Worker Architecture**: Separate deployment with KEDA ScaledObject for auto-scaling based on Service Bus queue length (scales 1-10 replicas).
+
+5. **Security**: Uses Azure Managed Identity for all Azure service access (Cosmos DB, Service Bus, OpenAI), no static credentials.
+
+### File Structure
+
+```
+src/services/story/
+├── models/           # Pydantic models (Story, StoryDocument, StorySection, etc.)
+├── repositories/     # Cosmos DB data access layer
+├── routes/           # FastAPI route handlers
+├── services/         # Business logic (StoryGenerationService)
+├── workers/          # Service Bus queue consumer
+├── tests/            # Unit tests
+├── config.py         # Configuration settings
+├── main.py           # FastAPI application
+├── pyproject.toml    # Dependencies
+└── Dockerfile        # Container image
+
+helm-charts/story/
+├── templates/        # Kubernetes manifests
+│   ├── deployment.yaml
+│   ├── worker-deployment.yaml
+│   ├── service.yaml
+│   ├── serviceaccount.yaml
+│   ├── httproute.yaml
+│   └── keda-scaledobject.yaml
+└── values.yaml       # Default configuration
+```
+
+### Dependencies
+
+Key packages added:
+- `openai>=1.57.4` - Azure OpenAI SDK
+- `azure-servicebus>=7.13.0` - Service Bus client
+- OpenTelemetry instrumentation packages
+- Standard FastAPI stack
+
+### Testing
+
+- Unit tests for models with 100% pass rate
+- All Python files compile successfully
+- Helm chart renders correctly with and without worker mode
+
+### Next Steps
+
+Integration with infrastructure:
+1. Provision Cosmos DB container `stories` with hierarchical partition key
+2. Create Service Bus queue `story-jobs`
+3. Set up Azure OpenAI deployment
+4. Configure workload identity for story service
+5. Add to CI/CD pipelines
+
+---
+
 ## 2025-11-26 - Prometheus Remote Write to Azure Monitor Workspace
 
 Added Prometheus remote write capability to the OTEL Collector to send metrics to Azure Monitor Workspace for Prometheus.

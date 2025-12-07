@@ -99,6 +99,7 @@ async def lifespan(app: FastAPI):
     story_routes.tracer = tracer
     story_routes.stories_generated_counter = stories_generated_counter
     story_routes.stories_viewed_counter = stories_viewed_counter
+    story_routes.initialize_auth(settings.azure_tenant_id, settings.app_id_uri)
 
     logger.info("Story Service initialized successfully")
 

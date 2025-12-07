@@ -1,11 +1,19 @@
 """REST API routes for story operations."""
 import logging
+import sys
 from datetime import datetime
-from typing import List
+from pathlib import Path
+from typing import Callable, List
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Header, Depends
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
+
+# Add shared module to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "shared"))
+
+from shared.auth.dependencies import create_auth_dependency
+from shared.auth.models import AuthContext
 
 from models.story import Story, StoryCreate
 from repositories.story_repository import StoryRepository
@@ -13,38 +21,33 @@ from services.story_generation_service import StoryGenerationService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/stories", tags=["stories"])
+router = APIRouter(prefix="/story", tags=["Story"])
 
 # Global instances (injected at startup)
 story_repository: StoryRepository | None = None
 story_generation_service: StoryGenerationService | None = None
+get_auth_context: Callable | None = None
 tracer = None
 stories_generated_counter = None
 stories_viewed_counter = None
 
 
-def get_owner_id_from_token(authorization: str = Header(None)) -> str:
+def initialize_auth(tenant_id: str, app_id_uri: str):
     """
-    Extract owner ID from Authorization header.
-    
-    For now, this is a placeholder. In production, this should validate
-    the JWT token and extract the owner ID (Entra OID).
-    
-    Args:
-        authorization: Authorization header with Bearer token
-        
-    Returns:
-        Owner ID (Entra OID)
-        
-    Raises:
-        HTTPException: If token is missing or invalid
+    Initialize auth dependency with service settings.
+
+    Called from main.py during startup.
     """
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid authorization token")
-    
-    # TODO: Implement proper JWT validation and extract owner_id
-    # For now, return a placeholder
-    return "placeholder-owner-id"
+    global get_auth_context
+    get_auth_context = create_auth_dependency(tenant_id, app_id_uri)
+    logger.info(f"Auth initialized with tenant_id={tenant_id}, audience={app_id_uri}")
+
+
+def auth_dependency(authorization: str = Header(None)) -> AuthContext:
+    """FastAPI dependency wrapper for auth context."""
+    if get_auth_context is None:
+        raise RuntimeError("Auth not initialized")
+    return get_auth_context(authorization=authorization)
 
 
 class GenerateStoryRequest(BaseModel):
@@ -65,7 +68,8 @@ class GenerateStoryResponse(BaseModel):
 async def generate_story(
     trip_id: UUID,
     request: GenerateStoryRequest | None = None,
-    owner_id: str = Depends(get_owner_id_from_token),
+    auth_ctx: AuthContext = Depends(auth_dependency),
+    authorization: str = Header(None),
 ):
     """
     Trigger story generation for a trip.
@@ -76,13 +80,25 @@ async def generate_story(
     Args:
         trip_id: Trip ID
         request: Generation request with optional story_date
-        owner_id: Owner ID from authentication token
+        auth_ctx: Authentication context
+        authorization: Authorization header for token extraction
         
     Returns:
         Story generation response
     """
     if not story_repository or not story_generation_service:
         raise HTTPException(status_code=503, detail="Service not initialized")
+
+    # Only users can generate stories
+    if not auth_ctx.is_user:
+        raise HTTPException(status_code=403, detail="Only users can generate stories")
+
+    from shared.auth.models import UserPrincipal
+    user = auth_ctx.principal
+    if not isinstance(user, UserPrincipal):
+        raise HTTPException(status_code=403, detail="Invalid principal type")
+
+    owner_id = user.subject_id
 
     # Default to today if not specified
     story_date = request.story_date if request else None
@@ -115,12 +131,15 @@ async def generate_story(
             message="Story already exists",
         )
 
+    # Extract token for context fetching
+    token = authorization.split(" ", 1)[1] if authorization and authorization.startswith("Bearer ") else None
+
     # Generate story
     story = await story_generation_service.generate_story(
         owner_id=owner_id,
         trip_id=trip_id,
         story_date=story_date,
-        owner_token=None,  # TODO: Pass actual token
+        owner_token=token,
     )
 
     # Persist story
@@ -151,20 +170,31 @@ async def generate_story(
 @router.get("/{trip_id}", response_model=List[Story])
 async def list_stories(
     trip_id: UUID,
-    owner_id: str = Depends(get_owner_id_from_token),
+    auth_ctx: AuthContext = Depends(auth_dependency),
 ):
     """
     List all stories for a trip.
     
     Args:
         trip_id: Trip ID
-        owner_id: Owner ID from authentication token
+        auth_ctx: Authentication context
         
     Returns:
         List of stories
     """
     if not story_repository:
         raise HTTPException(status_code=503, detail="Service not initialized")
+
+    # Only users can list stories
+    if not auth_ctx.is_user:
+        raise HTTPException(status_code=403, detail="Only users can list stories")
+
+    from shared.auth.models import UserPrincipal
+    user = auth_ctx.principal
+    if not isinstance(user, UserPrincipal):
+        raise HTTPException(status_code=403, detail="Invalid principal type")
+
+    owner_id = user.subject_id
 
     logger.info(
         "Listing stories",
@@ -190,7 +220,7 @@ async def list_stories(
 async def get_story(
     trip_id: UUID,
     story_id: str,
-    owner_id: str = Depends(get_owner_id_from_token),
+    auth_ctx: AuthContext = Depends(auth_dependency),
 ):
     """
     Get a specific story.
@@ -198,13 +228,24 @@ async def get_story(
     Args:
         trip_id: Trip ID
         story_id: Story ID
-        owner_id: Owner ID from authentication token
+        auth_ctx: Authentication context
         
     Returns:
         Story details
     """
     if not story_repository:
         raise HTTPException(status_code=503, detail="Service not initialized")
+
+    # Only users can get stories
+    if not auth_ctx.is_user:
+        raise HTTPException(status_code=403, detail="Only users can get stories")
+
+    from shared.auth.models import UserPrincipal
+    user = auth_ctx.principal
+    if not isinstance(user, UserPrincipal):
+        raise HTTPException(status_code=403, detail="Invalid principal type")
+
+    owner_id = user.subject_id
 
     logger.info(
         "Fetching story",
