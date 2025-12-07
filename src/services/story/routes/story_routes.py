@@ -1,4 +1,5 @@
 """REST API routes for story operations."""
+import asyncio
 import logging
 import sys
 from datetime import datetime
@@ -117,10 +118,14 @@ async def generate_story(
     )
 
     # Check if story already exists (idempotency)
-    existing_story = story_repository.get_story(
-        story_id=story_id,
-        owner_id=owner_id,
-        trip_id=str(trip_id),
+    loop = asyncio.get_event_loop()
+    existing_story = await loop.run_in_executor(
+        None,
+        lambda: story_repository.get_story(
+            story_id=story_id,
+            owner_id=owner_id,
+            trip_id=str(trip_id),
+        ),
     )
 
     if existing_story:
@@ -142,8 +147,11 @@ async def generate_story(
         owner_token=token,
     )
 
-    # Persist story
-    story_repository.create_story(story)
+    # Persist story (run in executor)
+    await loop.run_in_executor(
+        None,
+        lambda: story_repository.create_story(story),
+    )
 
     # Update metrics
     if stories_generated_counter:
@@ -204,9 +212,14 @@ async def list_stories(
         },
     )
 
-    stories = story_repository.list_stories_by_trip(
-        owner_id=owner_id,
-        trip_id=str(trip_id),
+    # Run synchronous repository call in executor
+    loop = asyncio.get_event_loop()
+    stories = await loop.run_in_executor(
+        None,
+        lambda: story_repository.list_stories_by_trip(
+            owner_id=owner_id,
+            trip_id=str(trip_id),
+        ),
     )
 
     # Update metrics
@@ -256,10 +269,15 @@ async def get_story(
         },
     )
 
-    story = story_repository.get_story(
-        story_id=story_id,
-        owner_id=owner_id,
-        trip_id=str(trip_id),
+    # Run synchronous repository call in executor
+    loop = asyncio.get_event_loop()
+    story = await loop.run_in_executor(
+        None,
+        lambda: story_repository.get_story(
+            story_id=story_id,
+            owner_id=owner_id,
+            trip_id=str(trip_id),
+        ),
     )
 
     if not story:

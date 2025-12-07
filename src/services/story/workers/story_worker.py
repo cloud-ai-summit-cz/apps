@@ -103,10 +103,16 @@ class StoryWorker:
 
             # Check if story already exists (idempotency)
             story_id = f"story_{job.story_date}"
-            existing_story = self.story_repository.get_story(
-                story_id=story_id,
-                owner_id=job.owner_id,
-                trip_id=job.trip_id,
+            
+            # Run synchronous repository call in executor
+            loop = asyncio.get_event_loop()
+            existing_story = await loop.run_in_executor(
+                None,
+                lambda: self.story_repository.get_story(
+                    story_id=story_id,
+                    owner_id=job.owner_id,
+                    trip_id=job.trip_id,
+                ),
             )
 
             if existing_story:
@@ -125,8 +131,11 @@ class StoryWorker:
                 owner_token=None,  # Worker uses system credentials
             )
 
-            # Persist story
-            self.story_repository.create_story(story)
+            # Persist story (run in executor)
+            await loop.run_in_executor(
+                None,
+                lambda: self.story_repository.create_story(story),
+            )
 
             logger.info(
                 "Story job completed",

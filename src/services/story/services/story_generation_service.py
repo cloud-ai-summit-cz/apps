@@ -228,16 +228,6 @@ Format the response as JSON with this structure:
         )
 
         try:
-            # Fetch context data (use default token if not provided)
-            trip_data, toy_data = await asyncio.gather(
-                self.fetch_trip_context(str(trip_id), owner_token or ""),
-                self.fetch_toy_context(
-                    trip_data.get("toy_id") if (trip_data := await self.fetch_trip_context(str(trip_id), owner_token or "")) else "",
-                    owner_token or "",
-                ) if owner_token else asyncio.sleep(0, result=None),
-                return_exceptions=True,
-            )
-
             # Fetch trip data first
             trip_data = await self.fetch_trip_context(str(trip_id), owner_token or "")
             
