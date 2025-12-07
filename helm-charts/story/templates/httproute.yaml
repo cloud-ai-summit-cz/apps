@@ -1,0 +1,53 @@
+{{- if and .Values.httpRoute.enabled .Values.httpRoute.parentRefs .Values.httpRoute.hosts }}
+{{- $fullName := include "story.fullname" . }}
+{{- $hostname := .Values.ingress.publicIpFqdn | default "" }}
+{{- range $index, $host := .Values.httpRoute.hosts }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ printf "%s-%d" $fullName (add $index 1) }}
+  labels:
+    {{- include "story.labels" $ | nindent 4 }}
+spec:
+  parentRefs:
+    {{- range $.Values.httpRoute.parentRefs }}
+    - {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- if $hostname }}
+  hostnames:
+    - {{ $hostname | quote }}
+  {{- end }}
+  rules:
+    {{- range $host.paths }}
+    - matches:
+        - path:
+            type: {{ .pathType | default "PathPrefix" }}
+            value: {{ .path | default "/" | quote }}
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: {{ $fullName }}
+          port: {{ $.Values.service.port }}
+          weight: 1
+      {{- if .rewrite }}
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            {{- if .rewrite.hostname }}
+            hostname: {{ .rewrite.hostname | quote }}
+            {{- end }}
+            {{- if .rewrite.path }}
+            path:
+              type: {{ .rewrite.path.type | default "ReplacePrefixMatch" | quote }}
+              {{- if .rewrite.path.replacePrefixMatch }}
+              replacePrefixMatch: {{ .rewrite.path.replacePrefixMatch | quote }}
+              {{- end }}
+              {{- if .rewrite.path.replaceFullPath }}
+              replaceFullPath: {{ .rewrite.path.replaceFullPath | quote }}
+              {{- end }}
+            {{- end }}
+      {{- end }}
+    {{- end }}
+---
+{{- end }}
+{{- end }}

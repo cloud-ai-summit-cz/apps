@@ -1,0 +1,34 @@
+{{- if .Values.worker.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "story.fullname" . }}-worker
+  labels:
+    {{- include "story.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  scaleTargetRef:
+    name: {{ include "story.fullname" . }}-worker
+  minReplicaCount: {{ .Values.worker.replicaCount }}
+  maxReplicaCount: 10
+  pollingInterval: 30
+  cooldownPeriod: 300
+  triggers:
+  - type: azure-servicebus
+    metadata:
+      queueName: {{ .Values.env.STORY_JOBS_QUEUE_NAME | default "story-jobs" }}
+      namespace: {{ tpl .Values.env.SERVICE_BUS_NAMESPACE . }}
+      messageCount: "5"
+    authenticationRef:
+      name: {{ include "story.fullname" . }}-keda-trigger-auth
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: {{ include "story.fullname" . }}-keda-trigger-auth
+  labels:
+    {{- include "story.labels" . | nindent 4 }}
+spec:
+  podIdentity:
+    provider: azure-workload
+{{- end }}
