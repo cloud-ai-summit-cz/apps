@@ -4,6 +4,91 @@ Chronological journal of implementation decisions, progress, and completed work.
 
 ---
 
+## 2025-12-08 - Add-On Service Implementation
+
+Implemented the Add-On service according to specifications in `specs/services/addon/`.
+
+### Core Implementation
+- **Service Structure**: Created full FastAPI service with models, repositories, routes, services, and workers
+- **Data Models**: Implemented Pydantic models for AddonOrder with lifecycle states (pending → in_progress → fulfilled/failed)
+- **Cosmos DB Repository**: Implemented HPK (Hierarchical Partition Key) with `owner_id` and `trip_id` for high cardinality and owner isolation
+- **API Endpoints**:
+  - `POST /addon/trips/{trip_id}/addons` - Create order with idempotency via `Idempotency-Key` header
+  - `GET /addon/trips/{trip_id}/addons` - List orders for a trip (owner-scoped)
+  - `GET /addon/addons/{order_id}` - Get single order by ID
+- **Authentication**: JWT-based auth with ownership validation via Trip/Toy services
+- **Idempotency**: Implemented via header-based key with Cosmos DB lookup
+
+### Fulfillment Workflow
+- **Service Bus Integration**: Queue-based fulfillment via `addon-fulfill` queue
+- **Worker Service**: Async worker consuming queue messages to:
+  1. Update order status to `in_progress`
+  2. Call Demo Media service to generate addon image
+  3. Upload image to Azure Blob Storage (`fulfillment` container)
+  4. Update Trip gallery via REST API call
+  5. Update order status to `fulfilled` with media reference
+- **Error Handling**: Retry logic with backoff, poison message handling (max 3 retries), dead-letter queue for failures
+- **System Identity**: Worker uses managed identity to call Trip Service with system scope
+
+### Observability
+- **OpenTelemetry**: Full instrumentation with traces and metrics
+- **Custom Metrics**:
+  - `addons_ordered_total` - Counter for orders created
+  - `addon_fulfillment_duration_seconds` - Histogram for fulfillment duration
+  - `addon_fulfillment_processed_total` - Counter for processed fulfillments
+  - `addon_worker_retries_total` - Counter for worker retries
+- **Structured Logging**: Fields include `owner_id`, `trip_id`, `order_id`, `addon_type`, `status`
+- **Distributed Tracing**: Spans for `addon.order.create` and `addon.fulfill`
+
+### Deployment
+- **Helm Charts**: Created charts for both API and worker deployments
+  - API: Standard deployment with HPA (CPU 70%, 1-10 replicas)
+  - Worker: Separate deployment with KEDA autoscaling based on Service Bus queue depth
+- **KEDA ScaledObject**: Autoscales worker based on queue message count (target: 5 messages per replica)
+- **Service Account**: Configured with workload identity for Azure service authentication
+- **HTTPRoute**: Gateway API routing for `/api/addons` → `/addon`
+
+### Infrastructure
+- **Cosmos DB**: Added `addons` container with hierarchical partition key `/owner_id` and `/trip_id`
+- **Service Bus**: Created Standard tier namespace with `addon-fulfill` queue
+  - Max delivery count: 3
+  - Lock duration: 5 minutes
+  - Dead-letter on message expiration enabled
+  - Local auth disabled (managed identity only)
+- **Managed Identity**: Added `addon` workload identity with federated credentials
+- **RBAC Assignments**:
+  - Cosmos DB Built-in Data Contributor (addon identity)
+  - Service Bus Data Sender (addon identity)
+  - Service Bus Data Receiver (addon identity)
+  - Storage Blob Data Contributor (addon identity)
+
+### Testing
+- **Unit Tests**: Created tests for Pydantic models and validation logic
+- Tests cover: model creation, field validation, status transitions, idempotency key handling
+
+### Technical Decisions
+1. **Hierarchical Partition Key**: Chose `/owner_id/tripId` for Cosmos container to ensure high cardinality and enable efficient owner-scoped queries without cross-partition scans
+2. **Separate Worker Deployment**: Decoupled worker from API for independent scaling and resource allocation
+3. **KEDA for Worker Scaling**: Auto-scale workers based on queue depth rather than CPU/memory for better responsiveness to workload
+4. **Idempotency via Header**: Used HTTP header approach (common pattern) rather than request body to keep order creation payload clean
+5. **System Identity for Gallery Update**: Worker uses managed identity to call Trip Service as a system actor, avoiding user context propagation complexity
+6. **Service Bus Standard Tier**: Chose Standard over Basic for dead-letter queue support and better reliability
+7. **Non-Fatal Gallery Update**: Gallery update failure doesn't fail the entire fulfillment since the generated image is still in storage and can be recovered
+
+### Known Limitations
+- Trip Service internal endpoint for gallery updates needs to be implemented (currently uses placeholder)
+- Demo Media service endpoint `/generate/addon` needs to be implemented
+- No integration tests yet (requires running infrastructure)
+
+### Next Steps
+- Implement Demo Media service addon generation endpoint
+- Add Trip Service internal endpoint for system-initiated gallery updates
+- Add integration tests with Cosmos/Service Bus emulators
+- Configure environment-specific values (staging/production) in Helm values
+- Set up ArgoCD application for automated deployment
+
+---
+
 ## 2025-11-26 - Prometheus Remote Write to Azure Monitor Workspace
 
 Added Prometheus remote write capability to the OTEL Collector to send metrics to Azure Monitor Workspace for Prometheus.
