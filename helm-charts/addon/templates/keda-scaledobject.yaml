@@ -1,0 +1,36 @@
+{{- if .Values.worker.keda.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "addon.worker.fullname" . }}
+  labels:
+    {{- include "addon.labels" . | nindent 4 }}
+    {{- include "addon.worker.selectorLabels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ include "addon.worker.fullname" . }}
+  minReplicaCount: {{ .Values.worker.keda.minReplicaCount }}
+  maxReplicaCount: {{ .Values.worker.keda.maxReplicaCount }}
+  pollingInterval: {{ .Values.worker.keda.pollingInterval }}
+  cooldownPeriod: {{ .Values.worker.keda.cooldownPeriod }}
+  triggers:
+  - type: azure-servicebus
+    metadata:
+      queueName: {{ .Values.worker.keda.queueName }}
+      namespace: {{ .Values.worker.keda.namespace }}
+      messageCount: "{{ .Values.worker.keda.messageCount }}"
+    authenticationRef:
+      name: {{ include "addon.worker.fullname" . }}-keda-trigger-auth
+
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: {{ include "addon.worker.fullname" . }}-keda-trigger-auth
+  labels:
+    {{- include "addon.labels" . | nindent 4 }}
+spec:
+  podIdentity:
+    provider: azure-workload
+    identityId: {{ .Values.worker.keda.connectionIdentity }}
+{{- end }}

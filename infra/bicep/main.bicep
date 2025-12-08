@@ -29,6 +29,11 @@ var workloadIdentities = [
     serviceAccountName: 'trip-service'
   }
   {
+    name: 'addon'
+    serviceAccountNamespace: 'toytrip-staging'
+    serviceAccountName: 'addon-service'
+  }
+  {
     name: 'otelcollector'
     serviceAccountNamespace: 'toytrip-staging'
     serviceAccountName: 'otel-collector'
@@ -117,6 +122,8 @@ var roleDefinitions = {
   MonitoringReader: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '43d0d8ad-25c7-4714-9337-8ba259a9fe05')
   LogAnalyticsContributor: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '92aaf0da-9dab-42b6-94a3-d43ce8d16293')
   GrafanaAdmin: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '22926164-76b3-42b3-bc55-97df8dab3e41')
+  ServiceBusDataSender: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '69a216fc-b8fb-44d8-bc22-1f3c2cd27a39')
+  ServiceBusDataReceiver: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4f6d3b9b-027b-4f4c-9142-0e5a2a2247e0')
 }
 
 // Special: Managed Identity Operator needs to be scoped to the kubelet identity resource
@@ -181,6 +188,19 @@ module cosmos 'modules/cosmosSqlServerless.bicep' = {
     publicNetworkAccess: enablePublicAccess ? 'Enabled' : 'Disabled'
     privateEndpointSubnetId: enablePrivateEndpoints ? networking.outputs.privateEndpointsSubnetId : ''
     privateDnsZoneId: enablePrivateEndpoints ? networking.outputs.cosmosDnsZoneId : ''
+  }
+}
+
+// Service Bus module for addon fulfillment queue
+module serviceBus 'modules/serviceBus.bicep' = {
+  name: 'serviceBusDeploy'
+  params: {
+    baseNameNoDash: baseNameNoDash
+    baseNameDash: baseNameDash
+    location: location
+    publicNetworkAccess: enablePublicAccess ? 'Enabled' : 'Disabled'
+    privateEndpointSubnetId: enablePrivateEndpoints ? networking.outputs.privateEndpointsSubnetId : ''
+    privateDnsZoneId: '' // TODO: Add Service Bus private DNS zone if needed
   }
 }
 
@@ -381,6 +401,48 @@ resource cosmosWorkloadRoleAssignments 'Microsoft.DocumentDB/databaseAccounts/sq
   }
 ]
 
+// =============================================================================
+// Service Bus RBAC (for addon service only)
+// =============================================================================
+
+resource serviceBusExisting 'Microsoft.ServiceBus/namespaces@2022-10-01-preview' existing = {
+  name: 'sb-${baseNameDash}'
+  dependsOn: [
+    serviceBus
+  ]
+}
+
+// Find addon identity index
+var addonIdentityIdx = [for (identity, idx) in workloadIdentitySpecs: identity.name == 'addon' ? idx : -1]
+var addonIdentityIndex = filter(addonIdentityIdx, idx => idx >= 0)[0]
+
+// Addon needs to send and receive messages from Service Bus
+resource addonServiceBusSenderRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: serviceBusExisting
+  name: guid(serviceBusExisting.id, 'addon', roleDefinitions.ServiceBusDataSender)
+  properties: {
+    roleDefinitionId: roleDefinitions.ServiceBusDataSender
+    principalId: workloadUserAssignedIdentities[addonIdentityIndex].properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+  dependsOn: [
+    serviceBus
+  ]
+}
+
+resource addonServiceBusReceiverRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: serviceBusExisting
+  name: guid(serviceBusExisting.id, 'addon', roleDefinitions.ServiceBusDataReceiver)
+  properties: {
+    roleDefinitionId: roleDefinitions.ServiceBusDataReceiver
+    principalId: workloadUserAssignedIdentities[addonIdentityIndex].properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+  dependsOn: [
+    serviceBus
+  ]
+}
+
 output vnetId string = networking.outputs.vnetId
 output vnetName string = networking.outputs.vnetName
 output aksClusterId string = aks.outputs.aksClusterId
@@ -394,6 +456,9 @@ output storageAccountId string = storage.outputs.storageAccountId
 output storageAccountName string = storage.outputs.storageAccountName
 output cosmosAccountId string = cosmos.outputs.cosmosAccountId
 output cosmosAccountName string = cosmos.outputs.cosmosAccountName
+output serviceBusNamespaceId string = serviceBus.outputs.serviceBusNamespaceId
+output serviceBusNamespaceName string = serviceBus.outputs.serviceBusNamespaceName
+output serviceBusEndpoint string = serviceBus.outputs.serviceBusEndpoint
 output workloadIdentities array = [
   for identity in workloadIdentitySpecs: {
     name: identity.name

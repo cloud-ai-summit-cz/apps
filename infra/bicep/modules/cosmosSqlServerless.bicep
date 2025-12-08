@@ -83,6 +83,23 @@ resource tripsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
   }
 }
 
+// Create addons container with hierarchical partition key
+resource addonsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-11-15' = {
+  parent: db
+  name: 'addons'
+  properties: {
+    resource: {
+      id: 'addons'
+      partitionKey: {
+        paths: ['/owner_id', '/trip_id']
+        kind: 'MultiHash'
+        version: 2
+      }
+    }
+    options: {}
+  }
+}
+
 // Private Endpoint for Cosmos DB (optional)
 resource cosmosPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-01-01' = if (!empty(privateEndpointSubnetId) && !empty(privateDnsZoneId)) {
   name: 'pep-${baseNameDash}-cosmos'
@@ -127,6 +144,8 @@ output cosmosDatabaseId string = db.id
 output cosmosToysContainerId string = toysContainer.id
 @description('Cosmos trips container resource ID.')
 output cosmosTripsContainerId string = tripsContainer.id
+@description('Cosmos addons container resource ID.')
+output cosmosAddonsContainerId string = addonsContainer.id
 @description('Cosmos account name used.')
 output cosmosAccountName string = 'cosmos${baseNameNoDash}'
 @description('Cosmos database name used.')
@@ -135,5 +154,7 @@ output cosmosDatabaseName string = 'toytripdb'
 output cosmosToysContainerName string = 'toys'
 @description('Cosmos trips container name used.')
 output cosmosTripsContainerName string = 'trips'
+@description('Cosmos addons container name used.')
+output cosmosAddonsContainerName string = 'addons'
 @description('Document endpoint URI for data-plane SDK access.')
 output cosmosEndpoint string = account.properties.documentEndpoint

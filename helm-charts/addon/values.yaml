@@ -1,0 +1,129 @@
+# Default values for addon service
+# This file provides sensible defaults that can be overridden by environment-specific values
+
+# API deployment
+api:
+  replicaCount: 1
+
+  image:
+    repository: "" # Override with ACR login server + image name
+    pullPolicy: IfNotPresent
+    tag: "latest" # Override with commit SHA in env-specific values
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8003
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+  livenessProbe:
+    enabled: true
+    httpGet:
+      path: /health
+      port: 8003
+    initialDelaySeconds: 30
+    periodSeconds: 10
+
+  readinessProbe:
+    enabled: true
+    httpGet:
+      path: /health
+      port: 8003
+    initialDelaySeconds: 10
+    periodSeconds: 5
+
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+# Worker deployment
+worker:
+  replicaCount: 1
+
+  image:
+    repository: "" # Override with ACR login server + image name
+    pullPolicy: IfNotPresent
+    tag: "latest" # Override with commit SHA in env-specific values
+
+  command:
+    - python
+    - workers/fulfillment_worker.py
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+  # KEDA autoscaling for Service Bus queue
+  keda:
+    enabled: false
+    minReplicaCount: 0
+    maxReplicaCount: 10
+    pollingInterval: 30
+    cooldownPeriod: 300
+    queueName: "addon-fulfill"
+    messageCount: 5 # Scale up when there are 5+ messages per replica
+    namespace: "" # Service Bus namespace (e.g., myns.servicebus.windows.net)
+    connectionIdentity: "" # Managed identity client ID for KEDA
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+workloadIdentity:
+  enabled: false
+  clientId: ""
+
+httpRoute:
+  enabled: false
+  parentRefs: []
+  hosts:
+    - host: ""
+      paths:
+        - path: /api/addons
+          pathType: PathPrefix
+          rewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /addon
+
+# Environment variables (override in env-specific values)
+env:
+  AZURE_TENANT_ID: "{{ .Values.auth.tenantId }}"
+  APP_ID_URI: "{{ .Values.auth.appIdUri }}"
+  COSMOS_ENDPOINT: "{{ .Values.cosmos.endpoint }}"
+  COSMOS_DATABASE_NAME: "{{ .Values.cosmos.databaseName }}"
+  COSMOS_CONTAINER_NAME: "addons"
+  SERVICE_BUS_NAMESPACE: "{{ .Values.serviceBus.namespace }}"
+  SERVICE_BUS_QUEUE_NAME: "addon-fulfill"
+  STORAGE_ACCOUNT_URL: "{{ .Values.storage.accountUrl }}"
+  BLOB_CONTAINER_FULFILLMENT: "fulfillment"
+  TRIP_SERVICE_URL: "http://trip-service"
+  TOY_SERVICE_URL: "http://toy-service"
+  DEMO_MEDIA_SERVICE_URL: "http://demo-media-service"
+  API_HOST: "0.0.0.0"
+  API_PORT: "8003"
+  LOG_LEVEL: "INFO"
+  AZURE_CLIENT_ID: "{{ .Values.workloadIdentity.clientId }}"
+  AZURE_TOKEN_CREDENTIALS: "WorkloadIdentityCredential"
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
